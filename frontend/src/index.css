@@ -1,0 +1,265 @@
+@import "tailwindcss";
+
+@theme {
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  /* Premium Google Fonts Typography Config */
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-display: 'Outfit', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+
+  /* Yard Status colors as requested */
+  --color-kachha: hsl(24, 95%, 50%); /* Orange */
+  --color-pakka: hsl(142, 76%, 36%); /* Green */
+  --color-loss: hsl(0, 84%, 60%); /* Red */
+  --color-revenue: hsl(217, 91%, 60%); /* Blue */
+}
+
+@layer base {
+  :root {
+    --background: 215 28% 97.5%;
+    --foreground: 224 71.4% 4.1%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 71.4% 4.1%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 71.4% 4.1%;
+
+    --primary: 250 89% 60%;
+    --primary-foreground: 210 20% 98%;
+
+    --secondary: 220 14.3% 95.9%;
+    --secondary-foreground: 220.9 39.3% 11%;
+
+    --muted: 220 14.3% 95.9%;
+    --muted-foreground: 220 8.9% 46.1%;
+
+    --accent: 220 14.3% 95.9%;
+    --accent-foreground: 220.9 39.3% 11%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 215 20% 92%;
+    --input: 215 20% 92%;
+    --ring: 250 89% 60%;
+
+    --radius: 1rem;
+  }
+
+  .dark {
+    --background: 224 71.4% 4.1%;
+    --foreground: 210 20% 98%;
+
+    --card: 224 71.4% 4.1%;
+    --card-foreground: 210 20% 98%;
+
+    --popover: 224 71.4% 4.1%;
+    --popover-foreground: 210 20% 98%;
+
+    --primary: 250 89% 65%;
+    --primary-foreground: 224 71.4% 4.1%;
+
+    --secondary: 215 27.9% 16.9%;
+    --secondary-foreground: 210 20% 98%;
+
+    --muted: 215 27.9% 16.9%;
+    --muted-foreground: 217.9 10.6% 64.9%;
+
+    --accent: 215 27.9% 16.9%;
+    --accent-foreground: 210 20% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 215 27.9% 16.9%;
+    --input: 215 27.9% 16.9%;
+    --ring: 250 89% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased selection:bg-primary/20;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Custom premium scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/30 transition-colors;
+}
+
+/* Premium card hover effects */
+.glow-card {
+  position: relative;
+  overflow: hidden;
+}
+.glow-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255,255,255,0.06) 0%, transparent 80%);
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.glow-card:hover::after {
+  opacity: 1;
+}
+
+/* ============================================
+   PRINT STYLES (Thermal Receipt & Gate Pass)
+   ============================================ */
+@media print {
+  /* Global reset for print */
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 100% !important;
+    font-size: 9px !important;
+    line-height: 1.15 !important;
+  }
+
+  @page {
+    size: A4 portrait !important;
+    margin: 5mm 6mm !important; /* Minimal margins to maximize content area on a single A4 page */
+  }
+
+  /* Hide sidebar and all other non-printing content */
+  aside,
+  nav,
+  header,
+  footer,
+  button,
+  .no-print,
+  .w-64,
+  button[type="button"],
+  button[type="submit"] {
+    display: none !important;
+  }
+
+  /* Remove all flex screen bounds for printing */
+  .flex, .h-screen, .w-screen, .overflow-hidden, .bg-slate-50 {
+    height: auto !important;
+    width: auto !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+
+  /* Make sure container occupies full page width */
+  .print-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  /* Premium A4 Gate Pass Sizing & Styles */
+  .print-card {
+    border: 2px solid #000000 !important; /* Premium solid border instead of dashed */
+    border-radius: 0px !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 8px 12px !important; /* Tight padding to save space */
+    margin: 0 auto !important;
+    width: 100% !important;
+    max-width: 800px !important; /* Widened for A4 layout, preventing vertical stretching */
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Tighten spacing between child components */
+  .print-card .space-y-4 > * + * {
+    margin-top: 0.4rem !important; /* Reduce space-y-4 from 16px to 6px in printing */
+  }
+  .print-card .space-y-3 > * + * {
+    margin-top: 0.3rem !important;
+  }
+  .print-card .space-y-2 > * + * {
+    margin-top: 0.2rem !important;
+  }
+
+  /* Adjust typography for high-contrast print */
+  .print-card text, .print-card span, .print-card p, .print-card div {
+    color: #000000 !important;
+  }
+
+  /* Compress tables */
+  .print-card table {
+    margin-top: 2px !important;
+    margin-bottom: 2px !important;
+  }
+  
+  .print-card table th,
+  .print-card table td {
+    padding: 1.5px 3px !important; /* Tight padding inside cells */
+    font-size: 8px !important; /* Highly compact font size */
+    line-height: 1.05 !important;
+  }
+
+  .print-card table th {
+    font-size: 8.5px !important;
+    padding: 2px 3px !important;
+  }
+
+  /* Gate Photos Sizing for print */
+  .print-card .grid-cols-3 {
+    gap: 6px !important;
+  }
+  .print-card img {
+    height: 52px !important; /* Smaller images to fit comfortably */
+    width: auto !important;
+    margin: 0 auto !important;
+  }
+
+  /* Signatures section padding */
+  .print-card .grid-cols-2 {
+    gap: 2px !important;
+  }
+}

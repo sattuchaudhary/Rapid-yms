@@ -1,0 +1,446 @@
+// ============================================
+// YMS SaaS - Prisma Database Schema
+// PostgreSQL + Multi-Tenant Architecture
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum TenantStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum Role {
+  SUPER_ADMIN
+  TENANT_ADMIN
+  MANAGER
+  SUPERVISOR
+  EXECUTIVE
+  GUARD
+}
+
+enum VehicleType {
+  TW   // 2-Wheeler
+  THREE_W // 3-Wheeler
+  FW   // 4-Wheeler
+  CV   // Commercial Vehicle
+}
+
+enum YardStatus {
+  KACHHA
+  PAKKA
+  RELEASED
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+}
+
+enum ReleaseStatus {
+  REQUESTED
+  APPROVED
+  PAYMENT_VERIFIED
+  GATE_PASS_ISSUED
+  RELEASED
+}
+
+// ============================================
+// TENANTS (Yards / Organizations)
+// ============================================
+
+model Tenant {
+  id            String       @id @default(uuid())
+  yardName      String
+  address       String
+  gstNumber     String?
+  contactPerson String
+  phone         String
+  email         String       @unique
+  subdomain     String       @unique
+  logo          String?      // S3 URL
+  status        TenantStatus @default(ACTIVE)
+  
+  // Subscription
+  planName      String       @default("basic")
+  storageLimit  Int          @default(5120) // MB
+  billingModel  String       @default("HYBRID") // "VEHICLE" | "STORAGE" | "HYBRID" | "UNLIMITED"
+  maxVehicles   Int          @default(1000)     // Max vehicles allowed (-1 for unlimited)
+  
+  // Storage Integration
+  storageAccountId String?
+  storageAccount   StorageAccount? @relation("TenantStorageAccount", fields: [storageAccountId], references: [id])
+  customBucketName String? // If we use a separate bucket but the same account
+
+  // Notification Configs
+  notificationChannel String       @default("EMAIL") // "EMAIL", "WHATSAPP", "SMS", "NONE"
+  smtpHost            String?
+  smtpPort            Int?
+  smtpUser            String?
+  smtpPass            String?
+  smtpFrom            String?
+  twilioSid           String?
+  twilioAuth          String?
+  twilioFrom          String?
+  whatsappApiKey      String?
+  
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  // Relations
+  users         User[]
+  vehicles      Vehicle[]
+  billings      ParkingBilling[]
+  releases      Release[]
+  auditLogs     AuditLog[]
+  yardLocations YardLocation[]
+  parkingRates  ParkingRate[]
+  banks         Bank[]
+
+  @@map("tenants")
+}
+
+// ============================================
+// USERS & ROLES
+// ============================================
+
+model User {
+  id         String     @id @default(uuid())
+  tenantId   String
+  name       String
+  email      String
+  phone      String?
+  password   String     // bcrypt hashed
+  role       Role
+  status     UserStatus @default(ACTIVE)
+  requiresPasswordReset Boolean @default(false)
+  
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  // Relations
+  tenant     Tenant     @relation(fields: [tenantId], references: [id])
+  vehicles   Vehicle[]  @relation("EnteredBy")
+  releases   Release[]  @relation("ApprovedBy")
+  auditLogs  AuditLog[]
+
+  @@unique([email, tenantId])
+  @@map("users")
+}
+
+// ============================================
+// VEHICLES (Core Module)
+// ============================================
+
+model Vehicle {
+  id            String      @id @default(uuid())
+  tenantId      String      // MULTI-TENANT KEY
+  
+  // Vehicle Info
+  vehicleNumber String
+  chassisNumber String?
+  engineNumber  String?
+  vehicleType   VehicleType
+  brand         String?
+  model         String?
+  color         String?
+  
+  // Repo Info
+  bankName      String
+  bankId        String?
+  repoAgency    String?
+  repoDate      DateTime?
+  entryDate     DateTime    @default(now())
+  
+  // Customer Info
+  customerName  String?
+  customerPhone String?
+  customerSign  String?     // S3 URL (signature image)
+  
+  // Yard Workflow
+  yardStatus    YardStatus  @default(KACHHA)
+  repoKitDate   DateTime?   // When repo kit submitted → goes Pakka
+  pakkaDate     DateTime?
+  billingStart  DateTime?
+  
+  // Location in yard
+  yardLocationId String?
+  
+  // Staff who entered
+  enteredById   String?
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // Relations
+  tenant        Tenant          @relation(fields: [tenantId], references: [id])
+  enteredBy     User?           @relation("EnteredBy", fields: [enteredById], references: [id])
+  photos        VehiclePhoto[]
+  inventory     VehicleInventory[]
+  billing       ParkingBilling?
+  release       Release?
+  yardLocation  YardLocation?   @relation(fields: [yardLocationId], references: [id])
+  bank          Bank?           @relation("VehicleBank", fields: [bankId], references: [id])
+
+  @@unique([vehicleNumber, tenantId])
+  @@index([tenantId, yardStatus])
+  @@index([tenantId, entryDate])
+  @@index([tenantId, bankName])
+  @@index([tenantId, bankId])
+  @@map("vehicles")
+}
+
+// ============================================
+// VEHICLE PHOTOS
+// ============================================
+
+model VehiclePhoto {
+  id          String   @id @default(uuid())
+  vehicleId   String
+  tenantId    String   // for fast filtering
+  
+  photoType   String   // front, back, left, right, dashboard, odometer, chassis, damage
+  s3Url       String
+  fileSize    Int      @default(0) // size in bytes
+  thumbnailUrl String?
+  
+  // Metadata
+  takenAt     DateTime @default(now())
+  gpsLat      Float?
+  gpsLng      Float?
+  
+  createdAt   DateTime @default(now())
+
+  // Relations
+  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@map("vehicle_photos")
+}
+
+// ============================================
+// VEHICLE INVENTORY CHECKLIST
+// ============================================
+
+model VehicleInventory {
+  id          String   @id @default(uuid())
+  vehicleId   String
+  tenantId    String
+
+  itemName    String   // rc, key, battery, toolkit, etc.
+  isPresent   Boolean  @default(false)
+  remarks     String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@map("vehicle_inventory")
+}
+
+// ============================================
+// PARKING BILLING ENGINE
+// ============================================
+
+model ParkingBilling {
+  id              String        @id @default(uuid())
+  vehicleId       String        @unique
+  tenantId        String
+
+  // Rates (per day)
+  dailyRate       Float
+  
+  // Calculated fields
+  totalDays       Int           @default(0)
+  totalAmount     Float         @default(0)
+  bankPayableDays Int           @default(0)
+  bankPayable     Float         @default(0)
+  customerPayableDays Int       @default(0)
+  customerPayable Float         @default(0)
+  extraDays       Int           @default(0)
+  extraAmount     Float         @default(0)
+  
+  paymentStatus   PaymentStatus @default(PENDING)
+  paidAmount      Float         @default(0)
+  
+  billingStartDate DateTime?
+  approvedTillDate DateTime?    // Bank approved release date
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  vehicle         Vehicle       @relation(fields: [vehicleId], references: [id])
+  tenant          Tenant        @relation(fields: [tenantId], references: [id])
+
+  @@map("parking_billings")
+}
+
+// ============================================
+// RELEASE MANAGEMENT
+// ============================================
+
+model Release {
+  id              String        @id @default(uuid())
+  vehicleId       String        @unique
+  tenantId        String
+
+  releaseStatus   ReleaseStatus @default(REQUESTED)
+  releaseType     String        // KACHHA or PAKKA
+  
+  // Approval
+  approvedById    String?
+  approvedAt      DateTime?
+  
+  // Gate Pass
+  gatePassNumber  String?       @unique
+  gatePassUrl     String?       // PDF S3 URL
+  
+  // Documents
+  releaseLetter   String?       // S3 URL
+  customerIdProof String?       // S3 URL
+  paymentReceipt  String?       // S3 URL
+  
+  // Handover photos
+  handoverPhoto1  String?       // Customer with vehicle
+  handoverPhoto2  String?       // Front delivery
+  handoverPhoto3  String?       // Vehicle condition
+  
+  releasedAt      DateTime?
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  vehicle         Vehicle       @relation(fields: [vehicleId], references: [id])
+  tenant          Tenant        @relation(fields: [tenantId], references: [id])
+  approvedBy      User?         @relation("ApprovedBy", fields: [approvedById], references: [id])
+
+  @@map("releases")
+}
+
+// ============================================
+// YARD LOCATIONS (Stock Management)
+// ============================================
+
+model YardLocation {
+  id         String   @id @default(uuid())
+  tenantId   String
+  
+  zone       String   // A, B, CV-ZONE, etc.
+  slot       String   // A1, A2, B4, etc.
+  isOccupied Boolean  @default(false)
+  
+  createdAt  DateTime @default(now())
+
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  vehicles   Vehicle[]
+
+  @@unique([zone, slot, tenantId])
+  @@map("yard_locations")
+}
+
+// ============================================
+// AUDIT LOGS
+// ============================================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  tenantId   String
+  userId     String?
+  
+  module     String   // vehicles, billing, release, etc.
+  action     String   // created, updated, deleted, approved
+  details    Json?    // what changed
+  ipAddress  String?
+  
+  createdAt  DateTime @default(now())
+
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// ============================================
+// BANKS
+// ============================================
+
+model Bank {
+  id          String        @id @default(uuid())
+  tenantId    String
+  name        String
+  parentId    String?       // Self-relation
+  isThirdParty Boolean      @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  tenant      Tenant        @relation(fields: [tenantId], references: [id])
+  parent      Bank?         @relation("SubBanks", fields: [parentId], references: [id], onDelete: Cascade)
+  subBanks    Bank[]        @relation("SubBanks")
+  
+  parkingRates ParkingRate[]
+  vehicles     Vehicle[]     @relation("VehicleBank")
+
+  @@unique([tenantId, name, parentId])
+  @@map("banks")
+}
+
+// ============================================
+// PARKING RATES
+// ============================================
+
+model ParkingRate {
+  id          String      @id @default(uuid())
+  tenantId    String
+  bankId      String      // Foreign Key to Bank
+  vehicleType VehicleType
+  dailyRate   Float       // per day rate (e.g. 100, 250, 400)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
+  bank        Bank        @relation(fields: [bankId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, bankId, vehicleType])
+  @@map("parking_rates")
+}
+
+// ============================================
+// STORAGE ACCOUNTS
+// ============================================
+
+model StorageAccount {
+  id              String   @id @default(uuid())
+  name            String
+  provider        String   // "AWS_S3" | "CLOUDFLARE_R2"
+  accessKeyId     String
+  secretAccessKey String
+  region          String?
+  endpoint        String?  // for Cloudflare R2
+  bucketName      String   // default bucket name for this account
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenants         Tenant[] @relation("TenantStorageAccount")
+
+  @@map("storage_accounts")
+}
+

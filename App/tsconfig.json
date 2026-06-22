@@ -1,0 +1,29 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@/assets/*": [
+        "./assets/*"
+      ]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "src/components/animated-icon.tsx",
+    "src/components/app-tabs.tsx",
+    "src/components/app-tabs.web.tsx",
+    "src/app/explore.tsx",
+    "src/components/ui/collapsible.tsx",
+    "src/hooks/use-theme.ts"
+  ]
+}
