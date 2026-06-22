@@ -8,7 +8,7 @@ const SERVER_URL_KEY = 'yms_server_url';
 const USER_INFO_KEY = 'yms_user_info';
 
 // Default development IPs
-const DEFAULT_URL = 'http://192.168.1.22:5000';
+const DEFAULT_URL = 'https://rapid-yms.onrender.com';
 
 export const getServerUrl = async (): Promise<string> => {
   const saved = await SecureStore.getItemAsync(SERVER_URL_KEY);
