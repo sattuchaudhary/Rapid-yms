@@ -141,8 +141,15 @@ export const resolveTenantHost = async (req: Request, res: Response, next: NextF
       return res.json({ success: true, isRoot: true });
     }
 
-    const tenant = await getTenantBySubdomainService(subdomain);
-    res.json({ success: true, isRoot: false, data: tenant });
+    try {
+      const tenant = await getTenantBySubdomainService(subdomain);
+      return res.json({ success: true, isRoot: false, data: tenant });
+    } catch (err: any) {
+      if (err instanceof AppError && err.statusCode === 404) {
+        return res.json({ success: true, isRoot: true });
+      }
+      throw err;
+    }
   } catch (err) {
     next(err);
   }
