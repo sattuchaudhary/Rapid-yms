@@ -1011,7 +1011,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
                           Selected Custom Period
                         </span>
                         <span className="text-2xl font-black text-slate-850 block mt-1 font-display">
-                          {card.isCurrency ? `\u20B9${card.threeValues.today.amount.toLocaleString('en-IN')}` : card.threeValues.today}
+                          {card.isCurrency ? `\u20B9${(card.threeValues.today as any).amount.toLocaleString('en-IN')}` : (card.threeValues.today as any)}
                         </span>
                         <span className="text-[10px] text-slate-450 font-semibold block mt-1">
                           {card.isCurrency 
@@ -1029,8 +1029,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
                           <span className="text-[8px] uppercase font-black text-slate-400 block group-hover/btn:text-indigo-650 transition-colors">
                             Today
                           </span>
-                          <span className="text-sm font-black text-slate-800 block mt-0.5 font-display truncate w-full px-0.5" title={card.isCurrency ? `\u20B9${card.threeValues.today.amount.toLocaleString('en-IN')}` : String(card.threeValues.today)}>
-                            {card.isCurrency ? `\u20B9${card.threeValues.today.amount.toLocaleString('en-IN')}` : card.threeValues.today}
+                          <span className="text-sm font-black text-slate-800 block mt-0.5 font-display truncate w-full px-0.5" title={card.isCurrency ? `\u20B9${(card.threeValues.today as any).amount.toLocaleString('en-IN')}` : String(card.threeValues.today)}>
+                            {card.isCurrency ? `\u20B9${(card.threeValues.today as any).amount.toLocaleString('en-IN')}` : (card.threeValues.today as any)}
                           </span>
                           <span className="text-[8px] text-slate-450 font-semibold block mt-0.5 group-hover/btn:text-indigo-500">
                             {card.isCurrency 
@@ -1046,8 +1046,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
                           <span className="text-[8px] uppercase font-black text-slate-400 block group-hover/btn:text-indigo-650 transition-colors">
                             Month
                           </span>
-                          <span className="text-sm font-black text-slate-800 block mt-0.5 font-display truncate w-full px-0.5" title={card.isCurrency ? `\u20B9${card.threeValues.thisMonth.amount.toLocaleString('en-IN')}` : String(card.threeValues.thisMonth)}>
-                            {card.isCurrency ? `\u20B9${card.threeValues.thisMonth.amount.toLocaleString('en-IN')}` : card.threeValues.thisMonth}
+                          <span className="text-sm font-black text-slate-800 block mt-0.5 font-display truncate w-full px-0.5" title={card.isCurrency ? `\u20B9${(card.threeValues.thisMonth as any).amount.toLocaleString('en-IN')}` : String(card.threeValues.thisMonth)}>
+                            {card.isCurrency ? `\u20B9${(card.threeValues.thisMonth as any).amount.toLocaleString('en-IN')}` : (card.threeValues.thisMonth as any)}
                           </span>
                           <span className="text-[8px] text-slate-455 font-semibold block mt-0.5 group-hover/btn:text-indigo-500">
                             {card.isCurrency 
@@ -1063,8 +1063,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
                           <span className="text-[8px] uppercase font-black text-slate-400 block group-hover/btn:text-indigo-650 transition-colors">
                             Year
                           </span>
-                          <span className="text-sm font-black text-slate-800 block mt-0.5 font-display truncate w-full px-0.5" title={card.isCurrency ? `\u20B9${card.threeValues.thisYear.amount.toLocaleString('en-IN')}` : String(card.threeValues.thisYear)}>
-                            {card.isCurrency ? `\u20B9${card.threeValues.thisYear.amount.toLocaleString('en-IN')}` : card.threeValues.thisYear}
+                          <span className="text-sm font-black text-slate-800 block mt-0.5 font-display truncate w-full px-0.5" title={card.isCurrency ? `\u20B9${(card.threeValues.thisYear as any).amount.toLocaleString('en-IN')}` : String(card.threeValues.thisYear)}>
+                            {card.isCurrency ? `\u20B9${(card.threeValues.thisYear as any).amount.toLocaleString('en-IN')}` : (card.threeValues.thisYear as any)}
                           </span>
                           <span className="text-[8px] text-slate-455 font-semibold block mt-0.5 group-hover/btn:text-indigo-500">
                             {card.isCurrency 
