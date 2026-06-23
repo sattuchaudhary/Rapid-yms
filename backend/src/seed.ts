@@ -93,13 +93,14 @@ async function main() {
   });
 
   // YMS Super Admin User
+  const superAdminHashedPassword = await bcrypt.hash('SattuChaudhary@123#1234@', 12);
   const superAdmin = await prisma.user.create({
     data: {
       tenantId: systemTenant.id,
       name: 'YMS Super Admin',
-      email: 'superadmin@yms-saas.com',
+      email: 'brajtalk@gmail.com',
       phone: '+919999999999',
-      password: hashedPassword,
+      password: superAdminHashedPassword,
       role: 'SUPER_ADMIN',
       status: 'ACTIVE',
     },
@@ -272,7 +273,7 @@ async function main() {
 
   // 6. Create Inventory for Sample Vehicles
   const inventoryItems = ['RC', 'Key', 'Battery', 'Toolkit', 'Music System', 'Stepney', 'Mirrors', 'Seat Covers'];
-  
+
   await prisma.vehicleInventory.createMany({
     data: inventoryItems.map(item => ({
       vehicleId: vehicle1.id,
