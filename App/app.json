@@ -49,6 +49,12 @@
         "projectId": "c58eb3dc-2755-4687-ab38-62810de448c1"
       }
     },
-    "owner": "rapidbuddy"
+    "owner": "rapidbuddy",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/c58eb3dc-2755-4687-ab38-62810de448c1"
+    }
   }
 }
