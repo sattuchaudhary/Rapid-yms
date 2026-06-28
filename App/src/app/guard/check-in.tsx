@@ -751,8 +751,8 @@ export default function CheckInScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 80}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       style={{ flex: 1 }}
     >
       <ThemedView style={styles.container}>
@@ -1735,7 +1735,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 12,
-    paddingBottom: 120,
+    paddingBottom: 80,
   },
   stepContainer: {
     gap: 12,
