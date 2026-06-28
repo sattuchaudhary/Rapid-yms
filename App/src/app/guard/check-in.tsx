@@ -25,6 +25,7 @@ import { bluetoothService } from '@/services/bluetooth';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import NetInfo from '@react-native-community/netinfo';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   Camera,
   Check,
@@ -41,6 +42,8 @@ import {
   ChevronDown,
   Search,
   Plus,
+  Calendar,
+  Clock,
 } from 'lucide-react-native';
 
 const { width, height } = Dimensions.get('window');
@@ -114,7 +117,31 @@ export default function CheckInScreen() {
   const [chassisNumber, setChassisNumber] = useState('');
   const [engineNumber, setEngineNumber] = useState('');
   const [placeOfPossession, setPlaceOfPossession] = useState('');
-  const [entryDateTime] = useState(() => new Date().toLocaleString('en-IN'));
+  const [entryDate, setEntryDate] = useState(() => new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      const newDate = new Date(entryDate);
+      newDate.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+      setEntryDate(newDate);
+      if (Platform.OS === 'android') {
+        setTimeout(() => setShowTimePicker(true), 200);
+      }
+    }
+  };
+
+  const handleTimeChange = (event: any, selectedTime?: Date) => {
+    setShowTimePicker(false);
+    if (selectedTime) {
+      const newDate = new Date(entryDate);
+      newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+      setEntryDate(newDate);
+    }
+  };
+
   const [repoAgentName, setRepoAgentName] = useState('');
   const [repoAgencyName, setRepoAgencyName] = useState('');
 
@@ -409,7 +436,7 @@ export default function CheckInScreen() {
             <td><strong>Chassis Number:</strong> ${chassisNumber || '-'}</td>
           </tr>
           <tr>
-            <td><strong>Entry Date & Time:</strong> ${entryDateTime}</td>
+            <td><strong>Entry Date & Time:</strong> ${entryDate.toLocaleString('en-IN')}</td>
             <td><strong>Possession Place:</strong> ${placeOfPossession || '-'}</td>
           </tr>
         </table>
@@ -549,6 +576,7 @@ export default function CheckInScreen() {
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         inventory: databaseChecklist,
+        entryDate: entryDate.toISOString(),
       };
 
       if (isOnline) {
@@ -723,8 +751,8 @@ export default function CheckInScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 80}
       style={{ flex: 1 }}
     >
       <ThemedView style={styles.container}>
@@ -985,14 +1013,31 @@ export default function CheckInScreen() {
               />
             </View>
 
-            {/* Date & Time (auto date fetch) */}
+            {/* Date & Time with Edit Calendar option */}
             <View style={styles.fieldGroup}>
-              <ThemedText style={styles.fieldLabel}>Date & Time (Auto-fetched)</ThemedText>
-              <TextInput
-                style={[styles.textInput, { backgroundColor: '#F1F5F9', color: '#64748B' }]}
-                value={entryDateTime}
-                editable={false}
-              />
+              <ThemedText style={styles.fieldLabel}>Date & Time *</ThemedText>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity
+                  style={[styles.pickerBtn, { flex: 1 }]}
+                  onPress={() => setShowDatePicker(true)}
+                  activeOpacity={0.8}
+                >
+                  <ThemedText style={styles.pickerBtnText}>
+                    {entryDate.toLocaleDateString('en-IN')}
+                  </ThemedText>
+                  <Calendar size={16} color="#64748B" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.pickerBtn, { flex: 1 }]}
+                  onPress={() => setShowTimePicker(true)}
+                  activeOpacity={0.8}
+                >
+                  <ThemedText style={styles.pickerBtnText}>
+                    {entryDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                  </ThemedText>
+                  <Clock size={16} color="#64748B" />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Repo Agent Name */}
@@ -1230,7 +1275,7 @@ export default function CheckInScreen() {
                 </View>
                 <View style={styles.receiptRow}>
                   <ThemedText style={styles.receiptLabel}>DATE & TIME</ThemedText>
-                  <ThemedText style={styles.receiptVal}>{entryDateTime}</ThemedText>
+                  <ThemedText style={styles.receiptVal}>{entryDate.toLocaleString('en-IN')}</ThemedText>
                 </View>
                 <View style={styles.receiptRow}>
                   <ThemedText style={styles.receiptLabel}>SYNC STATUS</ThemedText>
@@ -1591,6 +1636,24 @@ export default function CheckInScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {showDatePicker && (
+        <DateTimePicker
+          value={entryDate}
+          mode="date"
+          display="default"
+          onChange={handleDateChange}
+        />
+      )}
+
+      {showTimePicker && (
+        <DateTimePicker
+          value={entryDate}
+          mode="time"
+          display="default"
+          onChange={handleTimeChange}
+        />
+      )}
     </ThemedView>
     </KeyboardAvoidingView>
   );
@@ -1672,7 +1735,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 12,
-    paddingBottom: 30,
+    paddingBottom: 120,
   },
   stepContainer: {
     gap: 12,
