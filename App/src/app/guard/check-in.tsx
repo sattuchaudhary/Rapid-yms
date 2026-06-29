@@ -19,6 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system';
 import { queueOfflineJob, getCachedVehicleByNumber } from '@/services/sqlite';
 import { apiRequest, getUserInfo } from '@/services/api';
 import { bluetoothService } from '@/services/bluetooth';
@@ -336,14 +337,14 @@ export default function CheckInScreen() {
   };
 
   const generateHTMLReport = async () => {
-    // Convert all photos to base64 and display in a clean 3-column layout
+    // Convert all photos to base64 and display in a clean 3-column layout (fit containment)
     const photoElements = await Promise.all(
       photos.map(async (p) => {
         const base64 = await uriToBase64(p.uri);
         return `
-          <div style="width: 31.3%; margin: 1%; text-align: center; border: 1px solid #e2e8f0; padding: 6px; border-radius: 6px; box-sizing: border-box; background-color: #f8fafc; page-break-inside: avoid;">
-            <p style="margin: 0 0 4px 0; font-size: 7px; font-weight: bold; text-transform: uppercase; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${p.type.replace('_', ' ')}</p>
-            <img src="${base64}" style="width: 100%; height: 100px; object-fit: cover; border-radius: 4px;" />
+          <div style="width: 31.3%; margin: 1%; text-align: center; border: 1px solid #cbd5e1; padding: 4px; border-radius: 6px; box-sizing: border-box; background-color: #f1f5f9; page-break-inside: avoid;">
+            <p style="margin: 0 0 4px 0; font-size: 8px; font-weight: bold; text-transform: uppercase; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${p.type.replace('_', ' ')}</p>
+            <img src="${base64}" style="width: 100%; height: 100px; object-fit: contain; background-color: #e2e8f0; border-radius: 4px;" />
           </div>
         `;
       })
@@ -356,19 +357,19 @@ export default function CheckInScreen() {
       const item2 = checklist[i + 1];
 
       const renderCell = (item: any) => {
-        if (!item) return '<td style="border: 1px solid #e2e8f0; width: 50%;"></td>';
+        if (!item) return '<td style="border: 1px solid #cbd5e1; width: 50%;"></td>';
         let details = '';
         if (item.itemName === 'Front Tyre' || item.itemName === 'Back Tyre') {
           details = item.make ? ` (${item.make})` : '';
         }
         
         const isPresentBadge = item.isPresent
-          ? '<span style="background-color: #def7ec; color: #03543f; padding: 1px 5px; border-radius: 3px; font-weight: bold; font-size: 7px; text-transform: uppercase;">YES</span>'
-          : '<span style="background-color: #fde8e8; color: #9b1c1c; padding: 1px 5px; border-radius: 3px; font-weight: bold; font-size: 7px; text-transform: uppercase;">NO</span>';
+          ? '<span style="background-color: #def7ec; color: #03543f; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 9px; text-transform: uppercase;">YES</span>'
+          : '<span style="background-color: #fde8e8; color: #9b1c1c; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 9px; text-transform: uppercase;">NO</span>';
 
         return `
-          <td style="padding: 4px 6px; border: 1px solid #e2e8f0; font-size: 9px; width: 50%; color: #0f172a; line-height: 1.2;">
-            <span style="font-weight: 700; color: #334155;">${item.itemName}${details}:</span> ${isPresentBadge} ${item.remarks ? `<span style="font-size: 8px; color: #64748b; font-style: italic;">[${item.remarks}]</span>` : ''}
+          <td style="padding: 6px 8px; border: 1px solid #cbd5e1; font-size: 11px; width: 50%; color: #0f172a; line-height: 1.3;">
+            <span style="font-weight: 700; color: #334155;">${item.itemName}${details}:</span> ${isPresentBadge} ${item.remarks ? `<span style="font-size: 10px; color: #64748b; font-style: italic;">[${item.remarks}]</span>` : ''}
           </td>
         `;
       };
@@ -388,28 +389,25 @@ export default function CheckInScreen() {
         <meta charset="utf-8">
         <title>Gate Pass Receipt - ${tenantName}</title>
         <style>
-          @page { size: A4; margin: 10mm; }
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 0; margin: 0; color: #0f172a; font-size: 10px; line-height: 1.3; }
-          .header { text-align: center; margin-bottom: 12px; border-bottom: 3px double #1e3a8a; padding-bottom: 6px; }
-          .header h1 { margin: 0; font-size: 20px; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.75px; font-weight: 800; }
-          .header p { margin: 3px 0 0 0; font-size: 9px; color: #475569; font-weight: 600; }
-          .section-title { font-size: 9px; font-weight: 800; text-transform: uppercase; color: #1e3a8a; background-color: #eff6ff; padding: 4px 8px; margin: 10px 0 5px 0; border-left: 4px solid #1e3a8a; border-radius: 0 4px 4px 0; page-break-inside: avoid; }
-          table { width: 100%; border-collapse: collapse; margin-bottom: 8px; page-break-inside: avoid; }
-          td { padding: 4px 6px; border: 1px solid #e2e8f0; font-size: 9px; color: #334155; }
+          @page { size: A4; margin: 8mm; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 0; margin: 0; color: #0f172a; font-size: 12px; line-height: 1.4; }
+          .header { text-align: center; margin-bottom: 15px; border-bottom: 3px double #1e3a8a; padding-bottom: 8px; }
+          .header h1 { margin: 0; font-size: 24px; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.75px; font-weight: 800; }
+          .header p { margin: 4px 0 0 0; font-size: 11px; color: #475569; font-weight: 600; }
+          .section-title { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #1e3a8a; background-color: #eff6ff; padding: 5px 10px; margin: 14px 0 6px 0; border-left: 5px solid #1e3a8a; border-radius: 0 4px 4px 0; page-break-inside: avoid; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 10px; page-break-inside: avoid; }
+          td { padding: 6px 8px; border: 1px solid #cbd5e1; font-size: 11px; color: #1e293b; }
           .info-table td { width: 50%; }
           .info-table tr:nth-child(even) { background-color: #f8fafc; }
-          .photos-grid { display: flex; flex-wrap: wrap; justify-content: flex-start; margin-top: 6px; page-break-inside: avoid; }
+          .photos-grid { display: flex; flex-wrap: wrap; justify-content: flex-start; margin-top: 8px; page-break-inside: avoid; }
         </style>
       </head>
       <body>
         <div class="header">
           <h1>${tenantName}</h1>
           <p>${tenantAddress}</p>
-          <p style="font-size: 9px; margin-top: 4px; border: 1px solid #1e3a8a; display: inline-block; padding: 2px 8px; border-radius: 4px; color: #1e3a8a; background-color: #eff6ff; font-weight: bold; letter-spacing: 0.5px;">
+          <p style="font-size: 10px; margin-top: 5px; border: 1px solid #1e3a8a; display: inline-block; padding: 3px 10px; border-radius: 4px; color: #1e3a8a; background-color: #eff6ff; font-weight: bold; letter-spacing: 0.5px;">
             YARD POSSESSION & VEHICLE CONDITION REPORT
-          </p>
-          <p style="margin: 5px 0 0 0; font-size: 11px; font-weight: bold; color: #0f172a; letter-spacing: 0.5px;">
-            SERIAL NO: ${serialNumber ? `#${serialNumber}` : 'PENDING SYNC'}
           </p>
         </div>
 
@@ -488,7 +486,7 @@ export default function CheckInScreen() {
             : ''
         }
 
-        <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 8px; text-align: center; font-size: 8px; font-weight: bold; color: #64748b; letter-spacing: 0.5px;">
+        <div style="margin-top: 30px; border-top: 1px solid #cbd5e1; padding-top: 8px; text-align: center; font-size: 10px; font-weight: bold; color: #64748b; letter-spacing: 0.5px;">
           *** THIS IS A COMPUTER SYSTEM GENERATED DOCUMENT. PHYSICAL SIGNATURE NOT REQUIRED. ***
         </div>
       </body>
@@ -514,9 +512,21 @@ export default function CheckInScreen() {
       setSubmitting(true);
       const html = await generateHTMLReport();
       const { uri } = await Print.printToFileAsync({ html });
-      await Sharing.shareAsync(uri, {
+
+      // Clean vehicle number to form a safe, lowercase alphanumeric filename
+      const cleanPlate = vehicleNumber.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const filename = `${cleanPlate || 'vehicle'}.pdf`;
+      const targetUri = `${FileSystem.cacheDirectory}${filename}`;
+
+      // Copy the file to specify custom filename on sharing
+      await FileSystem.copyAsync({
+        from: uri,
+        to: targetUri,
+      });
+
+      await Sharing.shareAsync(targetUri, {
         mimeType: 'application/pdf',
-        dialogTitle: 'Shree Parking Yard Invoice',
+        dialogTitle: `${vehicleNumber.toUpperCase()} Gate Pass`,
         UTI: 'com.adobe.pdf',
       });
     } catch (e: any) {
