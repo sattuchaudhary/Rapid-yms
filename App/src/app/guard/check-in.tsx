@@ -336,14 +336,14 @@ export default function CheckInScreen() {
   };
 
   const generateHTMLReport = async () => {
-    // Convert all photos to base64 and display 4 per row to save space
+    // Convert all photos to base64 and display in a clean 3-column layout
     const photoElements = await Promise.all(
       photos.map(async (p) => {
         const base64 = await uriToBase64(p.uri);
         return `
-          <div style="width: 23%; margin: 1%; text-align: center; border: 1px solid #ddd; padding: 4px; border-radius: 4px; box-sizing: border-box; background-color: #fafafa;">
-            <p style="margin: 0 0 4px 0; font-size: 8px; font-weight: bold; text-transform: uppercase; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${p.type}</p>
-            <img src="${base64}" style="width: 100%; height: 50px; object-fit: cover; border-radius: 2px;" />
+          <div style="width: 31.3%; margin: 1%; text-align: center; border: 1px solid #e2e8f0; padding: 6px; border-radius: 6px; box-sizing: border-box; background-color: #f8fafc; page-break-inside: avoid;">
+            <p style="margin: 0 0 4px 0; font-size: 7px; font-weight: bold; text-transform: uppercase; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${p.type.replace('_', ' ')}</p>
+            <img src="${base64}" style="width: 100%; height: 100px; object-fit: cover; border-radius: 4px;" />
           </div>
         `;
       })
@@ -356,15 +356,19 @@ export default function CheckInScreen() {
       const item2 = checklist[i + 1];
 
       const renderCell = (item: any) => {
-        if (!item) return '<td style="border: 1px solid #cbd5e1; width: 50%;"></td>';
+        if (!item) return '<td style="border: 1px solid #e2e8f0; width: 50%;"></td>';
         let details = '';
         if (item.itemName === 'Front Tyre' || item.itemName === 'Back Tyre') {
           details = item.make ? ` (${item.make})` : '';
         }
-        const isPresentText = item.isPresent ? '✅' : '❌';
+        
+        const isPresentBadge = item.isPresent
+          ? '<span style="background-color: #def7ec; color: #03543f; padding: 1px 5px; border-radius: 3px; font-weight: bold; font-size: 7px; text-transform: uppercase;">YES</span>'
+          : '<span style="background-color: #fde8e8; color: #9b1c1c; padding: 1px 5px; border-radius: 3px; font-weight: bold; font-size: 7px; text-transform: uppercase;">NO</span>';
+
         return `
-          <td style="padding: 3px 5px; border: 1px solid #cbd5e1; font-size: 9px; width: 50%; color: #0f172a;">
-            <span style="font-weight: 700;">${item.itemName}${details}:</span> ${isPresentText} ${item.remarks ? `<span style="font-size: 8px; color: #64748b;">[${item.remarks}]</span>` : ''}
+          <td style="padding: 4px 6px; border: 1px solid #e2e8f0; font-size: 9px; width: 50%; color: #0f172a; line-height: 1.2;">
+            <span style="font-weight: 700; color: #334155;">${item.itemName}${details}:</span> ${isPresentBadge} ${item.remarks ? `<span style="font-size: 8px; color: #64748b; font-style: italic;">[${item.remarks}]</span>` : ''}
           </td>
         `;
       };
@@ -384,29 +388,27 @@ export default function CheckInScreen() {
         <meta charset="utf-8">
         <title>Gate Pass Receipt - ${tenantName}</title>
         <style>
-          @page { size: A4; margin: 8mm; }
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 0; margin: 0; color: #0f172a; font-size: 10px; line-height: 1.25; }
-          .header { text-align: center; margin-bottom: 8px; border-bottom: 2px solid #2563eb; padding-bottom: 4px; }
-          .header h1 { margin: 0; font-size: 18px; color: #2563eb; text-transform: uppercase; letter-spacing: 0.5px; }
-          .header p { margin: 2px 0 0 0; font-size: 10px; color: #64748b; font-weight: bold; }
-          .section-title { font-size: 9px; font-weight: bold; text-transform: uppercase; color: #1e3a8a; background-color: #f1f5f9; padding: 3px 6px; margin: 8px 0 4px 0; border-left: 3px solid #2563eb; }
-          table { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
-          th { background-color: #f8fafc; padding: 3px 5px; border: 1px solid #cbd5e1; font-size: 9px; text-align: left; text-transform: uppercase; color: #475569; }
-          td { padding: 3px 5px; border: 1px solid #cbd5e1; font-size: 9px; }
+          @page { size: A4; margin: 10mm; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 0; margin: 0; color: #0f172a; font-size: 10px; line-height: 1.3; }
+          .header { text-align: center; margin-bottom: 12px; border-bottom: 3px double #1e3a8a; padding-bottom: 6px; }
+          .header h1 { margin: 0; font-size: 20px; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.75px; font-weight: 800; }
+          .header p { margin: 3px 0 0 0; font-size: 9px; color: #475569; font-weight: 600; }
+          .section-title { font-size: 9px; font-weight: 800; text-transform: uppercase; color: #1e3a8a; background-color: #eff6ff; padding: 4px 8px; margin: 10px 0 5px 0; border-left: 4px solid #1e3a8a; border-radius: 0 4px 4px 0; page-break-inside: avoid; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 8px; page-break-inside: avoid; }
+          td { padding: 4px 6px; border: 1px solid #e2e8f0; font-size: 9px; color: #334155; }
           .info-table td { width: 50%; }
-          .photos-grid { display: flex; flex-wrap: wrap; justify-content: flex-start; margin-top: 4px; }
-          .footer-signs { display: flex; justify-content: space-between; margin-top: 25px; }
-          .sign-col { text-align: center; width: 30%; border-top: 1px dashed #64748b; padding-top: 4px; font-size: 9px; font-weight: bold; color: #475569; }
+          .info-table tr:nth-child(even) { background-color: #f8fafc; }
+          .photos-grid { display: flex; flex-wrap: wrap; justify-content: flex-start; margin-top: 6px; page-break-inside: avoid; }
         </style>
       </head>
       <body>
         <div class="header">
           <h1>${tenantName}</h1>
           <p>${tenantAddress}</p>
-          <p style="font-size: 9px; margin-top: 3px; border: 1px solid #2563eb; display: inline-block; padding: 1px 6px; border-radius: 3px; color: #2563eb; background-color: #eff6ff; font-weight: bold;">
-            YARD POSSESSION & CONDITION REPORT
+          <p style="font-size: 9px; margin-top: 4px; border: 1px solid #1e3a8a; display: inline-block; padding: 2px 8px; border-radius: 4px; color: #1e3a8a; background-color: #eff6ff; font-weight: bold; letter-spacing: 0.5px;">
+            YARD POSSESSION & VEHICLE CONDITION REPORT
           </p>
-          <p style="margin: 4px 0 0 0; font-size: 11px; font-weight: bold; color: #0f172a; letter-spacing: 0.5px;">
+          <p style="margin: 5px 0 0 0; font-size: 11px; font-weight: bold; color: #0f172a; letter-spacing: 0.5px;">
             SERIAL NO: ${serialNumber ? `#${serialNumber}` : 'PENDING SYNC'}
           </p>
         </div>
@@ -486,10 +488,8 @@ export default function CheckInScreen() {
             : ''
         }
 
-        <div class="footer-signs">
-          <div class="sign-col" style="margin-top: 30px;">Yard In-Charge</div>
-          <div class="sign-col" style="margin-top: 30px;">Repo Agent</div>
-          <div class="sign-col" style="margin-top: 30px;">Customer</div>
+        <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 8px; text-align: center; font-size: 8px; font-weight: bold; color: #64748b; letter-spacing: 0.5px;">
+          *** THIS IS A COMPUTER SYSTEM GENERATED DOCUMENT. PHYSICAL SIGNATURE NOT REQUIRED. ***
         </div>
       </body>
       </html>
