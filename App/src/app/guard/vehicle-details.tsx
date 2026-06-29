@@ -22,7 +22,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import NetInfo from '@react-native-community/netinfo';
 import { documentDirectory, downloadAsync } from 'expo-file-system/legacy';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Print from 'expo-print';
 import {

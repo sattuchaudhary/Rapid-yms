@@ -14,12 +14,12 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useNavigation } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { queueOfflineJob, getCachedVehicleByNumber } from '@/services/sqlite';
 import { apiRequest, getUserInfo } from '@/services/api';
 import { bluetoothService } from '@/services/bluetooth';
@@ -90,6 +90,7 @@ type VehicleType = 'TW' | 'THREE_W' | 'FW' | 'CV';
 
 export default function CheckInScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [isOfflineSaved, setIsOfflineSaved] = useState(false);
@@ -106,6 +107,40 @@ export default function CheckInScreen() {
   const [categoryPickerVisible, setCategoryPickerVisible] = useState(false);
   const [bankSearch, setBankSearch] = useState('');
   const [pickerMode, setPickerMode] = useState<'direct' | 'third_party' | 'sub'>('direct');
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      const hasUnsavedChanges = 
+        vehicleNumber.trim() || 
+        customerName.trim() || 
+        customerPhone.trim() || 
+        brand.trim() || 
+        model.trim() || 
+        photos.length > 0 || 
+        bankCategory;
+
+      if (step === 4 || !hasUnsavedChanges) {
+        return;
+      }
+
+      e.preventDefault();
+
+      Alert.alert(
+        'Discard Entry?',
+        'You have entered vehicle details. Going back will discard this entry. Do you want to go back?',
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => {} },
+          {
+            text: 'Discard & Go Back',
+            style: 'destructive',
+            onPress: () => navigation.dispatch(e.data.action),
+          },
+        ]
+      );
+    });
+
+    return unsubscribe;
+  }, [navigation, step, vehicleNumber, customerName, customerPhone, brand, model, photos, bankCategory]);
 
   // Step 1: Specs Form
   const [vehicleNumber, setVehicleNumber] = useState('');
