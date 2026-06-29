@@ -12,7 +12,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
+import { getParkingDailyRate } from '@/constants/rates';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { getCachedVehicleByNumber, queueOfflineJob } from '@/services/sqlite';
@@ -43,9 +44,59 @@ const PAYMENT_MODES = ['Cash', 'UPI', 'NEFT/RTGS', 'Cheque', 'DD'];
 export default function ReleaseVehicleScreen() {
   const router = useRouter();
   const { plate, id } = useLocalSearchParams<{ plate?: string; id?: string }>();
+  const navigation = useNavigation();
 
   // State
   const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      // If we already finished or have no unsaved progress, let them go back
+      const hasUnsavedChanges = 
+        releasedTo.trim() || 
+        mobileNumber.trim() || 
+        thirdPartyName.trim() || 
+        thirdPartyPhone.trim() || 
+        remarks.trim() || 
+        releaseLetterUri || 
+        aadharFrontUri || 
+        aadharBackUri || 
+        handoverPhotoUri;
+
+      if (!hasUnsavedChanges || showReceipt) {
+        return;
+      }
+
+      e.preventDefault();
+
+      Alert.alert(
+        'Discard Release?',
+        'You have entered release details or uploaded documents. Going back will discard this progress. Do you want to go back?',
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => {} },
+          {
+            text: 'Discard & Go Back',
+            style: 'destructive',
+            onPress: () => navigation.dispatch(e.data.action),
+          },
+        ]
+      );
+    });
+
+    return unsubscribe;
+  }, [
+    navigation, 
+    releasedTo, 
+    mobileNumber, 
+    thirdPartyName, 
+    thirdPartyPhone, 
+    remarks, 
+    releaseLetterUri, 
+    aadharFrontUri, 
+    aadharBackUri, 
+    handoverPhotoUri,
+    showReceipt
+  ]);
   const [submitting, setSubmitting] = useState(false);
   const [vehicle, setVehicle] = useState<any>(null);
   const [searchPlate, setSearchPlate] = useState('');
@@ -130,15 +181,7 @@ export default function ReleaseVehicleScreen() {
     d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
   const getDailyRate = (v: any) => {
-    if (v && v.bank && v.bank.parkingRates) {
-      const match = v.bank.parkingRates.find((r: any) => r.vehicleType === v.vehicleType);
-      if (match) return match.dailyRate;
-    }
-    const type = v?.vehicleType;
-    if (type === 'TW') return 50;
-    if (type === 'THREE_W') return 100;
-    if (type === 'CV') return 400;
-    return 150; // FW default
+    return getParkingDailyRate(v);
   };
 
   const parseDateText = (text: string): Date => {
@@ -396,8 +439,8 @@ export default function ReleaseVehicleScreen() {
       Alert.alert('Required', 'Please enter the Customer Name.');
       return;
     }
-    if (!mobileNumber.trim() || mobileNumber.trim().length < 10) {
-      Alert.alert('Required', 'Please enter a valid Customer Mobile Number.');
+    if (!mobileNumber.trim() || mobileNumber.trim().length !== 10 || !/^[6-9]/.test(mobileNumber.trim())) {
+      Alert.alert('Required', 'Please enter a valid 10-digit Indian Customer Mobile Number.');
       return;
     }
 
@@ -406,8 +449,8 @@ export default function ReleaseVehicleScreen() {
         Alert.alert('Required', 'Please enter the Third Party Name.');
         return;
       }
-      if (!thirdPartyPhone.trim() || thirdPartyPhone.trim().length < 10) {
-        Alert.alert('Required', 'Please enter a valid Third Party Mobile Number.');
+      if (!thirdPartyPhone.trim() || thirdPartyPhone.trim().length !== 10 || !/^[6-9]/.test(thirdPartyPhone.trim())) {
+        Alert.alert('Required', 'Please enter a valid 10-digit Indian Third Party Mobile Number.');
         return;
       }
     }
@@ -790,10 +833,10 @@ export default function ReleaseVehicleScreen() {
                   <TextInput
                     style={styles.fieldInputFullWidth}
                     value={mobileNumber}
-                    onChangeText={setMobileNumber}
+                    onChangeText={(text) => setMobileNumber(text.replace(/[^0-9]/g, ''))}
                     placeholder="9876543210"
                     placeholderTextColor="#94A3B8"
-                    keyboardType="phone-pad"
+                    keyboardType="numeric"
                     maxLength={10}
                   />
                 </View>
@@ -826,10 +869,10 @@ export default function ReleaseVehicleScreen() {
                       <TextInput
                         style={styles.fieldInputFullWidth}
                         value={thirdPartyPhone}
-                        onChangeText={setThirdPartyPhone}
+                        onChangeText={(text) => setThirdPartyPhone(text.replace(/[^0-9]/g, ''))}
                         placeholder="9876543210"
                         placeholderTextColor="#94A3B8"
-                        keyboardType="phone-pad"
+                        keyboardType="numeric"
                         maxLength={10}
                       />
                     </View>

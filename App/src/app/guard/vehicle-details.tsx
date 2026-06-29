@@ -25,6 +25,7 @@ import { documentDirectory, downloadAsync } from 'expo-file-system/legacy';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Print from 'expo-print';
+import { getParkingDailyRate } from '@/constants/rates';
 import {
   ChevronLeft,
   MoreVertical,
@@ -196,17 +197,7 @@ export default function VehicleDetailsScreen() {
   // Daily rate fallback
   const getDailyRate = () => {
     if (billing?.dailyRate) return billing.dailyRate;
-    
-    if (vehicle?.bank?.parkingRates) {
-      const match = vehicle.bank.parkingRates.find((r: any) => r.vehicleType === vehicle.vehicleType);
-      if (match) return match.dailyRate;
-    }
-
-    const type = vehicle?.vehicleType;
-    if (type === 'TW') return 50;
-    if (type === 'THREE_W') return 100;
-    if (type === 'CV') return 400;
-    return 150; // FW default
+    return getParkingDailyRate(vehicle);
   };
 
   // Duration Days

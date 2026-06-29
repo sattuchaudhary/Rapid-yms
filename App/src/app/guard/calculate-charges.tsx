@@ -25,6 +25,8 @@ import {
   Check,
 } from 'lucide-react-native';
 
+import { getParkingDailyRate } from '@/constants/rates';
+
 export default function CalculateChargesScreen() {
   const router = useRouter();
   const { id, plate } = useLocalSearchParams<{ id?: string; plate?: string }>();
@@ -109,15 +111,7 @@ export default function CalculateChargesScreen() {
 
   const initializeCalculation = (v: any) => {
     // Determine daily rate
-    let rate = 150;
-    if (v.bank && v.bank.parkingRates) {
-      const match = v.bank.parkingRates.find((r: any) => r.vehicleType === v.vehicleType);
-      if (match) rate = match.dailyRate;
-    } else {
-      if (v.vehicleType === 'TW') rate = 50;
-      else if (v.vehicleType === 'THREE_W') rate = 100;
-      else if (v.vehicleType === 'CV') rate = 400;
-    }
+    const rate = getParkingDailyRate(v);
     setDailyRateText(rate.toString());
 
     // Format entry date
