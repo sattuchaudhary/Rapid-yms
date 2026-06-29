@@ -53,7 +53,7 @@ const { width, height } = Dimensions.get('window');
 const INITIAL_CHECKLIST = [
   { itemName: 'RC-Original', isPresent: false, remarks: '' },
   { itemName: 'key', isPresent: false, remarks: '' },
-  { itemName: 'battry', isPresent: false, remarks: '' },
+  { itemName: 'Battery', isPresent: false, remarks: '' },
   { itemName: 'Horn', isPresent: false, remarks: '' },
   { itemName: 'Front Tyre', isPresent: false, make: '', remarks: '' },
   { itemName: 'Back Tyre', isPresent: false, make: '', remarks: '' },
@@ -761,8 +761,8 @@ export default function CheckInScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 30}
       style={{ flex: 1 }}
     >
       <ThemedView style={styles.container}>
@@ -946,8 +946,9 @@ export default function CheckInScreen() {
                 placeholder="Enter customer mobile number"
                 placeholderTextColor="#94A3B8"
                 value={customerPhone}
-                onChangeText={setCustomerPhone}
-                keyboardType="phone-pad"
+                onChangeText={(text) => setCustomerPhone(text.replace(/[^0-9]/g, ''))}
+                keyboardType="numeric"
+                maxLength={10}
               />
             </View>
 
@@ -1381,6 +1382,13 @@ export default function CheckInScreen() {
                       Alert.alert('Error', 'Customer name is required');
                       return;
                     }
+                    if (customerPhone.trim()) {
+                      const cleanPhone = customerPhone.trim().replace(/[^0-9]/g, '');
+                      if (cleanPhone.length !== 10 || !/^[6-9]/.test(cleanPhone)) {
+                        Alert.alert('Error', 'Please enter a valid 10-digit Indian mobile number');
+                        return;
+                      }
+                    }
 
                     // Run duplicate checks
                     setSubmitting(true);
@@ -1474,6 +1482,11 @@ export default function CheckInScreen() {
                 setSelectedThirdPartyId('');
                 setSelectedGroupName('');
                 setCategoryPickerVisible(false);
+                setTimeout(() => {
+                  setPickerMode('direct');
+                  setBankSearch('');
+                  setBankPickerVisible(true);
+                }, 300);
               }}
               activeOpacity={0.7}
             >
@@ -1490,6 +1503,11 @@ export default function CheckInScreen() {
                 setSelectedThirdPartyId('');
                 setSelectedGroupName('');
                 setCategoryPickerVisible(false);
+                setTimeout(() => {
+                  setPickerMode('third_party');
+                  setBankSearch('');
+                  setBankPickerVisible(true);
+                }, 300);
               }}
               activeOpacity={0.7}
             >
@@ -1555,7 +1573,7 @@ export default function CheckInScreen() {
         onRequestClose={() => setBankPickerVisible(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
           style={{ flex: 1 }}
         >
           <View style={styles.modalOverlay}>
@@ -1615,6 +1633,10 @@ export default function CheckInScreen() {
                         setBankId(b.id);
                         setBankName(b.name);
                         setBankPickerVisible(false);
+                        // Auto-open Vehicle Category picker next
+                        setTimeout(() => {
+                          setVehicleTypePickerVisible(true);
+                        }, 300);
                       }
                     }}
                     activeOpacity={0.7}

@@ -22,7 +22,9 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import NetInfo from '@react-native-community/netinfo';
 import { documentDirectory, downloadAsync } from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import * as Print from 'expo-print';
 import {
   ChevronLeft,
   MoreVertical,
@@ -58,6 +60,16 @@ export default function VehicleDetailsScreen() {
   // Custom Calculator States
   const [calcDays, setCalcDays] = useState('30');
   const [calcResult, setCalcResult] = useState<number | null>(null);
+
+  // Edit Vehicle States
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editVehicleNumber, setEditVehicleNumber] = useState('');
+  const [editBrand, setEditBrand] = useState('');
+  const [editModel, setEditModel] = useState('');
+  const [editChassisNumber, setEditChassisNumber] = useState('');
+  const [editEngineNumber, setEditEngineNumber] = useState('');
+  const [editCustomerName, setEditCustomerName] = useState('');
+  const [editCustomerPhone, setEditCustomerPhone] = useState('');
 
   // Photo Sharing & Viewer States
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
@@ -223,6 +235,282 @@ export default function VehicleDetailsScreen() {
     setCalcResult(days * getDailyRate());
   };
 
+  // Helper to convert URIs (local or remote) to base64
+  const uriToBase64 = async (uri: string): Promise<string> => {
+    try {
+      if (uri.startsWith('http')) {
+        const fileExtension = uri.split('.').pop()?.split('?')[0] || 'jpg';
+        const filename = `temp_img_${Math.random().toString(36).substring(7)}.${fileExtension}`;
+        const localUri = `${FileSystem.cacheDirectory}${filename}`;
+        const downloadResult = await FileSystem.downloadAsync(uri, localUri);
+        const base64 = await FileSystem.readAsStringAsync(downloadResult.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        return `data:image/jpeg;base64,${base64}`;
+      } else {
+        const base64 = await FileSystem.readAsStringAsync(uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        return `data:image/jpeg;base64,${base64}`;
+      }
+    } catch (err) {
+      console.warn('Error converting URI to base64:', err);
+      return uri; // fallback
+    }
+  };
+
+  const generateHTMLReport = async () => {
+    // Convert remote photos to base64
+    const photoElements = await Promise.all(
+      (vehicle?.photos || []).map(async (p: any) => {
+        const base64 = await uriToBase64(p.s3Url);
+        return `
+          <div style="width: 31.3%; margin: 1%; text-align: center; border: 1px solid #cbd5e1; padding: 4px; border-radius: 6px; box-sizing: border-box; background-color: #f1f5f9; page-break-inside: avoid;">
+            <p style="margin: 0 0 4px 0; font-size: 8px; font-weight: bold; text-transform: uppercase; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${p.photoType.replace('_', ' ')}</p>
+            <img src="${base64}" style="width: 100%; height: 100px; object-fit: contain; background-color: #e2e8f0; border-radius: 4px;" />
+          </div>
+        `;
+      })
+    );
+
+    // Group the checklist items in a 2-column layout to save vertical space
+    let checklistRows = '';
+    const activeInventory = vehicle?.inventory || [];
+    for (let i = 0; i < activeInventory.length; i += 2) {
+      const item1 = activeInventory[i];
+      const item2 = activeInventory[i + 1];
+
+      const renderCell = (item: any) => {
+        if (!item) return '<td style="border: 1px solid #cbd5e1; width: 50%;"></td>';
+        
+        // Filter out body condition and remarks from checklist rows
+        const ignoreList = ['Body Condition', 'Yard Remarks', 'Customer Remarks'];
+        if (ignoreList.includes(item.itemName)) {
+          return '<td style="border: 1px solid #cbd5e1; width: 50%;"></td>';
+        }
+
+        let details = '';
+        if (item.itemName === 'Front Tyre' || item.itemName === 'Back Tyre') {
+          const match = item.remarks?.match(/\(Tyre Make:\s*(.*?)\)/i);
+          const make = match ? match[1]?.trim() : '';
+          details = make ? ` (${make})` : '';
+        }
+        
+        const isPresentBadge = item.isPresent
+          ? '<span style="background-color: #def7ec; color: #03543f; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 9px; text-transform: uppercase;">YES</span>'
+          : '<span style="background-color: #fde8e8; color: #9b1c1c; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 9px; text-transform: uppercase;">NO</span>';
+
+        const cleanRemarks = item.remarks && (item.itemName === 'Front Tyre' || item.itemName === 'Back Tyre')
+          ? item.remarks.replace(/\s*\(Tyre Make:\s*.*?\)/i, '').trim()
+          : item.remarks || '';
+
+        return `
+          <td style="padding: 6px 8px; border: 1px solid #cbd5e1; font-size: 11px; width: 50%; color: #0f172a; line-height: 1.3;">
+            <span style="font-weight: 700; color: #334155;">${item.itemName}${details}:</span> ${isPresentBadge} ${cleanRemarks ? `<span style="font-size: 10px; color: #64748b; font-style: italic;">[${cleanRemarks}]</span>` : ''}
+          </td>
+        `;
+      };
+
+      checklistRows += `
+        <tr>
+          ${renderCell(item1)}
+          ${renderCell(item2)}
+        </tr>
+      `;
+    }
+
+    const tenantName = vehicle?.tenant?.yardName || 'SHREE PARKING YARD';
+    const tenantAddress = vehicle?.tenant?.address || 'GURUGRAM VILLAGE, HARYANA';
+    const entryDateStr = vehicle?.entryDate ? new Date(vehicle.entryDate).toLocaleString('en-IN') : new Date().toLocaleString('en-IN');
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Gate Pass Receipt - ${tenantName}</title>
+        <style>
+          @page { size: A4; margin: 8mm; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 0; margin: 0; color: #0f172a; font-size: 12px; line-height: 1.4; }
+          .header { text-align: center; margin-bottom: 15px; border-bottom: 3px double #1e3a8a; padding-bottom: 8px; }
+          .header h1 { margin: 0; font-size: 24px; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.75px; font-weight: 800; }
+          .header p { margin: 4px 0 0 0; font-size: 11px; color: #475569; font-weight: 600; }
+          .section-title { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #1e3a8a; background-color: #eff6ff; padding: 5px 10px; margin: 14px 0 6px 0; border-left: 5px solid #1e3a8a; border-radius: 0 4px 4px 0; page-break-inside: avoid; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 10px; page-break-inside: avoid; }
+          td { padding: 6px 8px; border: 1px solid #cbd5e1; font-size: 11px; color: #1e293b; }
+          .info-table td { width: 50%; }
+          .info-table tr:nth-child(even) { background-color: #f8fafc; }
+          .photos-grid { display: flex; flex-wrap: wrap; justify-content: flex-start; margin-top: 8px; page-break-inside: avoid; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>${tenantName}</h1>
+          <p>${tenantAddress}</p>
+          <p style="font-size: 10px; margin-top: 5px; border: 1px solid #1e3a8a; display: inline-block; padding: 3px 10px; border-radius: 4px; color: #1e3a8a; background-color: #eff6ff; font-weight: bold; letter-spacing: 0.5px;">
+            YARD POSSESSION & VEHICLE CONDITION REPORT
+          </p>
+        </div>
+
+        <div class="section-title">Vehicle Specifications</div>
+        <table class="info-table">
+          <tr>
+            <td><strong>License Plate:</strong> ${vehicle.vehicleNumber.toUpperCase()}</td>
+            <td><strong>Vehicle Category:</strong> ${
+              vehicle.vehicleType === 'TW'
+                ? '2 Wheeler (TW)'
+                : vehicle.vehicleType === 'THREE_W'
+                ? '3 Wheeler (THREE_W)'
+                : vehicle.vehicleType === 'FW'
+                ? '4 Wheeler (FW)'
+                : vehicle.vehicleType === 'CV'
+                ? 'Commercial Vehicle (CV)'
+                : '-'
+            }</td>
+          </tr>
+          <tr>
+            <td><strong>Brand / Maker:</strong> ${vehicle.brand || '-'}</td>
+            <td><strong>Model Name:</strong> ${vehicle.model || '-'}</td>
+          </tr>
+          <tr>
+            <td><strong>Engine Number:</strong> ${vehicle.engineNumber || '-'}</td>
+            <td><strong>Chassis Number:</strong> ${vehicle.chassisNumber || '-'}</td>
+          </tr>
+          <tr>
+            <td><strong>Entry Date & Time:</strong> ${entryDateStr}</td>
+            <td><strong>Possession Place:</strong> ${parsedRepo.place || '-'}</td>
+          </tr>
+        </table>
+
+        <div class="section-title">Financer & Repossession Info</div>
+        <table class="info-table">
+          <tr>
+            <td><strong>Financer Category:</strong> ${vehicle.bank?.isThirdParty ? 'Third Party' : 'Direct Bank'}</td>
+            <td><strong>Bank / Financer Name:</strong> ${vehicle.bankName || '-'}</td>
+          </tr>
+          <tr>
+            <td><strong>Repo Agency:</strong> ${parsedRepo.agency || '-'}</td>
+            <td><strong>Repo Agent Name:</strong> ${parsedRepo.agent || '-'}</td>
+          </tr>
+          <tr>
+            <td><strong>Customer Name:</strong> ${vehicle.customerName || '-'}</td>
+            <td><strong>Customer Mobile:</strong> ${vehicle.customerPhone || '-'}</td>
+          </tr>
+        </table>
+
+        <div class="section-title">Accessories Checklist</div>
+        <table>
+          <tbody>
+            ${checklistRows}
+          </tbody>
+        </table>
+
+        <div class="section-title">Yard Remarks & General Condition</div>
+        <table class="info-table">
+          <tr>
+            <td><strong>Body Condition:</strong> ${bodyCondition}</td>
+            <td><strong>Yard Remarks:</strong> ${yardRemarks || 'N/A'}</td>
+          </tr>
+          <tr>
+            <td colspan="2"><strong>Customer Remarks:</strong> ${customerRemarks || 'N/A'}</td>
+          </tr>
+        </table>
+
+        ${
+          photoElements.length > 0
+            ? `
+          <div class="section-title">Possession Photographs</div>
+          <div class="photos-grid">
+            ${photoElements.join('')}
+          </div>
+        `
+            : ''
+        }
+
+        <div style="margin-top: 30px; border-top: 1px solid #cbd5e1; padding-top: 8px; text-align: center; font-size: 10px; font-weight: bold; color: #64748b; letter-spacing: 0.5px;">
+          *** THIS IS A COMPUTER SYSTEM GENERATED DOCUMENT. PHYSICAL SIGNATURE NOT REQUIRED. ***
+        </div>
+      </body>
+      </html>
+    `;
+    return htmlContent;
+  };
+
+  const downloadAndSharePDF = async () => {
+    if (!vehicle) return;
+    try {
+      setLoading(true);
+      const html = await generateHTMLReport();
+      const { uri } = await Print.printToFileAsync({ html });
+
+      const cleanPlate = vehicle.vehicleNumber.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const filename = `${cleanPlate || 'vehicle'}.pdf`;
+      const targetUri = `${FileSystem.cacheDirectory}${filename}`;
+
+      await FileSystem.copyAsync({
+        from: uri,
+        to: targetUri,
+      });
+
+      await Sharing.shareAsync(targetUri, {
+        mimeType: 'application/pdf',
+        dialogTitle: `${vehicle.vehicleNumber.toUpperCase()} Gate Pass`,
+        UTI: 'com.adobe.pdf',
+      });
+    } catch (e: any) {
+      Alert.alert('Share Error', e.message || 'Could not generate or share PDF');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editVehicleNumber.trim()) {
+      Alert.alert('Error', 'License plate is required');
+      return;
+    }
+    if (editCustomerPhone.trim()) {
+      const cleanPhone = editCustomerPhone.trim().replace(/[^0-9]/g, '');
+      if (cleanPhone.length !== 10 || !/^[6-9]/.test(cleanPhone)) {
+        Alert.alert('Error', 'Please enter a valid 10-digit Indian mobile number');
+        return;
+      }
+    }
+
+    try {
+      setLoading(true);
+      const res = await apiRequest(`/api/vehicles/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          vehicleNumber: editVehicleNumber.trim().toUpperCase(),
+          brand: editBrand.trim(),
+          model: editModel.trim(),
+          chassisNumber: editChassisNumber.trim(),
+          engineNumber: editEngineNumber.trim(),
+          customerName: editCustomerName.trim(),
+          customerPhone: editCustomerPhone.trim(),
+        }),
+      });
+      if (res.success) {
+        Alert.alert('Success', 'Vehicle details updated successfully.', [
+          {
+            text: 'OK',
+            onPress: () => {
+              setEditModalVisible(false);
+              fetchVehicleDetails();
+            }
+          }
+        ]);
+      } else {
+        Alert.alert('Error', res.error || 'Failed to update vehicle');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Could not update vehicle');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Print Gate Pass Receipt
   const handlePrint = async () => {
     if (!vehicle) return;
@@ -277,12 +565,26 @@ export default function VehicleDetailsScreen() {
   };
 
   const handleMoreMenu = () => {
-    const options = ['Print Gatepass receipt', 'Share details text', 'Cancel'];
-    if (currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'TENANT_ADMIN') {
-      options.splice(2, 0, 'Delete vehicle record');
-    }
-
+    const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'TENANT_ADMIN';
+    
     Alert.alert('Vehicle Actions', 'Select an action to perform:', [
+      {
+        text: 'Share Condition Report PDF',
+        onPress: downloadAndSharePDF
+      },
+      {
+        text: 'Edit Vehicle Details',
+        onPress: () => {
+          setEditVehicleNumber(vehicle?.vehicleNumber || '');
+          setEditBrand(vehicle?.brand || '');
+          setEditModel(vehicle?.model || '');
+          setEditChassisNumber(vehicle?.chassisNumber || '');
+          setEditEngineNumber(vehicle?.engineNumber || '');
+          setEditCustomerName(vehicle?.customerName || '');
+          setEditCustomerPhone(vehicle?.customerPhone || '');
+          setEditModalVisible(true);
+        }
+      },
       {
         text: 'Print Gatepass Receipt',
         onPress: handlePrint
@@ -294,7 +596,7 @@ export default function VehicleDetailsScreen() {
           Alert.alert('Share Details (Simulated)', detailStr);
         }
       },
-      ...(currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'TENANT_ADMIN' ? [
+      ...(isAdmin ? [
         {
           text: 'Delete Vehicle Record',
           style: 'destructive' as const,
@@ -364,9 +666,13 @@ export default function VehicleDetailsScreen() {
 
   const parsedRepo = parseRepoAgency(vehicle.repoAgency);
 
-  // Helper to find checklist items
+  // Helper to find checklist items (backward compatible with Battery/battry)
   const getInventoryItem = (itemName: string) => {
-    return vehicle.inventory?.find((item: any) => item.itemName === itemName);
+    const searchName = itemName.toLowerCase() === 'battery' ? 'battry' : itemName;
+    return vehicle.inventory?.find((item: any) => 
+      item.itemName.toLowerCase() === itemName.toLowerCase() ||
+      item.itemName.toLowerCase() === searchName.toLowerCase()
+    );
   };
 
   // Parser for tyre make
@@ -387,7 +693,7 @@ export default function VehicleDetailsScreen() {
   const accessoryItems = [
     { key: 'RC-Original', label: 'RC Original' },
     { key: 'key', label: 'Keys' },
-    { key: 'battry', label: 'Battery' },
+    { key: 'Battery', label: 'Battery' },
     { key: 'Horn', label: 'Horn' },
     { key: 'Front Tyre', label: 'Front Tyre' },
     { key: 'Back Tyre', label: 'Back Tyre' },
@@ -902,6 +1208,125 @@ export default function VehicleDetailsScreen() {
             </TouchableOpacity>
           </View>
         </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Edit Vehicle Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={editModalVisible}
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { maxHeight: '85%' }]}>
+              <View style={styles.modalHeader}>
+                <ThemedText style={styles.modalTitle}>Edit Vehicle Details</ThemedText>
+                <ThemedText style={styles.modalSub}>Update basic registration and customer info</ThemedText>
+              </View>
+
+              <ScrollView style={{ flex: 1, marginVertical: 10 }} showsVerticalScrollIndicator={false}>
+                <View style={{ gap: 12 }}>
+                  <View>
+                    <ThemedText style={styles.inputLabel}>License Plate *</ThemedText>
+                    <TextInput
+                      style={styles.textEditInput}
+                      value={editVehicleNumber}
+                      onChangeText={setEditVehicleNumber}
+                      autoCapitalize="characters"
+                      placeholder="e.g. MH12PQ1234"
+                    />
+                  </View>
+
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      <ThemedText style={styles.inputLabel}>Brand / Maker</ThemedText>
+                      <TextInput
+                        style={styles.textEditInput}
+                        value={editBrand}
+                        onChangeText={setEditBrand}
+                        placeholder="e.g. Tata Motors"
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <ThemedText style={styles.inputLabel}>Model Name</ThemedText>
+                      <TextInput
+                        style={styles.textEditInput}
+                        value={editModel}
+                        onChangeText={setEditModel}
+                        placeholder="e.g. Nexon"
+                      />
+                    </View>
+                  </View>
+
+                  <View>
+                    <ThemedText style={styles.inputLabel}>Chassis Number</ThemedText>
+                    <TextInput
+                      style={styles.textEditInput}
+                      value={editChassisNumber}
+                      onChangeText={setEditChassisNumber}
+                      autoCapitalize="characters"
+                      placeholder="Enter Chassis No."
+                    />
+                  </View>
+
+                  <View>
+                    <ThemedText style={styles.inputLabel}>Engine Number</ThemedText>
+                    <TextInput
+                      style={styles.textEditInput}
+                      value={editEngineNumber}
+                      onChangeText={setEditEngineNumber}
+                      autoCapitalize="characters"
+                      placeholder="Enter Engine No."
+                    />
+                  </View>
+
+                  <View>
+                    <ThemedText style={styles.inputLabel}>Customer Name</ThemedText>
+                    <TextInput
+                      style={styles.textEditInput}
+                      value={editCustomerName}
+                      onChangeText={setEditCustomerName}
+                      placeholder="Enter Customer Name"
+                    />
+                  </View>
+
+                  <View>
+                    <ThemedText style={styles.inputLabel}>Customer Mob No.</ThemedText>
+                    <TextInput
+                      style={styles.textEditInput}
+                      value={editCustomerPhone}
+                      onChangeText={(val) => setEditCustomerPhone(val.replace(/[^0-9]/g, ''))}
+                      keyboardType="numeric"
+                      maxLength={10}
+                      placeholder="Enter 10 digit Indian number"
+                    />
+                  </View>
+                </View>
+              </ScrollView>
+
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                <TouchableOpacity
+                  style={[styles.modalActionBtn, { backgroundColor: '#EF4444' }]}
+                  onPress={() => setEditModalVisible(false)}
+                >
+                  <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Cancel</ThemedText>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalActionBtn, { backgroundColor: '#22C55E' }]}
+                  onPress={handleSaveEdit}
+                >
+                  <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Save Changes</ThemedText>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
     </ThemedView>
@@ -1522,6 +1947,29 @@ const styles = StyleSheet.create({
   fullscreenImage: {
     width: '100%',
     height: '100%',
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+    marginBottom: 4,
+  },
+  textEditInput: {
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#0F172A',
+    backgroundColor: '#FFFFFF',
+  },
+  modalActionBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 
