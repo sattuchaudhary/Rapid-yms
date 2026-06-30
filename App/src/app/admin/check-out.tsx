@@ -16,7 +16,7 @@ import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { getParkingDailyRate } from '@/constants/rates';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-import { getCachedVehicleByNumber, queueOfflineJob } from '@/services/sqlite';
+import { getCachedVehicleByNumber, queueOfflineJob, cacheVehicles } from '@/services/sqlite';
 import { apiRequest } from '@/services/api';
 import { bluetoothService } from '@/services/bluetooth';
 import { ThemedText } from '@/components/themed-text';
@@ -608,8 +608,26 @@ export default function ReleaseVehicleScreen() {
           method: 'POST',
           body: JSON.stringify(payload),
         });
+        // Update local SQLite cache
+        try {
+          cacheVehicles([{
+            ...vehicle,
+            yardStatus: 'RELEASED',
+          }]);
+        } catch (cacheErr) {
+          console.warn('[Release] Failed to update vehicle cache status:', cacheErr);
+        }
       } else {
         queueOfflineJob('CHECK_OUT', { ...payload, vehicleId: vehicle.id, vehicleNumber: vehicle.vehicleNumber });
+        // Update local SQLite cache
+        try {
+          cacheVehicles([{
+            ...vehicle,
+            yardStatus: 'RELEASED',
+          }]);
+        } catch (cacheErr) {
+          console.warn('[Release] Failed to update vehicle cache status offline:', cacheErr);
+        }
       }
 
       Alert.alert(

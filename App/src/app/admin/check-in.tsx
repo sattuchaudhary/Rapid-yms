@@ -20,7 +20,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
-import { queueOfflineJob, getCachedVehicleByNumber, getCachedBanks } from '@/services/sqlite';
+import { queueOfflineJob, getCachedVehicleByNumber, cacheVehicles } from '@/services/sqlite';
 import { apiRequest, getUserInfo } from '@/services/api';
 import { bluetoothService } from '@/services/bluetooth';
 import { ThemedText } from '@/components/themed-text';
@@ -651,6 +651,23 @@ export default function CheckInScreen() {
         const sNo = checkinResponse.data.serialNumber;
         setSerialNumber(sNo || null);
         console.log(`[CheckIn] Vehicle entry created in DB: ${vehicleId}, Serial: ${sNo}`);
+
+        // Update local SQLite cache
+        try {
+          cacheVehicles([{
+            id: vehicleId,
+            vehicleNumber: payload.vehicleNumber,
+            brand: payload.brand || null,
+            model: payload.model || null,
+            vehicleType: payload.vehicleType,
+            entryDate: payload.entryDate,
+            yardStatus: checkinResponse.data.yardStatus || 'KACHHA',
+            bankName: payload.bankName || null,
+            tenantId: checkinResponse.data.tenantId,
+          }]);
+        } catch (cacheErr) {
+          console.warn('[CheckIn] Failed to cache vehicle locally:', cacheErr);
+        }
 
         // Step 2: Upload images to presigned URL
         for (const photo of photos) {

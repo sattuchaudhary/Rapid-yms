@@ -11,13 +11,14 @@ import {
   RefreshControl,
   Image,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useNavigation } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { clearTokens, getUserInfo, apiRequest, UserSession, getProfileImage, setProfileImage } from '@/services/api';
 import { registerSyncListener, runSyncQueue } from '@/services/sync';
 import { bluetoothService, BluetoothDevice } from '@/services/bluetooth';
 import { cacheVehicles, getOfflineStats, CachedVehicle } from '@/services/sqlite';
+import NetInfo from '@react-native-community/netinfo';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import {
@@ -51,7 +52,24 @@ import {
 
 export default function GuardDashboard() {
   const router = useRouter();
+  const navigation = useNavigation();
   const [user, setUser] = useState<UserSession | null>(null);
+  const [isConnected, setIsConnected] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribeNet = NetInfo.addEventListener((state) => {
+      setIsConnected(state.isConnected !== false);
+    });
+    return unsubscribeNet;
+  }, []);
+
+  useEffect(() => {
+    const unsubscribeFocus = navigation.addListener('focus', () => {
+      loadDashboardStats();
+    });
+    return unsubscribeFocus;
+  }, [navigation]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -172,6 +190,7 @@ export default function GuardDashboard() {
   const [offlineStats, setOfflineStats] = useState<any>({ totalVehicles: 0, inYard: 0, released: 0, todayEntry: 0 });
 
   const loadDashboardStats = async () => {
+    setStatsLoading(true);
     // 1. Get offline fallback stats first
     try {
       const localStats = getOfflineStats();
@@ -222,6 +241,8 @@ export default function GuardDashboard() {
       }
     } catch (e: any) {
       console.warn('[GuardDashboard] Failed to sync local vehicle cache:', e.message || e);
+    } finally {
+      setStatsLoading(false);
     }
   };
 
@@ -300,10 +321,10 @@ export default function GuardDashboard() {
   };
 
   // Dynamically resolve dashboard numbers with robust SQLite cache fallback defaults
-  const displayTotal = stats ? (stats.totalVehicles + (stats.releasedVehicles?.today ?? 0)) : (offlineStats.inYard + offlineStats.released);
-  const displayInYard = stats ? stats.totalVehicles : offlineStats.inYard;
-  const displayReleased = stats ? (stats.releasedVehicles?.today ?? 0) : offlineStats.released;
-  const displayTodayEntry = stats ? ((stats.kachhaVehicles?.thisMonth ?? 0) + (stats.pakkaVehicles?.thisMonth ?? 0)) : offlineStats.todayEntry;
+  const displayTotal = isConnected && statsLoading && !stats ? '-' : (stats ? (stats.totalVehicles + (stats.releasedVehicles?.today ?? 0)) : (offlineStats.inYard + offlineStats.released));
+  const displayInYard = isConnected && statsLoading && !stats ? '-' : (stats ? stats.totalVehicles : offlineStats.inYard);
+  const displayReleased = isConnected && statsLoading && !stats ? '-' : (stats ? (stats.releasedVehicles?.today ?? 0) : offlineStats.released);
+  const displayTodayEntry = isConnected && statsLoading && !stats ? '-' : (stats ? ((stats.kachhaVehicles?.thisMonth ?? 0) + (stats.pakkaVehicles?.thisMonth ?? 0)) : offlineStats.todayEntry);
 
   const displayReportsCheckIn = stats ? `${displayTodayEntry} Units` : `${offlineStats.todayEntry} Units`;
   const displayReportsReleased = stats ? `${displayReleased} Units` : `${offlineStats.released} Units`;

@@ -16,7 +16,7 @@ import { apiRequest } from '@/services/api';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import NetInfo from '@react-native-community/netinfo';
-import { getCachedVehicleById, queueOfflineJob } from '@/services/sqlite';
+import { getCachedVehicleById, queueOfflineJob, cacheVehicles } from '@/services/sqlite';
 import {
   ChevronLeft,
   Camera,
@@ -263,6 +263,17 @@ export default function KachhaToPakkaScreen() {
           },
           photos as any
         );
+        // Update local SQLite cache
+        if (vehicle) {
+          try {
+            cacheVehicles([{
+              ...vehicle,
+              yardStatus: 'PAKKA',
+            }]);
+          } catch (cacheErr) {
+            console.warn('[KachhaToPakka] Failed to update local cache offline:', cacheErr);
+          }
+        }
         setSuccessVisible(true);
         return;
       }
@@ -291,6 +302,17 @@ export default function KachhaToPakkaScreen() {
       });
 
       if (res.success) {
+        // Update local SQLite cache
+        if (vehicle) {
+          try {
+            cacheVehicles([{
+              ...vehicle,
+              yardStatus: 'PAKKA',
+            }]);
+          } catch (cacheErr) {
+            console.warn('[KachhaToPakka] Failed to update local cache:', cacheErr);
+          }
+        }
         setSuccessVisible(true);
       } else {
         throw new Error(res.error || 'Transition failed');
