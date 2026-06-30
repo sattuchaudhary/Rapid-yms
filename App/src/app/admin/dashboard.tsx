@@ -61,7 +61,7 @@ export default function GuardDashboard() {
   };
 
   // --- Profile Image State & Handlers ---
-  const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100';
+  const DEFAULT_AVATAR = '';
   const [profilePic, setProfilePic] = useState(DEFAULT_AVATAR);
 
   const loadPic = async () => {
@@ -346,10 +346,18 @@ export default function GuardDashboard() {
             onPress={changeProfilePic}
             style={styles.avatarCircle}
           >
-            <Image 
-              source={{ uri: profilePic }} 
-              style={styles.avatarImg} 
-            />
+            {profilePic ? (
+              <Image 
+                source={{ uri: profilePic }} 
+                style={styles.avatarImg} 
+              />
+            ) : (
+              <View style={[styles.avatarImg, styles.avatarInitialsContainer]}>
+                <ThemedText style={styles.avatarInitialsText}>
+                  {(user?.name || 'M').charAt(0).toUpperCase()}
+                </ThemedText>
+              </View>
+            )}
             <View style={styles.avatarStatusBadge} />
           </TouchableOpacity>
         </View>
@@ -1733,6 +1741,16 @@ const styles = StyleSheet.create({
     height: 38,
     borderRadius: 19,
     backgroundColor: '#E2E8F0',
+  },
+  avatarInitialsContainer: {
+    backgroundColor: '#2563EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarInitialsText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
   avatarStatusBadge: {
     position: 'absolute',

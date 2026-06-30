@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
+import * as FileSystem from 'expo-file-system/legacy';
 
 const JWT_KEY = 'yms_jwt_token';
 const REFRESH_KEY = 'yms_refresh_token';
@@ -141,14 +142,48 @@ export const apiRequest = async (
 const PROFILE_IMAGE_KEY = 'yms_user_profile_image';
 
 export const getProfileImage = async (): Promise<string | null> => {
-  return await AsyncStorage.getItem(PROFILE_IMAGE_KEY);
+  try {
+    const val = await AsyncStorage.getItem(PROFILE_IMAGE_KEY);
+    if (val === 'profile_pic.jpg') {
+      const fileUri = `${FileSystem.documentDirectory}profile_pic.jpg`;
+      const info = await FileSystem.getInfoAsync(fileUri);
+      if (info.exists) {
+        return fileUri;
+      }
+    } else if (val && val.startsWith('http')) {
+      return val;
+    }
+  } catch (e) {
+    console.warn('[ProfileImage] Failed to read cached image:', e);
+  }
+  return null;
 };
 
 export const setProfileImage = async (uri: string) => {
-  if (uri) {
-    await AsyncStorage.setItem(PROFILE_IMAGE_KEY, uri);
-  } else {
-    await AsyncStorage.removeItem(PROFILE_IMAGE_KEY);
+  try {
+    const targetUri = `${FileSystem.documentDirectory}profile_pic.jpg`;
+    if (uri) {
+      if (uri.startsWith('file://')) {
+        // Copy temporary image file to persistent document directory
+        await FileSystem.copyAsync({
+          from: uri,
+          to: targetUri,
+        });
+        await AsyncStorage.setItem(PROFILE_IMAGE_KEY, 'profile_pic.jpg');
+      } else {
+        // External Web URI
+        await AsyncStorage.setItem(PROFILE_IMAGE_KEY, uri);
+      }
+    } else {
+      // Clear key and delete file
+      await AsyncStorage.removeItem(PROFILE_IMAGE_KEY);
+      const info = await FileSystem.getInfoAsync(targetUri);
+      if (info.exists) {
+        await FileSystem.deleteAsync(targetUri, { idempotent: true });
+      }
+    }
+  } catch (e) {
+    console.error('[ProfileImage] Failed to save/clear profile image:', e);
   }
 };
 

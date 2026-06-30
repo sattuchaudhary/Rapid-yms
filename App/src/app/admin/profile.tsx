@@ -4,35 +4,116 @@ import {
   View,
   TouchableOpacity,
   ScrollView,
-  Image,
   Alert,
+  Image,
+  TextInput,
+  Modal,
+  ActivityIndicator,
+  Switch,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import NetInfo from '@react-native-community/netinfo';
+import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Camera, ChevronLeft, ChevronRight, Lock, LogOut, Settings, Check, WifiOff } from 'lucide-react-native';
 import { getUserInfo, saveUserInfo, UserSession, apiRequest, clearTokens, getProfileImage, setProfileImage } from '@/services/api';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import {
-  ChevronLeft,
-  ChevronRight,
-  Lock,
-  Settings,
-  Shield,
-  LogOut,
-  Camera,
-} from 'lucide-react-native';
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
+  const [profilePic, setProfilePic] = useState('');
 
-  const defaultAvatar = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150';
-  const [profilePic, setProfilePic] = useState(defaultAvatar);
+  // Change Password Modal States
+  const [passwordModalVisible, setPasswordModalVisible] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  // App Settings Modal States
+  const [settingsModalVisible, setSettingsModalVisible] = useState(false);
+  const [syncInterval, setSyncInterval] = useState('15');
+  const [warningEnabled, setWarningEnabled] = useState(true);
+
+  // Connection State
+  const [isOnline, setIsOnline] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setIsOnline(!!state.isConnected);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const interval = await AsyncStorage.getItem('yms_settings_sync_interval');
+        if (interval) setSyncInterval(interval);
+        
+        const warning = await AsyncStorage.getItem('yms_settings_warning_enabled');
+        if (warning !== null) setWarningEnabled(warning === 'true');
+      } catch (e) {
+        console.warn('[ProfileSettings] Load failed:', e);
+      }
+    };
+    loadSettings();
+  }, []);
 
   const loadPic = async () => {
     const pic = await getProfileImage();
     if (pic) setProfilePic(pic);
+  };
+
+  const handleChangePassword = async () => {
+    if (!newPassword.trim() || !confirmPassword.trim()) {
+      Alert.alert('Error', 'Please fill all password fields.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match.');
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      const netInfo = await NetInfo.fetch();
+      const online = !!netInfo.isConnected;
+
+      if (!online) {
+        Alert.alert('Offline Mode', 'Cannot change password while offline.');
+        setChangingPassword(false);
+        return;
+      }
+
+      const res = await apiRequest('/api/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ newPassword }),
+      });
+
+      if (res.success) {
+        Alert.alert('Success', 'Password updated successfully.');
+        // Update cached offline credentials
+        await SecureStore.setItemAsync('yms_cached_password', newPassword);
+        setPasswordModalVisible(false);
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        Alert.alert('Failed', res.message || res.error || 'Password update failed.');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Server connection failed.');
+    } finally {
+      setChangingPassword(false);
+    }
   };
 
   const changeProfilePic = async () => {
@@ -46,7 +127,7 @@ export default function ProfileScreen() {
           text: 'Remove Photo',
           style: 'destructive',
           onPress: async () => {
-            setProfilePic(defaultAvatar);
+            setProfilePic('');
             await setProfileImage('');
           },
         },
@@ -151,7 +232,13 @@ export default function ProfileScreen() {
   };
 
   const handleAction = (label: string) => {
-    Alert.alert(label, `${label} settings feature coming soon in version 1.1.`);
+    if (label === 'Change Password') {
+      setPasswordModalVisible(true);
+    } else if (label === 'App Settings') {
+      setSettingsModalVisible(true);
+    } else {
+      Alert.alert(label, `${label} settings feature coming soon in version 1.1.`);
+    }
   };
 
   const handleLogout = async () => {
@@ -179,6 +266,16 @@ export default function ProfileScreen() {
         <View style={{ width: 40 }} />
       </View>
 
+      {/* Connection status banner */}
+      {!isOnline && (
+        <View style={styles.offlineBanner}>
+          <WifiOff size={14} color="#D97706" style={{ marginRight: 6 }} />
+          <ThemedText style={styles.offlineBannerText}>
+            Viewing cached profile details (Offline Mode)
+          </ThemedText>
+        </View>
+      )}
+
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Profile Header Card */}
         <View style={styles.profileHeaderCard}>
@@ -187,7 +284,15 @@ export default function ProfileScreen() {
             onPress={changeProfilePic}
             style={styles.avatarWrapper}
           >
-            <Image source={{ uri: profilePic }} style={styles.avatarImage} />
+            {profilePic ? (
+              <Image source={{ uri: profilePic }} style={styles.avatarImage} />
+            ) : (
+              <View style={[styles.avatarImage, styles.avatarInitialsContainer]}>
+                <ThemedText style={styles.avatarInitialsText}>
+                  {(currentUser?.name || 'U').charAt(0).toUpperCase()}
+                </ThemedText>
+              </View>
+            )}
             <View style={styles.cameraIconBadge}>
               <Camera size={14} color="#FFFFFF" />
             </View>
@@ -198,10 +303,10 @@ export default function ProfileScreen() {
               {currentUser?.name || formatRole(currentUser?.role)}
             </ThemedText>
             <ThemedText style={styles.profileEmail}>
-              {currentUser?.email || 'operator@ymsyard.com'}
+              {currentUser?.email || 'N/A'}
             </ThemedText>
             <ThemedText style={styles.profilePhone}>
-              {currentUser?.phone || currentUser?.tenant?.phone || '+91 9876543210'}
+              {currentUser?.phone || currentUser?.tenant?.phone || 'N/A'}
             </ThemedText>
           </View>
         </View>
@@ -213,7 +318,7 @@ export default function ProfileScreen() {
           <View style={styles.infoRow}>
             <ThemedText style={styles.infoLabel}>Yard Name</ThemedText>
             <ThemedText style={styles.infoValue}>
-              {currentUser?.tenant?.yardName || 'Mumbai Yard'}
+              {currentUser?.tenant?.yardName || 'N/A'}
             </ThemedText>
           </View>
 
@@ -222,7 +327,7 @@ export default function ProfileScreen() {
           <View style={styles.infoRow}>
             <ThemedText style={styles.infoLabel}>Address</ThemedText>
             <ThemedText style={[styles.infoValue, { flex: 2, textAlign: 'right' }]}>
-              {currentUser?.tenant?.address || 'Plot No. 45, Industrial Area, Mumbai, Maharashtra'}
+              {currentUser?.tenant?.address || 'N/A'}
             </ThemedText>
           </View>
         </View>
@@ -275,6 +380,132 @@ export default function ProfileScreen() {
           <ThemedText style={styles.versionLabel}>App Version</ThemedText>
           <ThemedText style={styles.versionValue}>1.0.0</ThemedText>
         </View>
+
+        {/* Change Password Modal */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={passwordModalVisible}
+          onRequestClose={() => setPasswordModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <ThemedText style={styles.modalTitle}>Change Password</ThemedText>
+              
+              <TextInput
+                style={styles.modalInput}
+                placeholder="New Password"
+                placeholderTextColor="#94A3B8"
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Confirm New Password"
+                placeholderTextColor="#94A3B8"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+
+              <View style={styles.modalBtnRow}>
+                <TouchableOpacity
+                  style={[styles.modalBtn, styles.modalCloseBtn]}
+                  onPress={() => {
+                    setPasswordModalVisible(false);
+                    setNewPassword('');
+                    setConfirmPassword('');
+                  }}
+                >
+                  <ThemedText style={styles.modalCloseText}>Cancel</ThemedText>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalBtn, styles.modalSaveBtn]}
+                  onPress={handleChangePassword}
+                  disabled={changingPassword}
+                >
+                  {changingPassword ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <>
+                      <Check size={16} color="#FFF" style={{ marginRight: 4 }} />
+                      <ThemedText style={styles.modalSaveText}>Update</ThemedText>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* App Settings Modal */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={settingsModalVisible}
+          onRequestClose={() => setSettingsModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <ThemedText style={styles.modalTitle}>App Settings</ThemedText>
+
+              {/* Sync Interval Selector */}
+              <ThemedText style={styles.settingsSubLabel}>Auto Sync Interval</ThemedText>
+              <View style={styles.syncOptionsRow}>
+                {['5', '15', '30'].map((mins) => (
+                  <TouchableOpacity
+                    key={mins}
+                    style={[
+                      styles.syncOptionBtn,
+                      syncInterval === mins && styles.syncOptionBtnSelected,
+                    ]}
+                    onPress={async () => {
+                      setSyncInterval(mins);
+                      await AsyncStorage.setItem('yms_settings_sync_interval', mins);
+                    }}
+                  >
+                    <ThemedText
+                      style={[
+                        styles.syncOptionText,
+                        syncInterval === mins && styles.syncOptionTextSelected,
+                      ]}
+                    >
+                      {mins} Mins
+                    </ThemedText>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Warnings Switch */}
+              <View style={styles.settingsRow}>
+                <ThemedText style={styles.settingsLabelText}>Offline Warning Alerts</ThemedText>
+                <Switch
+                  value={warningEnabled}
+                  onValueChange={async (val) => {
+                    setWarningEnabled(val);
+                    await AsyncStorage.setItem('yms_settings_warning_enabled', val ? 'true' : 'false');
+                  }}
+                  trackColor={{ false: '#CBD5E1', true: '#BFDBFE' }}
+                  thumbColor={warningEnabled ? '#2563EB' : '#F1F5F9'}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.loginBtn, { marginTop: 20 }]}
+                onPress={() => setSettingsModalVisible(false)}
+              >
+                <ThemedText style={styles.loginBtnText}>Save & Close</ThemedText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     </ThemedView>
   );
@@ -328,6 +559,16 @@ const styles = StyleSheet.create({
     height: 68,
     borderRadius: 34,
     backgroundColor: '#CBD5E1',
+  },
+  avatarInitialsContainer: {
+    backgroundColor: '#2563EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarInitialsText: {
+    color: '#FFFFFF',
+    fontSize: 26,
+    fontWeight: '700',
   },
   activeDot: {
     position: 'absolute',
@@ -439,5 +680,147 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#0F172A',
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#FDE68A',
+  },
+  offlineBannerText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#D97706',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  modalInput: {
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    color: '#0F172A',
+    height: 50,
+    fontSize: 15,
+    marginBottom: 16,
+  },
+  modalBtnRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+    marginTop: 8,
+  },
+  modalBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 80,
+  },
+  modalCloseBtn: {
+    backgroundColor: '#64748B',
+  },
+  modalSaveBtn: {
+    backgroundColor: '#2563EB',
+  },
+  modalCloseText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  modalSaveText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  settingsSubLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748B',
+    marginBottom: 8,
+  },
+  syncOptionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 20,
+  },
+  syncOptionBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+  },
+  syncOptionBtnSelected: {
+    borderColor: '#2563EB',
+    backgroundColor: '#EFF6FF',
+  },
+  syncOptionText: {
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  syncOptionTextSelected: {
+    color: '#2563EB',
+    fontWeight: '700',
+  },
+  settingsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  settingsLabelText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  loginBtn: {
+    backgroundColor: '#2563EB',
+    borderRadius: 10,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  loginBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
