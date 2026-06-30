@@ -12,10 +12,13 @@ import {
   ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as LocalAuthentication from 'expo-local-authentication';
+import * as SecureStore from 'expo-secure-store';
+import NetInfo from '@react-native-community/netinfo';
 import { apiRequest, saveTokens, saveUserInfo, getServerUrl, setServerUrl, saveSessionDate } from '@/services/api';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Shield, Server, Mail, Lock, Check } from 'lucide-react-native';
+import { Shield, Server, Mail, Lock, Check, Key } from 'lucide-react-native';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -27,6 +30,10 @@ export default function LoginScreen() {
   const [serverUrl, setServerUrlState] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
 
+  // Biometrics & Forgot Password Modals
+  const [biometricsAvailable, setBiometricsAvailable] = useState(false);
+  const [forgotModalVisible, setForgotModalVisible] = useState(false);
+
   useEffect(() => {
     // Load current server URL on mount
     const loadUrl = async () => {
@@ -34,6 +41,18 @@ export default function LoginScreen() {
       setServerUrlState(url);
     };
     loadUrl();
+
+    // Check biometric compatibility
+    const checkBiometrics = async () => {
+      try {
+        const hasHardware = await LocalAuthentication.hasHardwareAsync();
+        const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+        setBiometricsAvailable(hasHardware && isEnrolled);
+      } catch (e) {
+        console.warn('[Biometrics] Support check failed:', e);
+      }
+    };
+    checkBiometrics();
   }, []);
 
   const handleLogin = async () => {
@@ -44,6 +63,36 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
+      const netInfo = await NetInfo.fetch();
+      const isOnline = !!netInfo.isConnected;
+
+      if (!isOnline) {
+        // Offline Authentication Fallback from securely cached credentials
+        const cachedEmail = await SecureStore.getItemAsync('yms_cached_email');
+        const cachedPassword = await SecureStore.getItemAsync('yms_cached_password');
+
+        if (
+          cachedEmail &&
+          cachedPassword &&
+          cachedEmail === email.trim().toLowerCase() &&
+          cachedPassword === password
+        ) {
+          console.log('[Login] Offline login authentication successful');
+          Alert.alert('Offline Mode', 'Network offline. Authenticated successfully using local credentials.');
+          router.replace('/admin/dashboard');
+          setLoading(false);
+          return;
+        } else {
+          Alert.alert(
+            'Authentication Error',
+            'You are offline. To log in offline, you must enter the exact email and password of your last online session on this device.'
+          );
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Online authentication flow
       const response = await apiRequest('/api/auth/login', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
@@ -53,6 +102,10 @@ export default function LoginScreen() {
         await saveTokens(response.accessToken, response.refreshToken);
         await saveUserInfo(response.user);
         await saveSessionDate();
+
+        // Save credentials securely for offline authentication
+        await SecureStore.setItemAsync('yms_cached_email', email.trim().toLowerCase());
+        await SecureStore.setItemAsync('yms_cached_password', password);
 
         // Redirect to admin dashboard
         router.replace('/admin/dashboard');
@@ -67,19 +120,78 @@ export default function LoginScreen() {
     }
   };
 
+  const handleBiometricLogin = async () => {
+    try {
+      const cachedEmail = await SecureStore.getItemAsync('yms_cached_email');
+      const cachedPassword = await SecureStore.getItemAsync('yms_cached_password');
+
+      if (!cachedEmail || !cachedPassword) {
+        Alert.alert('Biometrics Setup Required', 'Please log in with your email and password at least once before using biometrics.');
+        return;
+      }
+
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Sign in to Enterprise YMS',
+        fallbackLabel: 'Use Password',
+      });
+
+      if (result.success) {
+        setEmail(cachedEmail);
+        setPassword(cachedPassword);
+        setLoading(true);
+
+        const netInfo = await NetInfo.fetch();
+        const isOnline = !!netInfo.isConnected;
+
+        if (isOnline) {
+          const response = await apiRequest('/api/auth/login', {
+            method: 'POST',
+            body: JSON.stringify({ email: cachedEmail, password: cachedPassword }),
+          });
+
+          if (response.success) {
+            await saveTokens(response.accessToken, response.refreshToken);
+            await saveUserInfo(response.user);
+            await saveSessionDate();
+            router.replace('/admin/dashboard');
+          } else {
+            Alert.alert('Biometric Login Failed', response.error || 'Check credentials');
+          }
+        } else {
+          // Offline biometrics success bypass
+          Alert.alert('Offline Mode', 'Authenticated successfully using biometrics in offline mode.');
+          router.replace('/admin/dashboard');
+        }
+      }
+    } catch (e: any) {
+      console.warn('[Biometrics Auth] Error:', e);
+      Alert.alert('Biometric Error', 'Authentication process failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSaveServer = async () => {
-    if (!serverUrl.trim()) {
+    const url = serverUrl.trim();
+    if (!url) {
       Alert.alert('Error', 'URL cannot be empty');
       return;
     }
-    await setServerUrl(serverUrl.trim());
+    // URL Pattern Regex Verification
+    const urlPattern = /^(https?:\/\/)[^\s$.?#].[^\s]*$/i;
+    if (!urlPattern.test(url)) {
+      Alert.alert('Invalid Endpoint', 'Please enter a valid URL starting with http:// or https://');
+      return;
+    }
+    await setServerUrl(url);
     setModalVisible(false);
     Alert.alert('Success', 'Server URL updated');
   };
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       style={{ flex: 1 }}
     >
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
@@ -136,18 +248,40 @@ export default function LoginScreen() {
               />
             </View>
 
-            {/* Login Button */}
-            <TouchableOpacity
-              style={styles.loginBtn}
-              onPress={handleLogin}
-              disabled={loading}
-              activeOpacity={0.8}
-            >
-              {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <ThemedText style={styles.loginBtnText}>Secure Log In</ThemedText>
+            {/* Login Button Row with Biometrics */}
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity
+                style={[styles.loginBtn, { flex: 1 }]}
+                onPress={handleLogin}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <ThemedText style={styles.loginBtnText}>Secure Log In</ThemedText>
+                )}
+              </TouchableOpacity>
+
+              {biometricsAvailable && (
+                <TouchableOpacity
+                  style={styles.biometricBtn}
+                  onPress={handleBiometricLogin}
+                  disabled={loading}
+                  activeOpacity={0.7}
+                >
+                  <Key size={24} color="#2563EB" />
+                </TouchableOpacity>
               )}
+            </View>
+
+            {/* Forgot Password Link */}
+            <TouchableOpacity
+              onPress={() => setForgotModalVisible(true)}
+              style={styles.forgotBtn}
+              activeOpacity={0.7}
+            >
+              <ThemedText style={styles.forgotText}>Forgot Password?</ThemedText>
             </TouchableOpacity>
           </View>
 
@@ -191,6 +325,36 @@ export default function LoginScreen() {
                     <ThemedText style={styles.modalSaveText}>Save</ThemedText>
                   </TouchableOpacity>
                 </View>
+              </View>
+            </View>
+          </Modal>
+
+          {/* Forgot Password Modal */}
+          <Modal
+            animationType="fade"
+            transparent={true}
+            visible={forgotModalVisible}
+            onRequestClose={() => setForgotModalVisible(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                  <View style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', marginBottom: 10 }}>
+                    <Shield size={26} color="#2563EB" />
+                  </View>
+                  <ThemedText style={styles.modalTitle}>Forgot Password?</ThemedText>
+                </View>
+                
+                <ThemedText style={{ color: '#475569', fontSize: 13, lineHeight: 20, textAlign: 'center', marginBottom: 20 }}>
+                  Security rules ke anusar, please reset ke liye apne **Yard Tenant Admin** ya crew supervisor se contact karein. Wo aapka credentials details panel se override kar sakte hain.
+                </ThemedText>
+
+                <TouchableOpacity
+                  style={[styles.loginBtn, { marginTop: 0 }]}
+                  onPress={() => setForgotModalVisible(false)}
+                >
+                  <ThemedText style={styles.loginBtnText}>Okay, Got It</ThemedText>
+                </TouchableOpacity>
               </View>
             </View>
           </Modal>
@@ -307,6 +471,28 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+  biometricBtn: {
+    width: 50,
+    height: 50,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2563EB',
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  forgotBtn: {
+    alignSelf: 'center',
+    marginTop: 18,
+    padding: 4,
+  },
+  forgotText: {
+    color: '#64748B',
+    fontSize: 13,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   modalOverlay: {
     flex: 1,

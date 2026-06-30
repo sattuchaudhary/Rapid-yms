@@ -5,7 +5,7 @@ const db = SQLite.openDatabaseSync('yms_offline.db');
 
 export interface OfflineJob {
   id: string;
-  type: 'CHECK_IN' | 'CHECK_OUT';
+  type: 'CHECK_IN' | 'CHECK_OUT' | 'KACHHA_TO_PAKKA';
   payload: string; // JSON string of request body
   photos: string;  // JSON string of local image paths array
   createdAt: number;
@@ -45,6 +45,12 @@ export const initDatabase = () => {
         bankName TEXT,
         tenantId TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS banks_cache (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        parentId TEXT,
+        isThirdParty INTEGER NOT NULL
+      );
     `);
     console.log('[SQLite] Tables initialized successfully');
   } catch (error) {
@@ -53,7 +59,7 @@ export const initDatabase = () => {
 };
 
 // Queue operations
-export const queueOfflineJob = (type: 'CHECK_IN' | 'CHECK_OUT', payload: object, photos: any[] = []) => {
+export const queueOfflineJob = (type: 'CHECK_IN' | 'CHECK_OUT' | 'KACHHA_TO_PAKKA', payload: object, photos: any[] = []) => {
   const id = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   const createdAt = Date.now();
   const payloadStr = JSON.stringify(payload);
@@ -135,6 +141,53 @@ export const getCachedVehicleByNumber = (vehicleNumber: string): CachedVehicle |
   } catch (error) {
     console.error('[SQLite] Error getting cached vehicle:', error);
     return null;
+  }
+};
+
+export const getCachedVehicleById = (id: string): CachedVehicle | null => {
+  try {
+    return db.getFirstSync<CachedVehicle>(
+      'SELECT * FROM vehicle_cache WHERE id = ?',
+      [id]
+    );
+  } catch (error) {
+    console.error('[SQLite] Error getting cached vehicle by ID:', error);
+    return null;
+  }
+};
+
+export const cacheBanks = (banks: any[]) => {
+  try {
+    db.execSync('BEGIN TRANSACTION;');
+    db.runSync('DELETE FROM banks_cache'); // Clear existing cache
+    for (const b of banks) {
+      db.runSync(
+        `INSERT OR REPLACE INTO banks_cache (id, name, parentId, isThirdParty) VALUES (?, ?, ?, ?)`,
+        [b.id, b.name, b.parentId || null, b.isThirdParty ? 1 : 0]
+      );
+    }
+    db.execSync('COMMIT;');
+    console.log(`[SQLite] Cached ${banks.length} banks successfully`);
+  } catch (error) {
+    db.execSync('ROLLBACK;');
+    console.error('[SQLite] Error caching banks:', error);
+  }
+};
+
+export const getCachedBanks = (): any[] => {
+  try {
+    const raw = db.getAllSync<{ id: string; name: string; parentId: string | null; isThirdParty: number }>(
+      'SELECT * FROM banks_cache ORDER BY name ASC'
+    );
+    return raw.map(b => ({
+      id: b.id,
+      name: b.name,
+      parentId: b.parentId,
+      isThirdParty: b.isThirdParty === 1,
+    }));
+  } catch (error) {
+    console.error('[SQLite] Error getting cached banks:', error);
+    return [];
   }
 };
 

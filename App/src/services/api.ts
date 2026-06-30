@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
 
@@ -31,7 +32,7 @@ export const saveTokens = async (accessToken: string, refreshToken: string) => {
 export const clearTokens = async () => {
   await SecureStore.deleteItemAsync(JWT_KEY);
   await SecureStore.deleteItemAsync(REFRESH_KEY);
-  await SecureStore.deleteItemAsync(USER_INFO_KEY);
+  await AsyncStorage.removeItem(USER_INFO_KEY);
 };
 
 export interface UserSession {
@@ -50,11 +51,11 @@ export interface UserSession {
 }
 
 export const saveUserInfo = async (user: UserSession) => {
-  await SecureStore.setItemAsync(USER_INFO_KEY, JSON.stringify(user));
+  await AsyncStorage.setItem(USER_INFO_KEY, JSON.stringify(user));
 };
 
 export const getUserInfo = async (): Promise<UserSession | null> => {
-  const data = await SecureStore.getItemAsync(USER_INFO_KEY);
+  const data = await AsyncStorage.getItem(USER_INFO_KEY);
   return data ? JSON.parse(data) : null;
 };
 
@@ -140,31 +141,35 @@ export const apiRequest = async (
 const PROFILE_IMAGE_KEY = 'yms_user_profile_image';
 
 export const getProfileImage = async (): Promise<string | null> => {
-  return await SecureStore.getItemAsync(PROFILE_IMAGE_KEY);
+  return await AsyncStorage.getItem(PROFILE_IMAGE_KEY);
 };
 
 export const setProfileImage = async (uri: string) => {
-  await SecureStore.setItemAsync(PROFILE_IMAGE_KEY, uri);
+  if (uri) {
+    await AsyncStorage.setItem(PROFILE_IMAGE_KEY, uri);
+  } else {
+    await AsyncStorage.removeItem(PROFILE_IMAGE_KEY);
+  }
 };
 
 const SESSION_DATE_KEY = 'yms_last_session_date';
 
 export const saveSessionDate = async () => {
   const today = new Date().toISOString().split('T')[0]; // e.g. "2026-06-20"
-  await SecureStore.setItemAsync(SESSION_DATE_KEY, today);
+  await AsyncStorage.setItem(SESSION_DATE_KEY, today);
 };
 
 export const checkMidnightExpiry = async (): Promise<boolean> => {
   const token = await SecureStore.getItemAsync(JWT_KEY);
   if (!token) return false;
 
-  const savedDate = await SecureStore.getItemAsync(SESSION_DATE_KEY);
+  const savedDate = await AsyncStorage.getItem(SESSION_DATE_KEY);
   const today = new Date().toISOString().split('T')[0];
 
   if (savedDate && savedDate !== today) {
     // Midnight crossed! Clear tokens and expire session
     await clearTokens();
-    await SecureStore.deleteItemAsync(SESSION_DATE_KEY);
+    await AsyncStorage.removeItem(SESSION_DATE_KEY);
     return true;
   }
 

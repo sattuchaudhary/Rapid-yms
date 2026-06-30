@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface BluetoothDevice {
   name: string;
@@ -18,7 +18,7 @@ class BluetoothPrintService {
 
   private async loadSavedPrinter() {
     try {
-      const data = await SecureStore.getItemAsync(PRINTER_STORE_KEY);
+      const data = await AsyncStorage.getItem(PRINTER_STORE_KEY);
       if (data) {
         this.activePrinter = JSON.parse(data);
         this.notifyListeners();
@@ -55,7 +55,7 @@ class BluetoothPrintService {
     console.log(`[Bluetooth] Connecting to printer ${device.name} (${device.address})...`);
     await new Promise((resolve) => setTimeout(resolve, 1000));
     this.activePrinter = { ...device, connected: true };
-    await SecureStore.setItemAsync(PRINTER_STORE_KEY, JSON.stringify(this.activePrinter));
+    await AsyncStorage.setItem(PRINTER_STORE_KEY, JSON.stringify(this.activePrinter));
     this.notifyListeners();
     console.log('[Bluetooth] Connected successfully');
     return true;
@@ -63,7 +63,7 @@ class BluetoothPrintService {
 
   public async disconnectPrinter() {
     this.activePrinter = null;
-    await SecureStore.deleteItemAsync(PRINTER_STORE_KEY);
+    await AsyncStorage.removeItem(PRINTER_STORE_KEY);
     this.notifyListeners();
     console.log('[Bluetooth] Printer disconnected');
   }

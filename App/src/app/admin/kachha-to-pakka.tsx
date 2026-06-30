@@ -16,6 +16,7 @@ import { apiRequest } from '@/services/api';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import NetInfo from '@react-native-community/netinfo';
+import { getCachedVehicleById, queueOfflineJob } from '@/services/sqlite';
 import {
   ChevronLeft,
   Camera,
@@ -83,17 +84,37 @@ export default function KachhaToPakkaScreen() {
     if (!id) return;
     setLoading(true);
     try {
-      const res = await apiRequest(`/api/vehicles/${id}`);
-      if (res.success && res.data) {
-        if (res.data.yardStatus !== 'KACHHA') {
-          Alert.alert(
-            'Already Converted',
-            `This vehicle is already in "${res.data.yardStatus}" status.`,
-            [{ text: 'Go Back', onPress: () => router.back() }]
-          );
-          return;
+      const netInfo = await NetInfo.fetch();
+      const isOnline = !!netInfo.isConnected;
+
+      if (isOnline) {
+        const res = await apiRequest(`/api/vehicles/${id}`);
+        if (res.success && res.data) {
+          if (res.data.yardStatus !== 'KACHHA') {
+            Alert.alert(
+              'Already Converted',
+              `This vehicle is already in "${res.data.yardStatus}" status.`,
+              [{ text: 'Go Back', onPress: () => router.back() }]
+            );
+            return;
+          }
+          setVehicle(res.data);
         }
-        setVehicle(res.data);
+      } else {
+        const cached = getCachedVehicleById(id as string);
+        if (cached) {
+          if (cached.yardStatus !== 'KACHHA') {
+            Alert.alert(
+              'Already Converted',
+              `This vehicle is already in "${cached.yardStatus}" status.`,
+              [{ text: 'Go Back', onPress: () => router.back() }]
+            );
+            return;
+          }
+          setVehicle(cached);
+        } else {
+          Alert.alert('Offline', 'Vehicle details not found in cache.');
+        }
       }
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to load vehicle details');
@@ -228,6 +249,24 @@ export default function KachhaToPakkaScreen() {
 
     setSubmitting(true);
     try {
+      const netInfo = await NetInfo.fetch();
+      const isOnline = !!netInfo.isConnected;
+
+      if (!isOnline) {
+        // Offline: Queue check-in transition job
+        queueOfflineJob(
+          'KACHHA_TO_PAKKA',
+          {
+            vehicleId: id,
+            repoKitDate: today,
+            pakkaDate: today,
+          },
+          photos as any
+        );
+        setSuccessVisible(true);
+        return;
+      }
+
       // Step 1: Register all 4 repo kit photos in the vehicle's photo gallery
       await Promise.all(
         REPO_KIT_DOCS.map(doc =>

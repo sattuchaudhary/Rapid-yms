@@ -36,7 +36,7 @@ export default function RootLayout() {
     };
 
     checkExpiry();
-    const interval = setInterval(checkExpiry, 15000); // Check every 15 seconds
+    const interval = setInterval(checkExpiry, 900000); // Check every 15 minutes (900000 ms)
 
     // Check when returning to foreground
     const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
@@ -62,18 +62,17 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="login" />
-          <Stack.Screen name="guard/dashboard" />
-          <Stack.Screen name="guard/check-in" />
-          <Stack.Screen name="guard/check-out" />
-          <Stack.Screen name="guard/vehicle-details" />
-          <Stack.Screen name="guard/vehicle-list" />
-          <Stack.Screen name="guard/profile" />
-          <Stack.Screen name="guard/calculate-charges" />
-          <Stack.Screen name="guard/reports" />
-          <Stack.Screen name="guard/kachha-to-pakka" />
-          <Stack.Screen name="guard/banks" />
-          <Stack.Screen name="guard/notifications" />
           <Stack.Screen name="admin/dashboard" />
+          <Stack.Screen name="admin/check-in" />
+          <Stack.Screen name="admin/check-out" />
+          <Stack.Screen name="admin/vehicle-details" />
+          <Stack.Screen name="admin/vehicle-list" />
+          <Stack.Screen name="admin/profile" />
+          <Stack.Screen name="admin/calculate-charges" />
+          <Stack.Screen name="admin/reports" />
+          <Stack.Screen name="admin/kachha-to-pakka" />
+          <Stack.Screen name="admin/banks" />
+          <Stack.Screen name="admin/notifications" />
         </Stack>
       </View>
     </ThemeProvider>

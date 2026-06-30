@@ -20,7 +20,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
-import { queueOfflineJob, getCachedVehicleByNumber } from '@/services/sqlite';
+import { queueOfflineJob, getCachedVehicleByNumber, getCachedBanks } from '@/services/sqlite';
 import { apiRequest, getUserInfo } from '@/services/api';
 import { bluetoothService } from '@/services/bluetooth';
 import { ThemedText } from '@/components/themed-text';
@@ -108,39 +108,7 @@ export default function CheckInScreen() {
   const [bankSearch, setBankSearch] = useState('');
   const [pickerMode, setPickerMode] = useState<'direct' | 'third_party' | 'sub'>('direct');
 
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
-      const hasUnsavedChanges = 
-        vehicleNumber.trim() || 
-        customerName.trim() || 
-        customerPhone.trim() || 
-        brand.trim() || 
-        model.trim() || 
-        photos.length > 0 || 
-        bankCategory;
 
-      if (step === 4 || !hasUnsavedChanges) {
-        return;
-      }
-
-      e.preventDefault();
-
-      Alert.alert(
-        'Discard Entry?',
-        'You have entered vehicle details. Going back will discard this entry. Do you want to go back?',
-        [
-          { text: 'Cancel', style: 'cancel', onPress: () => {} },
-          {
-            text: 'Discard & Go Back',
-            style: 'destructive',
-            onPress: () => navigation.dispatch(e.data.action),
-          },
-        ]
-      );
-    });
-
-    return unsubscribe;
-  }, [navigation, step, vehicleNumber, customerName, customerPhone, brand, model, photos, bankCategory]);
 
   // Step 1: Specs Form
   const [vehicleNumber, setVehicleNumber] = useState('');
@@ -195,6 +163,40 @@ export default function CheckInScreen() {
   const [tenantName, setTenantName] = useState('SHREE PARKING YARD');
   const [tenantAddress, setTenantAddress] = useState('GURUGRAM VILLAGE, HARYANA');
   const [serialNumber, setSerialNumber] = useState<number | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      const hasUnsavedChanges = 
+        vehicleNumber.trim() || 
+        customerName.trim() || 
+        customerPhone.trim() || 
+        brand.trim() || 
+        model.trim() || 
+        photos.length > 0 || 
+        bankCategory;
+
+      if (step === 4 || !hasUnsavedChanges) {
+        return;
+      }
+
+      e.preventDefault();
+
+      Alert.alert(
+        'Discard Entry?',
+        'You have entered vehicle details. Going back will discard this entry. Do you want to go back?',
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => {} },
+          {
+            text: 'Discard & Go Back',
+            style: 'destructive',
+            onPress: () => navigation.dispatch(e.data.action),
+          },
+        ]
+      );
+    });
+
+    return unsubscribe;
+  }, [navigation, step, vehicleNumber, customerName, customerPhone, brand, model, photos, bankCategory]);
 
   const checkDuplicateVehicle = async (plateNumber: string) => {
     try {
@@ -271,12 +273,23 @@ export default function CheckInScreen() {
   const loadBanks = useCallback(async () => {
     setLoadingBanks(true);
     try {
-      const res = await apiRequest('/api/banks');
-      if (res.success && res.data) {
-        setBanks(res.data);
+      const netInfo = await NetInfo.fetch();
+      const isOnline = !!netInfo.isConnected;
+      
+      if (isOnline) {
+        const res = await apiRequest('/api/banks');
+        if (res.success && res.data) {
+          setBanks(res.data);
+          return;
+        }
       }
+      
+      const cached = getCachedBanks();
+      setBanks(cached);
     } catch (e) {
-      console.warn('[CheckIn] Failed to load banks:', e);
+      console.warn('[CheckIn] Failed to load banks, trying cache:', e);
+      const cached = getCachedBanks();
+      setBanks(cached);
     } finally {
       setLoadingBanks(false);
     }

@@ -49,6 +49,62 @@ export default function ReleaseVehicleScreen() {
   // State
   const [searching, setSearching] = useState(false);
 
+
+  const [submitting, setSubmitting] = useState(false);
+  const [vehicle, setVehicle] = useState<any>(null);
+  const [searchPlate, setSearchPlate] = useState('');
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [receiptText, setReceiptText] = useState('');
+
+  // Form Fields
+  const [releaseDateText, setReleaseDateText] = useState('');
+  const [releaseOrderDateText, setReleaseOrderDateText] = useState('');
+  const [entryDateText, setEntryDateText] = useState('');
+  const [releaseDate, setReleaseDate] = useState<Date>(new Date());
+  const [releaseOrderDate, setReleaseOrderDate] = useState<Date>(new Date());
+  const [entryDate, setEntryDate] = useState<Date>(new Date());
+  const [releasedTo, setReleasedTo] = useState('');
+  const [mobileNumber, setMobileNumber] = useState('');
+  const [bankParty, setBankParty] = useState('');
+  const [paymentMode, setPaymentMode] = useState('Cash');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [remarks, setRemarks] = useState('');
+
+  // Kachha Release Reason
+  const [kachhaReason, setKachhaReason] = useState('');
+
+  // Document Uploads Uris & Statuses
+  const [releaseLetterUri, setReleaseLetterUri] = useState('');
+  const [aadharFrontUri, setAadharFrontUri] = useState('');
+  const [aadharBackUri, setAadharBackUri] = useState('');
+  const [handoverPhotoUri, setHandoverPhotoUri] = useState('');
+  const [thirdPartyIdProofUri, setThirdPartyIdProofUri] = useState('');
+
+  const [uploadingReleaseLetter, setUploadingReleaseLetter] = useState(false);
+  const [uploadingAadharFront, setUploadingAadharFront] = useState(false);
+  const [uploadingAadharBack, setUploadingAadharBack] = useState(false);
+  const [uploadingHandoverPhoto, setUploadingHandoverPhoto] = useState(false);
+  const [uploadingThirdPartyId, setUploadingThirdPartyId] = useState(false);
+
+  // Dropdown modals visibility states
+  const [paymentDropdownVisible, setPaymentDropdownVisible] = useState(false);
+  const [releaseToDropdownVisible, setReleaseToDropdownVisible] = useState(false);
+
+  // New release options
+  const [releaseToType, setReleaseToType] = useState<'Customer' | 'Third Party'>('Customer');
+  const [thirdPartyName, setThirdPartyName] = useState('');
+  const [thirdPartyPhone, setThirdPartyPhone] = useState('');
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+
+  // Billing info
+  const [totalCharges, setTotalCharges] = useState(0);
+  const [durationDays, setDurationDays] = useState(0);
+
+  // Calendar Picker states & helper functions
+  const [calendarVisible, setCalendarVisible] = useState(false);
+  const [calendarTarget, setCalendarTarget] = useState<'order' | 'release' | 'entry'>('release');
+  const [currentCalendarMonth, setCurrentCalendarMonth] = useState(new Date());
+
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
       // If we already finished or have no unsaved progress, let them go back
@@ -97,56 +153,6 @@ export default function ReleaseVehicleScreen() {
     handoverPhotoUri,
     showReceipt
   ]);
-  const [submitting, setSubmitting] = useState(false);
-  const [vehicle, setVehicle] = useState<any>(null);
-  const [searchPlate, setSearchPlate] = useState('');
-  const [showReceipt, setShowReceipt] = useState(false);
-  const [receiptText, setReceiptText] = useState('');
-
-  // Form Fields
-  const [releaseDateText, setReleaseDateText] = useState('');
-  const [releaseOrderDateText, setReleaseOrderDateText] = useState('');
-  const [releasedTo, setReleasedTo] = useState('');
-  const [mobileNumber, setMobileNumber] = useState('');
-  const [bankParty, setBankParty] = useState('');
-  const [paymentMode, setPaymentMode] = useState('Cash');
-  const [paymentAmount, setPaymentAmount] = useState('');
-  const [remarks, setRemarks] = useState('');
-
-  // Kachha Release Reason
-  const [kachhaReason, setKachhaReason] = useState('');
-
-  // Document Uploads Uris & Statuses
-  const [releaseLetterUri, setReleaseLetterUri] = useState('');
-  const [aadharFrontUri, setAadharFrontUri] = useState('');
-  const [aadharBackUri, setAadharBackUri] = useState('');
-  const [handoverPhotoUri, setHandoverPhotoUri] = useState('');
-  const [thirdPartyIdProofUri, setThirdPartyIdProofUri] = useState('');
-
-  const [uploadingReleaseLetter, setUploadingReleaseLetter] = useState(false);
-  const [uploadingAadharFront, setUploadingAadharFront] = useState(false);
-  const [uploadingAadharBack, setUploadingAadharBack] = useState(false);
-  const [uploadingHandoverPhoto, setUploadingHandoverPhoto] = useState(false);
-  const [uploadingThirdPartyId, setUploadingThirdPartyId] = useState(false);
-
-  // Dropdown modals visibility states
-  const [paymentDropdownVisible, setPaymentDropdownVisible] = useState(false);
-  const [releaseToDropdownVisible, setReleaseToDropdownVisible] = useState(false);
-
-  // New release options
-  const [releaseToType, setReleaseToType] = useState<'Customer' | 'Third Party'>('Customer');
-  const [thirdPartyName, setThirdPartyName] = useState('');
-  const [thirdPartyPhone, setThirdPartyPhone] = useState('');
-  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
-
-  // Billing info
-  const [totalCharges, setTotalCharges] = useState(0);
-  const [durationDays, setDurationDays] = useState(0);
-
-  // Calendar Picker states & helper functions
-  const [calendarVisible, setCalendarVisible] = useState(false);
-  const [calendarTarget, setCalendarTarget] = useState<'order' | 'release'>('release');
-  const [currentCalendarMonth, setCurrentCalendarMonth] = useState(new Date());
 
   const formatToInputDate = (d: Date) => {
     const day = String(d.getDate()).padStart(2, '0');
@@ -208,15 +214,17 @@ export default function ReleaseVehicleScreen() {
     }
   };
 
-  const calculateBilling = (v: any, orderDateText: string, actualDateText: string) => {
+  const calculateBilling = (v: any, orderDt: Date, actualDt: Date) => {
     if (!v) return;
     const dailyRate = getDailyRate(v);
-    const releaseDate = parseDateText(actualDateText);
+    const actualMid = new Date(actualDt.getFullYear(), actualDt.getMonth(), actualDt.getDate());
 
     if (v.yardStatus === 'KACHHA') {
       // Day 1 to Actual Release Date
-      const entryDate = v.entryDate ? new Date(v.entryDate) : new Date();
-      const diffTime = Math.abs(releaseDate.getTime() - entryDate.getTime());
+      const entryDt = v.entryDate ? new Date(v.entryDate) : new Date();
+      const entryMid = new Date(entryDt.getFullYear(), entryDt.getMonth(), entryDt.getDate());
+      
+      const diffTime = Math.abs(actualMid.getTime() - entryMid.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
 
       setDurationDays(diffDays);
@@ -225,8 +233,8 @@ export default function ReleaseVehicleScreen() {
       setPaymentAmount(total.toString());
     } else {
       // PAKKA: calculate days directly after the release order date to release date
-      const orderDate = parseDateText(orderDateText);
-      const diffTime = releaseDate.getTime() - orderDate.getTime();
+      const orderMid = new Date(orderDt.getFullYear(), orderDt.getMonth(), orderDt.getDate());
+      const diffTime = actualMid.getTime() - orderMid.getTime();
       const chargeDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
       if (chargeDays > 0) {
@@ -261,10 +269,13 @@ export default function ReleaseVehicleScreen() {
           const item = res.data[0];
           setVehicle(item);
           setBankParty(item.bankName || '');
-          const todayStr = formatDateString(new Date());
+          const today = new Date();
+          setReleaseDate(today);
+          setReleaseOrderDate(today);
+          const todayStr = formatDateString(today);
           setReleaseDateText(todayStr);
           setReleaseOrderDateText(todayStr);
-          calculateBilling(item, todayStr, todayStr);
+          calculateBilling(item, today, today);
         } else {
           Alert.alert('Not Found', 'Vehicle not found on server database.');
         }
@@ -273,12 +284,48 @@ export default function ReleaseVehicleScreen() {
         if (item) {
           setVehicle(item);
           setBankParty(item.bankName || '');
-          const todayStr = formatDateString(new Date());
+          const today = new Date();
+          setReleaseDate(today);
+          setReleaseOrderDate(today);
+          const todayStr = formatDateString(today);
           setReleaseDateText(todayStr);
           setReleaseOrderDateText(todayStr);
-          calculateBilling(item, todayStr, todayStr);
+          calculateBilling(item, today, today);
         } else {
-          Alert.alert('Offline', 'Vehicle not found in offline cache.');
+          Alert.alert(
+            'Offline: Vehicle Not Cached',
+            `Vehicle ${queryPlate.trim().toUpperCase()} was not found in the offline storage. Do you want to check out this vehicle by manually entering details?`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Checkout Manually',
+                onPress: () => {
+                  const today = new Date();
+                  const dummyVehicle = {
+                    id: 'manual_' + Math.random().toString(36).substring(2, 9),
+                    vehicleNumber: queryPlate.trim().toUpperCase(),
+                    brand: 'Manual Entry',
+                    model: 'Offline',
+                    vehicleType: 'FW',
+                    yardStatus: 'KACHHA',
+                    entryDate: today.toISOString(),
+                    bankName: 'Manual Bank',
+                    tenantId: 'manual',
+                  };
+                  setVehicle(dummyVehicle);
+                  setBankParty('Manual Bank');
+                  setReleaseDate(today);
+                  setReleaseOrderDate(today);
+                  setEntryDate(today);
+                  const todayStr = formatDateString(today);
+                  setReleaseDateText(todayStr);
+                  setReleaseOrderDateText(todayStr);
+                  setEntryDateText(todayStr);
+                  calculateBilling(dummyVehicle, today, today);
+                }
+              }
+            ]
+          );
         }
       }
     } catch (error: any) {
@@ -289,9 +336,15 @@ export default function ReleaseVehicleScreen() {
   };
 
   useEffect(() => {
-    const todayStr = formatDateString(new Date());
+    const today = new Date();
+    setReleaseDate(today);
+    setReleaseOrderDate(today);
+    setEntryDate(today);
+    
+    const todayStr = formatDateString(today);
     setReleaseDateText(todayStr);
     setReleaseOrderDateText(todayStr);
+    setEntryDateText(todayStr);
 
     const rawPlate = Array.isArray(plate) ? plate[0] : plate;
     const rawId = Array.isArray(id) ? id[0] : id;
@@ -308,9 +361,11 @@ export default function ReleaseVehicleScreen() {
             const item = res.data;
             setVehicle(item);
             setBankParty(item.bankName || '');
+            setReleaseDate(today);
+            setReleaseOrderDate(today);
             setReleaseDateText(todayStr);
             setReleaseOrderDateText(todayStr);
-            calculateBilling(item, todayStr, todayStr);
+            calculateBilling(item, today, today);
           }
         } catch (e) {
           console.warn('[ReleaseVehicle] Failed to load by ID:', e);
@@ -530,7 +585,7 @@ export default function ReleaseVehicleScreen() {
         if (releaseToType === 'Third Party') {
           payload.thirdPartyIdProof = thirdPartyIdProofUri;
         }
-        payload.approvedTillDate = new Date(parseDateText(releaseOrderDateText)).toISOString();
+        payload.approvedTillDate = releaseOrderDate.toISOString();
       } else {
         // For KACHHA, we upload actual handoverPhotoUri and use a mock/default for customerIdProof to pass Zod validation
         payload.handoverPhoto1 = handoverPhotoUri;
@@ -769,13 +824,40 @@ export default function ReleaseVehicleScreen() {
                         style={styles.inputWrapperFull}
                         onPress={() => {
                           setCalendarTarget('order');
-                          setCurrentCalendarMonth(parseDateText(releaseOrderDateText));
+                          setCurrentCalendarMonth(releaseOrderDate);
                           setCalendarVisible(true);
                         }}
                         activeOpacity={0.8}
                       >
                         <ThemedText style={styles.fieldInputText}>
                           {releaseOrderDateText || 'Select Date'}
+                        </ThemedText>
+                        <Calendar size={18} color="#2563EB" />
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.divider} />
+                  </>
+                )}
+
+                {/* Entry Date (Manual Offline Entry Only) */}
+                {vehicle.id.startsWith('manual_') && (
+                  <>
+                    <View style={styles.fieldRowColumn}>
+                      <View style={styles.fieldLabelContainer}>
+                        <Calendar size={16} color="#64748B" style={{ marginRight: 6 }} />
+                        <ThemedText style={styles.fieldLabel}>Entry Date <ThemedText style={styles.required}>*</ThemedText></ThemedText>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.inputWrapperFull}
+                        onPress={() => {
+                          setCalendarTarget('entry');
+                          setCurrentCalendarMonth(entryDate);
+                          setCalendarVisible(true);
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <ThemedText style={styles.fieldInputText}>
+                          {entryDateText || 'Select Entry Date'}
                         </ThemedText>
                         <Calendar size={18} color="#2563EB" />
                       </TouchableOpacity>
@@ -794,7 +876,7 @@ export default function ReleaseVehicleScreen() {
                     style={styles.inputWrapperFull}
                     onPress={() => {
                       setCalendarTarget('release');
-                      setCurrentCalendarMonth(parseDateText(releaseDateText));
+                      setCurrentCalendarMonth(releaseDate);
                       setCalendarVisible(true);
                     }}
                     activeOpacity={0.8}
@@ -1221,8 +1303,10 @@ export default function ReleaseVehicleScreen() {
                 {generateCalendarDays().map((item, index) => {
                   const isSelected = item.date && (
                     calendarTarget === 'order' 
-                      ? parseDateText(releaseOrderDateText).toDateString() === item.date.toDateString()
-                      : parseDateText(releaseDateText).toDateString() === item.date.toDateString()
+                      ? releaseOrderDate.toDateString() === item.date.toDateString()
+                      : calendarTarget === 'entry'
+                      ? entryDate.toDateString() === item.date.toDateString()
+                      : releaseDate.toDateString() === item.date.toDateString()
                   );
 
                   return (
@@ -1238,11 +1322,19 @@ export default function ReleaseVehicleScreen() {
                         if (item.date) {
                           const formatted = formatToInputDate(item.date);
                           if (calendarTarget === 'order') {
+                            setReleaseOrderDate(item.date);
                             setReleaseOrderDateText(formatted);
-                            calculateBilling(vehicle, formatted, releaseDateText);
-                          } else {
+                            calculateBilling(vehicle, item.date, releaseDate);
+                          } else if (calendarTarget === 'release') {
+                            setReleaseDate(item.date);
                             setReleaseDateText(formatted);
-                            calculateBilling(vehicle, releaseOrderDateText, formatted);
+                            calculateBilling(vehicle, releaseOrderDate, item.date);
+                          } else if (calendarTarget === 'entry') {
+                            setEntryDate(item.date);
+                            setEntryDateText(formatted);
+                            const updatedVehicle = { ...vehicle, entryDate: item.date.toISOString() };
+                            setVehicle(updatedVehicle);
+                            calculateBilling(updatedVehicle, releaseOrderDate, releaseDate);
                           }
                           setCalendarVisible(false);
                         }

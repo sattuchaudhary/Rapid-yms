@@ -49,7 +49,7 @@ import {
   TrendingUp,
 } from 'lucide-react-native';
 
-export default function AdminDashboard() {
+export default function GuardDashboard() {
   const router = useRouter();
   const [user, setUser] = useState<UserSession | null>(null);
 
@@ -74,7 +74,7 @@ export default function AdminDashboard() {
       'Profile Photo',
       'Select action for profile picture',
       [
-        { text: 'View Profile', onPress: () => router.push('/guard/profile') },
+        { text: 'View Profile', onPress: () => router.push('/admin/profile') },
         { text: 'Take Photo', onPress: () => captureProfilePic() },
         { text: 'Choose from Gallery', onPress: () => pickProfilePic() },
         {
@@ -177,7 +177,7 @@ export default function AdminDashboard() {
       const localStats = getOfflineStats();
       setOfflineStats(localStats);
     } catch (err) {
-      console.warn('[AdminDashboard] Failed to load offline stats from SQLite:', err);
+      console.warn('[GuardDashboard] Failed to load offline stats from SQLite:', err);
     }
 
     // 2. Fetch live stats from API
@@ -187,7 +187,7 @@ export default function AdminDashboard() {
         setStats(statsRes.data.stats);
       }
     } catch (e: any) {
-      console.error('[AdminDashboard] Failed to load dashboard counts:', e.message || e);
+      console.error('[GuardDashboard] Failed to load dashboard counts:', e.message || e);
     }
 
     try {
@@ -196,12 +196,12 @@ export default function AdminDashboard() {
         setFinances(profitRes.data);
       }
     } catch (e: any) {
-      console.error('[AdminDashboard] Failed to load profit-loss sheets:', e.message || e);
+      console.error('[GuardDashboard] Failed to load profit-loss sheets:', e.message || e);
     }
 
     // 3. Sync local vehicle cache
     try {
-      const res = await apiRequest('/api/vehicles?limit=100');
+      const res = await apiRequest('/api/vehicles?limit=1000');
       if (res.success && res.data) {
         const formatted = res.data.map((item: any) => ({
           id: item.id,
@@ -221,7 +221,7 @@ export default function AdminDashboard() {
         setOfflineStats(updatedLocalStats);
       }
     } catch (e: any) {
-      console.warn('[AdminDashboard] Failed to sync local vehicle cache:', e.message || e);
+      console.warn('[GuardDashboard] Failed to sync local vehicle cache:', e.message || e);
     }
   };
 
@@ -336,7 +336,7 @@ export default function AdminDashboard() {
           <TouchableOpacity 
             style={styles.bellBtn} 
             activeOpacity={0.7}
-            onPress={() => router.push('/guard/notifications')}
+            onPress={() => router.push('/admin/notifications')}
           >
             <Bell size={22} color="#0F172A" />
             {pendingCount > 0 && <View style={styles.bellBadge} />}
@@ -366,7 +366,7 @@ export default function AdminDashboard() {
         <View style={styles.overviewCard}>
           <View style={styles.overviewHeaderRow}>
             <ThemedText style={styles.overviewTitle}>Today Overview</ThemedText>
-            <TouchableOpacity onPress={() => router.push('/guard/vehicle-list')} activeOpacity={0.7}>
+            <TouchableOpacity onPress={() => router.push('/admin/vehicle-list')} activeOpacity={0.7}>
               <ThemedText style={styles.viewAllText}>View All</ThemedText>
             </TouchableOpacity>
           </View>
@@ -425,7 +425,7 @@ export default function AdminDashboard() {
             <View style={styles.kachhaPakkaStrip}>
               <TouchableOpacity
                 style={[styles.kachhaPakkaItem, { borderRightWidth: 1, borderRightColor: 'rgba(255,255,255,0.2)' }]}
-                onPress={() => router.push({ pathname: '/guard/vehicle-list', params: { filter: 'KACHHA' } })}
+                onPress={() => router.push({ pathname: '/admin/vehicle-list', params: { filter: 'KACHHA' } })}
                 activeOpacity={0.7}
               >
                 <View style={styles.kachhaDot2} />
@@ -436,7 +436,7 @@ export default function AdminDashboard() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.kachhaPakkaItem}
-                onPress={() => router.push({ pathname: '/guard/vehicle-list', params: { filter: 'PAKKA' } })}
+                onPress={() => router.push({ pathname: '/admin/vehicle-list', params: { filter: 'PAKKA' } })}
                 activeOpacity={0.7}
               >
                 <View style={[styles.kachhaDot2, { backgroundColor: '#10B981' }]} />
@@ -456,7 +456,7 @@ export default function AdminDashboard() {
             {/* Card 1: New Entry */}
             <TouchableOpacity
               style={styles.mockupGridCard}
-              onPress={() => router.push('/guard/check-in')}
+              onPress={() => router.push('/admin/check-in')}
               activeOpacity={0.8}
             >
               <View style={[styles.mockupIconBg, { backgroundColor: '#DCFCE7' }]}>
@@ -468,7 +468,7 @@ export default function AdminDashboard() {
             {/* Card 2: Vehicle List */}
             <TouchableOpacity
               style={styles.mockupGridCard}
-              onPress={() => router.push('/guard/vehicle-list')}
+              onPress={() => router.push('/admin/vehicle-list')}
               activeOpacity={0.8}
             >
               <View style={[styles.mockupIconBg, { backgroundColor: '#DBEAFE' }]}>
@@ -480,7 +480,7 @@ export default function AdminDashboard() {
             {/* Card 3: Release Vehicle */}
             <TouchableOpacity
               style={styles.mockupGridCard}
-              onPress={() => router.push('/guard/check-out')}
+              onPress={() => router.push('/admin/check-out')}
               activeOpacity={0.8}
             >
               <View style={[styles.mockupIconBg, { backgroundColor: '#FFEDD5' }]}>
@@ -495,7 +495,7 @@ export default function AdminDashboard() {
             {/* Card 4: Reports */}
             <TouchableOpacity
               style={styles.mockupGridCard}
-              onPress={() => router.push('/guard/reports')}
+              onPress={() => router.push('/admin/reports')}
               activeOpacity={0.8}
             >
               <View style={[styles.mockupIconBg, { backgroundColor: '#F3E8FF' }]}>
@@ -507,7 +507,7 @@ export default function AdminDashboard() {
             {/* Card 5: Charges Calculator */}
             <TouchableOpacity
               style={styles.mockupGridCard}
-              onPress={() => router.push('/guard/calculate-charges')}
+              onPress={() => router.push('/admin/calculate-charges')}
               activeOpacity={0.8}
             >
               <View style={[styles.mockupIconBg, { backgroundColor: '#E2FDF8' }]}>
@@ -519,7 +519,7 @@ export default function AdminDashboard() {
             {/* Card 6: Search Vehicle */}
             <TouchableOpacity
               style={styles.mockupGridCard}
-              onPress={() => router.push('/guard/vehicle-list')}
+              onPress={() => router.push('/admin/vehicle-list')}
               activeOpacity={0.8}
             >
               <View style={[styles.mockupIconBg, { backgroundColor: '#FCE7F3' }]}>
@@ -972,7 +972,7 @@ export default function AdminDashboard() {
         <TouchableOpacity 
           style={styles.tabItem} 
           activeOpacity={0.7}
-          onPress={() => router.push('/guard/vehicle-list')}
+          onPress={() => router.push('/admin/vehicle-list')}
         >
           <Car size={22} color="#64748B" />
           <ThemedText style={styles.tabItemText}>Vehicles</ThemedText>
@@ -981,7 +981,7 @@ export default function AdminDashboard() {
         <TouchableOpacity 
           style={styles.floatingTabItem} 
           activeOpacity={0.85}
-          onPress={() => router.push('/guard/check-in')}
+          onPress={() => router.push('/admin/check-in')}
         >
           <Plus size={26} color="#FFFFFF" />
         </TouchableOpacity>
@@ -989,7 +989,7 @@ export default function AdminDashboard() {
         <TouchableOpacity 
           style={styles.tabItem} 
           activeOpacity={0.7}
-          onPress={() => router.push('/guard/reports')}
+          onPress={() => router.push('/admin/reports')}
         >
           <FileText size={22} color="#64748B" />
           <ThemedText style={styles.tabItemText}>Reports</ThemedText>
@@ -998,7 +998,7 @@ export default function AdminDashboard() {
         <TouchableOpacity 
           style={styles.tabItem} 
           activeOpacity={0.7}
-          onPress={() => router.push('/guard/profile')}
+          onPress={() => router.push('/admin/profile')}
         >
           <User size={22} color="#64748B" />
           <ThemedText style={styles.tabItemText}>Profile</ThemedText>
@@ -1053,7 +1053,7 @@ export default function AdminDashboard() {
                 style={styles.drawerLinkRow}
                 onPress={() => {
                   setDrawerVisible(false);
-                  router.push('/guard/vehicle-list');
+                  router.push('/admin/vehicle-list');
                 }}
               >
                 <Car size={18} color="#64748B" style={{ marginRight: 12 }} />
@@ -1065,7 +1065,7 @@ export default function AdminDashboard() {
                 style={styles.drawerLinkRow}
                 onPress={() => {
                   setDrawerVisible(false);
-                  router.push('/guard/check-in');
+                  router.push('/admin/check-in');
                 }}
               >
                 <Plus size={18} color="#64748B" style={{ marginRight: 12 }} />
@@ -1077,7 +1077,7 @@ export default function AdminDashboard() {
                 style={styles.drawerLinkRow}
                 onPress={() => {
                   setDrawerVisible(false);
-                  router.push('/guard/check-out');
+                  router.push('/admin/check-out');
                 }}
               >
                 <Key size={18} color="#64748B" style={{ marginRight: 12 }} />
@@ -1089,7 +1089,7 @@ export default function AdminDashboard() {
                 style={styles.drawerLinkRow}
                 onPress={() => {
                   setDrawerVisible(false);
-                  router.push('/guard/calculate-charges');
+                  router.push('/admin/calculate-charges');
                 }}
               >
                 <DollarSign size={18} color="#64748B" style={{ marginRight: 12 }} />
@@ -1101,7 +1101,7 @@ export default function AdminDashboard() {
                 style={styles.drawerLinkRow}
                 onPress={() => {
                   setDrawerVisible(false);
-                  router.push('/guard/reports');
+                  router.push('/admin/reports');
                 }}
               >
                 <FileText size={18} color="#64748B" style={{ marginRight: 12 }} />
@@ -1113,7 +1113,7 @@ export default function AdminDashboard() {
                 style={styles.drawerLinkRow}
                 onPress={() => {
                   setDrawerVisible(false);
-                  router.push('/guard/banks');
+                  router.push('/admin/banks');
                 }}
               >
                 <Building size={18} color="#64748B" style={{ marginRight: 12 }} />
@@ -1125,7 +1125,7 @@ export default function AdminDashboard() {
                 style={styles.drawerLinkRow}
                 onPress={() => {
                   setDrawerVisible(false);
-                  router.push('/guard/notifications');
+                  router.push('/admin/notifications');
                 }}
               >
                 <Bell size={18} color="#64748B" style={{ marginRight: 12 }} />
@@ -1137,7 +1137,7 @@ export default function AdminDashboard() {
                 style={styles.drawerLinkRow}
                 onPress={() => {
                   setDrawerVisible(false);
-                  router.push('/guard/profile');
+                  router.push('/admin/profile');
                 }}
               >
                 <Settings size={18} color="#64748B" style={{ marginRight: 12 }} />

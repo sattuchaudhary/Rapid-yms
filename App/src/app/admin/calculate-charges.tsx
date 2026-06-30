@@ -40,8 +40,12 @@ export default function CalculateChargesScreen() {
   const [vehicle, setVehicle] = useState<any>(null);
 
   // Calculation Inputs
-  const [entryDateText, setEntryDateText] = useState('20 May 2024');
-  const [releaseDateText, setReleaseDateText] = useState('07 Jun 2024');
+  const [entryDateText, setEntryDateText] = useState(() => {
+    return new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  });
+  const [releaseDateText, setReleaseDateText] = useState(() => {
+    return new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  });
   const [dailyRateText, setDailyRateText] = useState('100');
 
   // Load vehicle details if ID is provided
@@ -119,7 +123,7 @@ export default function CalculateChargesScreen() {
       const date = new Date(v.entryDate);
       setEntryDateText(formatDateString(date));
     } else {
-      setEntryDateText('20 May 2024');
+      setEntryDateText(formatDateString(new Date()));
     }
     
     // Release date is today
@@ -153,20 +157,27 @@ export default function CalculateChargesScreen() {
 
   // Parse custom Indian date strings, e.g., "20 May 2024"
   const parseDateText = (text: string): Date => {
+    if (!text) return new Date();
     try {
-      // Clean and split
-      const parts = text.trim().split(/\s+/);
+      // First try native parser
+      const parsed = new Date(text);
+      if (!isNaN(parsed.getTime())) return parsed;
+
+      // Handle custom "DD Month YYYY" (locale English)
+      const parts = text.trim().split(/[\s\-\,\/]+/);
       if (parts.length === 3) {
-        const day = parseInt(parts[0]);
+        const day = parseInt(parts[0], 10);
         const monthStr = parts[1].toLowerCase();
-        const year = parseInt(parts[2]);
+        const year = parseInt(parts[2], 10);
 
         const months: { [key: string]: number } = {
           jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-          jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+          jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+          january: 0, february: 1, march: 2, april: 3, june: 5,
+          july: 6, august: 7, september: 8, october: 9, november: 10, december: 11
         };
 
-        const month = months[monthStr.substring(0, 3)];
+        const month = months[monthStr.substring(0, 3)] ?? months[monthStr];
         if (month !== undefined && !isNaN(day) && !isNaN(year)) {
           return new Date(year, month, day);
         }
@@ -186,8 +197,12 @@ export default function CalculateChargesScreen() {
     const releaseDate = parseDateText(releaseDateText);
     const rate = parseFloat(dailyRateText) || 0;
 
+    // Normalize to midnight for accurate calculation
+    const entryMid = new Date(entryDate.getFullYear(), entryDate.getMonth(), entryDate.getDate());
+    const releaseMid = new Date(releaseDate.getFullYear(), releaseDate.getMonth(), releaseDate.getDate());
+
     // Calculate absolute difference in days
-    const diffTime = Math.abs(releaseDate.getTime() - entryDate.getTime());
+    const diffTime = Math.abs(releaseMid.getTime() - entryMid.getTime());
     const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
     const totalCharges = totalDays * rate;
 

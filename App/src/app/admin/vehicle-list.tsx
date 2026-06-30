@@ -53,7 +53,7 @@ export default function VehicleListScreen() {
       const isOnline = !!netInfo.isConnected;
 
       if (isOnline) {
-        const res = await apiRequest('/api/vehicles?limit=100');
+        const res = await apiRequest('/api/vehicles?limit=1000');
         if (res.success && res.data) {
           const formatted: ListVehicle[] = res.data.map((item: any) => ({
             id: item.id,
@@ -103,13 +103,32 @@ export default function VehicleListScreen() {
     loadData(false);
   };
 
-  const handleSearch = (text: string) => {
+  const handleSearch = async (text: string) => {
     setSearchQuery(text);
-    if (!text.trim()) {
-      loadData(false);
-    } else {
+    try {
+      const netInfo = await NetInfo.fetch();
+      const isOnline = !!netInfo.isConnected;
+
+      if (isOnline) {
+        if (!text.trim()) {
+          loadData(false);
+        } else {
+          setLoading(true);
+          const res = await apiRequest(`/api/vehicles?limit=1000&search=${encodeURIComponent(text)}`);
+          if (res.success && res.data) {
+            setVehicles(res.data);
+          }
+        }
+      } else {
+        const results = searchCachedVehicles(text);
+        setVehicles(results);
+      }
+    } catch (e) {
+      console.warn('[VehicleList] Online search failed, trying cached search:', e);
       const results = searchCachedVehicles(text);
       setVehicles(results);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -360,7 +379,7 @@ export default function VehicleListScreen() {
               <TouchableOpacity
                 style={styles.vehicleCard}
                 activeOpacity={0.7}
-                onPress={() => router.push({ pathname: '/guard/vehicle-details', params: { id: item.id } })}
+                onPress={() => router.push({ pathname: '/admin/vehicle-details', params: { id: item.id } })}
               >
                 <View style={styles.thumbnailWrapper}>
                   <Image source={{ uri: displayPhoto }} style={styles.vehicleThumbnail} />

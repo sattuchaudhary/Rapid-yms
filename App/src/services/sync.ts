@@ -1,5 +1,5 @@
 import NetInfo from '@react-native-community/netinfo';
-import { getQueuedJobs, deleteQueuedJob, OfflineJob } from './sqlite';
+import { getQueuedJobs, deleteQueuedJob, OfflineJob, cacheBanks } from './sqlite';
 import { apiRequest } from './api';
 
 type SyncListener = (isSyncing: boolean, pendingCount: number) => void;
@@ -43,29 +43,60 @@ export const runSyncQueue = async () => {
 
   try {
     for (const job of jobs) {
-      console.log(`[Sync] Processing job ${job.id} of type ${job.type}`);
-      await processJob(job);
-      // Success, delete job
-      deleteQueuedJob(job.id);
-      notifyListeners();
+      try {
+        console.log(`[Sync] Processing job ${job.id} of type ${job.type}`);
+        await processJob(job);
+        // Success, delete job
+        deleteQueuedJob(job.id);
+        notifyListeners();
+      } catch (jobError: any) {
+        console.error(`[Sync] Error processing job ${job.id}:`, jobError);
+        
+        // Double-check current network status
+        const state = await NetInfo.fetch();
+        if (state.isConnected === false) {
+          console.log('[Sync] Device went offline during queue execution. Halting sync.');
+          throw jobError; // Re-throw to exit loop and halt
+        }
+        
+        // If we are online, this is a validation/data mismatch error.
+        // Delete it from local queue so it does not block subsequent entries forever.
+        console.warn(`[Sync] Validation or server error on job ${job.id}. Deleting to prevent queue block.`);
+        deleteQueuedJob(job.id);
+        notifyListeners();
+      }
     }
     console.log('[Sync] All jobs processed successfully');
+    await syncBanksOnline();
   } catch (error) {
-    console.error('[Sync] Sync queue halted due to error:', error);
+    console.error('[Sync] Sync queue halted due to connection error:', error);
   } finally {
     isSyncing = false;
     notifyListeners();
   }
 };
 
+// Fetch and cache banks locally
+export const syncBanksOnline = async () => {
+  try {
+    console.log('[Sync] Fetching and caching banks from server...');
+    const res = await apiRequest('/api/banks');
+    if (res.success && res.data) {
+      cacheBanks(res.data);
+    }
+  } catch (err) {
+    console.warn('[Sync] Failed to fetch and cache banks online:', err);
+  }
+};
+
 // Process single job
 const processJob = async (job: OfflineJob) => {
   const payload = JSON.parse(job.payload);
-  const localPhotos: Array<{ type: string; uri: string; lat?: number; lng?: number }> = JSON.parse(job.photos);
+  const localPhotos = JSON.parse(job.photos);
 
   if (job.type === 'CHECK_IN') {
+    const photoArray = localPhotos as Array<{ type: string; uri: string; lat?: number; lng?: number }>;
     // 1. Submit the core check-in details
-    // We send payload without photos array (since photos are added individually via API)
     const checkinResponse = await apiRequest('/api/vehicles', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -75,7 +106,7 @@ const processJob = async (job: OfflineJob) => {
     console.log(`[Sync] Vehicle check-in created with ID: ${vehicleId}`);
 
     // 2. Upload photos if any
-    for (const photo of localPhotos) {
+    for (const photo of photoArray) {
       try {
         console.log(`[Sync] Requesting presigned URL for photo type: ${photo.type}`);
         const presignedRes = await apiRequest(
@@ -84,7 +115,6 @@ const processJob = async (job: OfflineJob) => {
 
         const { uploadUrl, publicUrl } = presignedRes.data;
 
-        // Perform actual binary upload to S3 (or simulate if mock)
         if (uploadUrl.includes('mock-s3-bucket')) {
           console.log('[Sync] Mock upload detected. Simulating photo upload...');
         } else {
@@ -106,7 +136,7 @@ const processJob = async (job: OfflineJob) => {
           body: JSON.stringify({
             photoType: photo.type,
             s3Url: publicUrl,
-            fileSize: 100000, // Approximate compressed size
+            fileSize: 100000,
             lat: photo.lat,
             lng: photo.lng,
           }),
@@ -114,20 +144,67 @@ const processJob = async (job: OfflineJob) => {
         console.log(`[Sync] Added photo record in DB for type ${photo.type}`);
       } catch (err) {
         console.error(`[Sync] Error uploading photo of type ${photo.type}:`, err);
-        // Continue with other photos, don't crash the entire sync
       }
     }
   } else if (job.type === 'CHECK_OUT') {
-    // Submit check-out details
     const vehicleNumber = payload.vehicleNumber;
-    // Checkout endpoint check:
-    // Let's see: how is checkout triggered in backend?
-    // Let's query backend files.
-    await apiRequest(`/api/releases`, {
+    const vehicleId = payload.vehicleId;
+    await apiRequest(`/api/releases/${vehicleId}/direct`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
     console.log(`[Sync] Checkout processed for vehicle: ${vehicleNumber}`);
+  } else if (job.type === 'KACHHA_TO_PAKKA') {
+    const { vehicleId, repoKitDate, pakkaDate } = payload;
+    const photoRecord = localPhotos as Record<string, string>;
+
+    // 1. Upload documents
+    for (const key of Object.keys(photoRecord)) {
+      const docUri = photoRecord[key];
+      if (!docUri) continue;
+
+      try {
+        console.log(`[Sync] Requesting presigned URL for repo kit doc: ${key}`);
+        const presignedRes = await apiRequest(
+          `/api/uploads/presigned-url?fileType=image/jpeg&folder=repokit&fileSize=200000`
+        );
+        const { uploadUrl, publicUrl } = presignedRes.data;
+
+        if (uploadUrl.includes('mock-s3-bucket')) {
+          console.log('[Sync] Mock upload detected for repo kit doc. Simulating...');
+        } else {
+          const fileBlob = await uriToBlob(docUri);
+          await fetch(uploadUrl, {
+            method: 'PUT',
+            body: fileBlob,
+            headers: { 'Content-Type': 'image/jpeg' },
+          });
+        }
+
+        // Register in DB
+        await apiRequest(`/api/vehicles/${vehicleId}/photos`, {
+          method: 'POST',
+          body: JSON.stringify({
+            photoType: key,
+            s3Url: publicUrl,
+          }),
+        });
+        console.log(`[Sync] Registered repo kit photo ${key} in DB`);
+      } catch (err) {
+        console.error(`[Sync] Failed to upload repo doc ${key}:`, err);
+      }
+    }
+
+    // 2. Transition status to PAKKA
+    await apiRequest(`/api/vehicles/${vehicleId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        yardStatus: 'PAKKA',
+        repoKitDate,
+        pakkaDate,
+      }),
+    });
+    console.log(`[Sync] Kachha to Pakka transition synced for vehicle ID: ${vehicleId}`);
   }
 };
 

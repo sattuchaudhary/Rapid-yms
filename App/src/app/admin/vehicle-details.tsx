@@ -17,7 +17,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { apiRequest, getUserInfo, UserSession } from '@/services/api';
 import { bluetoothService } from '@/services/bluetooth';
-import { getCachedVehicleByNumber, CachedVehicle } from '@/services/sqlite';
+import { getCachedVehicleByNumber, getCachedVehicleById, CachedVehicle } from '@/services/sqlite';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import NetInfo from '@react-native-community/netinfo';
@@ -174,8 +174,22 @@ export default function VehicleDetailsScreen() {
           setError('Could not retrieve vehicle information.');
         }
       } else {
-        // Offline: try loading from SQLite cache (we use search plate or query all for match)
-        setError('Offline mode. Please check connection to view detailed logs.');
+        // Offline: try loading from SQLite cache
+        const cached = getCachedVehicleById(id as string);
+        if (cached) {
+          setVehicle(cached as any);
+          setBilling({
+            vehicleId: cached.id,
+            dailyRate: getParkingDailyRate(cached as any),
+            totalDays: 0,
+            totalAmount: 0,
+            paidAmount: 0,
+            paymentStatus: 'PENDING',
+            billingStartDate: cached.entryDate,
+          } as any);
+        } else {
+          setError('Offline mode. Vehicle details not found in cache.');
+        }
       }
     } catch (err: any) {
       console.error('[VehicleDetails] Error fetching:', err);
@@ -916,7 +930,7 @@ export default function VehicleDetailsScreen() {
       {vehicle.yardStatus === 'KACHHA' && (
         <TouchableOpacity
           style={styles.kachhaBanner}
-          onPress={() => router.push({ pathname: '/guard/kachha-to-pakka', params: { id: vehicle.id } })}
+          onPress={() => router.push({ pathname: '/admin/kachha-to-pakka', params: { id: vehicle.id } })}
           activeOpacity={0.85}
         >
           <View style={styles.kachhaBannerLeft}>
@@ -939,7 +953,7 @@ export default function VehicleDetailsScreen() {
 
         <TouchableOpacity 
           style={styles.tabButton} 
-          onPress={() => router.push({ pathname: '/guard/calculate-charges', params: { id: vehicle.id } })} 
+          onPress={() => router.push({ pathname: '/admin/calculate-charges', params: { id: vehicle.id } })} 
           activeOpacity={0.7}
         >
           <Calculator size={20} color="#2563EB" />
@@ -948,7 +962,7 @@ export default function VehicleDetailsScreen() {
 
         <TouchableOpacity 
           style={styles.tabButton} 
-          onPress={() => router.push({ pathname: '/guard/check-out', params: { plate: vehicle.vehicleNumber } })} 
+          onPress={() => router.push({ pathname: '/admin/check-out', params: { plate: vehicle.vehicleNumber } })} 
           activeOpacity={0.7}
         >
           <Key size={20} color="#2563EB" />
