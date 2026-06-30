@@ -20,7 +20,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
-import { queueOfflineJob, getCachedVehicleByNumber, cacheVehicles, cacheBanks } from '@/services/sqlite';
+import { queueOfflineJob, getCachedVehicleByNumber, cacheVehicles, cacheBanks, getCachedBanks } from '@/services/sqlite';
 import { apiRequest, getUserInfo } from '@/services/api';
 import { bluetoothService } from '@/services/bluetooth';
 import { ThemedText } from '@/components/themed-text';

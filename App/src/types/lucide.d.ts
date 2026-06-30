@@ -64,4 +64,5 @@ declare module 'lucide-react-native' {
   export const Package: Icon;
   export const AlertTriangle: Icon;
   export const CheckCircle: Icon;
+  export const Pencil: Icon;
 }

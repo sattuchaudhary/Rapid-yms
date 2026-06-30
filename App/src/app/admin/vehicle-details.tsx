@@ -41,7 +41,7 @@ import {
   Share2,
   Trash2,
   FileText,
-  Edit,
+  Pencil,
 } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
@@ -74,6 +74,8 @@ export default function VehicleDetailsScreen() {
   const [editEngineNumber, setEditEngineNumber] = useState('');
   const [editCustomerName, setEditCustomerName] = useState('');
   const [editCustomerPhone, setEditCustomerPhone] = useState('');
+  const [editVehicleType, setEditVehicleType] = useState<'TW' | 'THREE_W' | 'FW' | 'CV'>('FW');
+  const [editBankName, setEditBankName] = useState('');
 
   // Photo Sharing & Viewer States
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
@@ -497,6 +499,8 @@ export default function VehicleDetailsScreen() {
           engineNumber: editEngineNumber.trim(),
           customerName: editCustomerName.trim(),
           customerPhone: editCustomerPhone.trim(),
+          vehicleType: editVehicleType,
+          bankName: editBankName.trim(),
         }),
       });
       if (res.success) {
@@ -1222,6 +1226,8 @@ export default function VehicleDetailsScreen() {
                   setEditEngineNumber(vehicle?.engineNumber || '');
                   setEditCustomerName(vehicle?.customerName || '');
                   setEditCustomerPhone(vehicle?.customerPhone || '');
+                  setEditVehicleType(vehicle?.vehicleType || 'FW');
+                  setEditBankName(vehicle?.bankName || '');
                   setTimeout(() => {
                     setEditModalVisible(true);
                   }, 150);
@@ -1229,7 +1235,7 @@ export default function VehicleDetailsScreen() {
                 activeOpacity={0.7}
               >
                 <View style={[styles.actionsSheetIconBox, { backgroundColor: '#ECFDF5' }]}>
-                  <Edit size={18} color="#059669" />
+                  <Pencil size={18} color="#059669" />
                 </View>
                 <ThemedText style={styles.actionsSheetText}>Edit Vehicle Details</ThemedText>
               </TouchableOpacity>
@@ -1304,18 +1310,18 @@ export default function VehicleDetailsScreen() {
         onRequestClose={() => setEditModalVisible(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
           style={{ flex: 1 }}
         >
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { maxHeight: '85%' }]}>
+            <View style={[styles.modalContent, { maxHeight: '85%', width: '100%' }]}>
               <View style={styles.modalHeader}>
                 <ThemedText style={styles.modalTitle}>Edit Vehicle Details</ThemedText>
                 <ThemedText style={styles.modalSub}>Update basic registration and customer info</ThemedText>
               </View>
 
-              <ScrollView style={{ flex: 1, marginVertical: 10 }} showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ flex: 1, marginVertical: 10 }} contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
                 <View style={{ gap: 12 }}>
                   <View>
                     <ThemedText style={styles.inputLabel}>License Plate *</ThemedText>
@@ -1390,6 +1396,47 @@ export default function VehicleDetailsScreen() {
                       keyboardType="numeric"
                       maxLength={10}
                       placeholder="Enter 10 digit Indian number"
+                    />
+                  </View>
+
+                  <View>
+                    <ThemedText style={styles.inputLabel}>Vehicle Type *</ThemedText>
+                    <View style={{ flexDirection: 'row', gap: 6, marginVertical: 4 }}>
+                      {[
+                        { label: '2W', value: 'TW' },
+                        { label: '3W', value: 'THREE_W' },
+                        { label: '4W', value: 'FW' },
+                        { label: 'CV', value: 'CV' },
+                      ].map((t) => (
+                        <TouchableOpacity
+                          key={t.value}
+                          style={[
+                            styles.typeSelectBtn,
+                            editVehicleType === t.value && styles.typeSelectBtnActive,
+                          ]}
+                          activeOpacity={0.7}
+                          onPress={() => setEditVehicleType(t.value as any)}
+                        >
+                          <ThemedText
+                            style={[
+                              styles.typeSelectText,
+                              editVehicleType === t.value && styles.typeSelectTextActive,
+                            ]}
+                          >
+                            {t.label}
+                          </ThemedText>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  <View style={{ marginBottom: 12 }}>
+                    <ThemedText style={styles.inputLabel}>Bank Name</ThemedText>
+                    <TextInput
+                      style={styles.textEditInput}
+                      value={editBankName}
+                      onChangeText={setEditBankName}
+                      placeholder="e.g. IDFC, HDB, Tatkal"
                     />
                   </View>
                 </View>
@@ -1765,6 +1812,30 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     padding: 20,
     maxHeight: '75%',
+    width: '100%',
+  },
+  typeSelectBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+  },
+  typeSelectBtnActive: {
+    borderColor: '#2563EB',
+    backgroundColor: '#EFF6FF',
+  },
+  typeSelectText: {
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  typeSelectTextActive: {
+    color: '#2563EB',
+    fontWeight: '700',
   },
   modalHeader: {
     borderBottomWidth: 1,
