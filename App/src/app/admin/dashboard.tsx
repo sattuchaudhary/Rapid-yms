@@ -15,7 +15,7 @@ import { useRouter, useNavigation } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { clearTokens, getUserInfo, apiRequest, UserSession, getProfileImage, setProfileImage } from '@/services/api';
-import { registerSyncListener, runSyncQueue } from '@/services/sync';
+import { registerSyncListener, runSyncQueue, syncBanksOnline } from '@/services/sync';
 import { bluetoothService, BluetoothDevice } from '@/services/bluetooth';
 import { cacheVehicles, getOfflineStats, CachedVehicle } from '@/services/sqlite';
 import NetInfo from '@react-native-community/netinfo';
@@ -216,6 +216,13 @@ export default function GuardDashboard() {
       }
     } catch (e: any) {
       console.error('[GuardDashboard] Failed to load profit-loss sheets:', e.message || e);
+    }
+
+    // Fetch and cache banks
+    try {
+      await syncBanksOnline();
+    } catch (bankErr) {
+      console.warn('[GuardDashboard] Failed to fetch and cache banks online:', bankErr);
     }
 
     // 3. Sync local vehicle cache

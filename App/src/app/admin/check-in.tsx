@@ -20,7 +20,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
-import { queueOfflineJob, getCachedVehicleByNumber, cacheVehicles } from '@/services/sqlite';
+import { queueOfflineJob, getCachedVehicleByNumber, cacheVehicles, cacheBanks } from '@/services/sqlite';
 import { apiRequest, getUserInfo } from '@/services/api';
 import { bluetoothService } from '@/services/bluetooth';
 import { ThemedText } from '@/components/themed-text';
@@ -280,6 +280,12 @@ export default function CheckInScreen() {
         const res = await apiRequest('/api/banks');
         if (res.success && res.data) {
           setBanks(res.data);
+          // Cache banks locally in SQLite
+          try {
+            cacheBanks(res.data);
+          } catch (cacheErr) {
+            console.warn('[CheckIn] Failed to cache banks locally:', cacheErr);
+          }
           return;
         }
       }
