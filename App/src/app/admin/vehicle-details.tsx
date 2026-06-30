@@ -40,6 +40,8 @@ import {
   Printer,
   Share2,
   Trash2,
+  FileText,
+  Edit,
 } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
@@ -55,8 +57,9 @@ export default function VehicleDetailsScreen() {
   const [error, setError] = useState<string | null>(null);
 
   // Modal States
-  const [photosVisible, setPhotosVisible] = useState(false);
   const [calcVisible, setCalcVisible] = useState(false);
+  const [photosVisible, setPhotosVisible] = useState(false);
+  const [actionsSheetVisible, setActionsSheetVisible] = useState(false);
   
   // Custom Calculator States
   const [calcDays, setCalcDays] = useState('30');
@@ -570,49 +573,7 @@ export default function VehicleDetailsScreen() {
   };
 
   const handleMoreMenu = () => {
-    const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'TENANT_ADMIN';
-    
-    Alert.alert('Vehicle Actions', 'Select an action to perform:', [
-      {
-        text: 'Share Condition Report PDF',
-        onPress: downloadAndSharePDF
-      },
-      {
-        text: 'Edit Vehicle Details',
-        onPress: () => {
-          setEditVehicleNumber(vehicle?.vehicleNumber || '');
-          setEditBrand(vehicle?.brand || '');
-          setEditModel(vehicle?.model || '');
-          setEditChassisNumber(vehicle?.chassisNumber || '');
-          setEditEngineNumber(vehicle?.engineNumber || '');
-          setEditCustomerName(vehicle?.customerName || '');
-          setEditCustomerPhone(vehicle?.customerPhone || '');
-          setEditModalVisible(true);
-        }
-      },
-      {
-        text: 'Print Gatepass Receipt',
-        onPress: handlePrint
-      },
-      {
-        text: 'Share Details Text',
-        onPress: () => {
-          const detailStr = `Vehicle: ${vehicle?.brand || ''} ${vehicle?.model || ''}\nNumber: ${vehicle?.vehicleNumber}\nStatus: ${vehicle?.yardStatus}\nDays: ${getDurationDays()}\nCharges: ₹${getTotalCharges()}`;
-          Alert.alert('Share Details (Simulated)', detailStr);
-        }
-      },
-      ...(isAdmin ? [
-        {
-          text: 'Delete Vehicle Record',
-          style: 'destructive' as const,
-          onPress: handleDelete
-        }
-      ] : []),
-      {
-        text: 'Cancel',
-        style: 'cancel' as const
-      }
-    ]);
+    setActionsSheetVisible(true);
   };
 
   if (loading) {
@@ -1217,6 +1178,125 @@ export default function VehicleDetailsScreen() {
       </Modal>
 
       {/* Edit Vehicle Modal */}
+      {/* Custom Bottom Actions Sheet Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={actionsSheetVisible}
+        onRequestClose={() => setActionsSheetVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.actionsSheetOverlay}
+          activeOpacity={1}
+          onPress={() => setActionsSheetVisible(false)}
+        >
+          <View style={styles.actionsSheetContent}>
+            <View style={styles.actionsSheetHeader}>
+              <View style={styles.actionsSheetIndicator} />
+              <ThemedText style={styles.actionsSheetTitle}>Vehicle Actions</ThemedText>
+            </View>
+
+            <View style={styles.actionsSheetList}>
+              <TouchableOpacity
+                style={styles.actionsSheetItem}
+                onPress={() => {
+                  setActionsSheetVisible(false);
+                  downloadAndSharePDF();
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.actionsSheetIconBox, { backgroundColor: '#EFF6FF' }]}>
+                  <FileText size={18} color="#2563EB" />
+                </View>
+                <ThemedText style={styles.actionsSheetText}>Share Condition Report PDF</ThemedText>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionsSheetItem}
+                onPress={() => {
+                  setActionsSheetVisible(false);
+                  setEditVehicleNumber(vehicle?.vehicleNumber || '');
+                  setEditBrand(vehicle?.brand || '');
+                  setEditModel(vehicle?.model || '');
+                  setEditChassisNumber(vehicle?.chassisNumber || '');
+                  setEditEngineNumber(vehicle?.engineNumber || '');
+                  setEditCustomerName(vehicle?.customerName || '');
+                  setEditCustomerPhone(vehicle?.customerPhone || '');
+                  setTimeout(() => {
+                    setEditModalVisible(true);
+                  }, 150);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.actionsSheetIconBox, { backgroundColor: '#ECFDF5' }]}>
+                  <Edit size={18} color="#059669" />
+                </View>
+                <ThemedText style={styles.actionsSheetText}>Edit Vehicle Details</ThemedText>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionsSheetItem}
+                onPress={() => {
+                  setActionsSheetVisible(false);
+                  handlePrint();
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.actionsSheetIconBox, { backgroundColor: '#F5F3FF' }]}>
+                  <Printer size={18} color="#7C3AED" />
+                </View>
+                <ThemedText style={styles.actionsSheetText}>Print Gatepass Receipt</ThemedText>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionsSheetItem}
+                onPress={async () => {
+                  setActionsSheetVisible(false);
+                  const detailStr = `Vehicle: ${vehicle?.brand || ''} ${vehicle?.model || ''}\nNumber: ${vehicle?.vehicleNumber}\nStatus: ${vehicle?.yardStatus}\nDays: ${getDurationDays()}\nCharges: ₹${getTotalCharges()}`;
+                  try {
+                    await Sharing.shareAsync({ message: detailStr } as any);
+                  } catch {
+                    Alert.alert('Vehicle Details', detailStr);
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.actionsSheetIconBox, { backgroundColor: '#FFF7ED' }]}>
+                  <Share2 size={18} color="#EA580C" />
+                </View>
+                <ThemedText style={styles.actionsSheetText}>Share Details Text</ThemedText>
+              </TouchableOpacity>
+
+              {(currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'TENANT_ADMIN') && (
+                <TouchableOpacity
+                  style={[styles.actionsSheetItem, styles.actionsSheetItemDelete]}
+                  onPress={() => {
+                    setActionsSheetVisible(false);
+                    setTimeout(() => {
+                      handleDelete();
+                    }, 150);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.actionsSheetIconBox, { backgroundColor: '#FEF2F2' }]}>
+                    <Trash2 size={18} color="#EF4444" />
+                  </View>
+                  <ThemedText style={[styles.actionsSheetText, { color: '#EF4444' }]}>Delete Vehicle Record</ThemedText>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={styles.actionsSheetCancel}
+                onPress={() => setActionsSheetVisible(false)}
+                activeOpacity={0.8}
+              >
+                <ThemedText style={styles.actionsSheetCancelText}>Cancel</ThemedText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       <Modal
         animationType="slide"
         transparent={true}
@@ -1315,19 +1395,21 @@ export default function VehicleDetailsScreen() {
                 </View>
               </ScrollView>
 
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
                 <TouchableOpacity
-                  style={[styles.modalActionBtn, { backgroundColor: '#EF4444' }]}
+                  style={[styles.modalActionBtn, { backgroundColor: '#64748B' }]}
                   onPress={() => setEditModalVisible(false)}
+                  activeOpacity={0.7}
                 >
-                  <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Cancel</ThemedText>
+                  <ThemedText style={{ color: '#FFFFFF', fontWeight: '700' }}>Cancel</ThemedText>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.modalActionBtn, { backgroundColor: '#22C55E' }]}
+                  style={[styles.modalActionBtn, { backgroundColor: '#2563EB' }]}
                   onPress={handleSaveEdit}
+                  activeOpacity={0.8}
                 >
-                  <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Save Changes</ThemedText>
+                  <ThemedText style={{ color: '#FFFFFF', fontWeight: '700' }}>Save Changes</ThemedText>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1975,6 +2057,82 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  actionsSheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    justifyContent: 'flex-end',
+  },
+  actionsSheetContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  actionsSheetHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  actionsSheetIndicator: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#CBD5E1',
+    marginBottom: 10,
+  },
+  actionsSheetTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  actionsSheetList: {
+    gap: 10,
+  },
+  actionsSheetItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  actionsSheetIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  actionsSheetText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  actionsSheetItemDelete: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FEE2E2',
+  },
+  actionsSheetCancel: {
+    height: 48,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#E2E8F0',
+    marginTop: 10,
+  },
+  actionsSheetCancelText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#475569',
   },
 });
 
