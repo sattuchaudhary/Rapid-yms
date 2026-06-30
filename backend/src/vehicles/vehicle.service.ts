@@ -412,6 +412,7 @@ export const updateVehicleService = async (
     yardStatus?: YardStatus;
     repoKitDate?: string;
     pakkaDate?: string;
+    entryDate?: string;
   }
 ) => {
   const vehicle = await prisma.vehicle.findFirst({
@@ -437,6 +438,7 @@ export const updateVehicleService = async (
 
   if (data.repoKitDate) updateData.repoKitDate = new Date(data.repoKitDate);
   if (data.pakkaDate) updateData.pakkaDate = new Date(data.pakkaDate);
+  if (data.entryDate) updateData.entryDate = new Date(data.entryDate);
 
   // If status is transitioning to PAKKA
   if (data.yardStatus === 'PAKKA' && vehicle.yardStatus === 'KACHHA') {
@@ -496,14 +498,18 @@ export const updateVehicleService = async (
       });
     }
 
-    // If moving to PAKKA, reinforce billing start date as entryDate
-    if (data.yardStatus === 'PAKKA' && vehicle.yardStatus === 'KACHHA') {
-      await tx.parkingBilling.update({
-        where: { vehicleId: id },
-        data: {
-          billingStartDate: vehicle.entryDate,
-        },
-      });
+    // If entryDate was updated, sync it to billing
+    if (data.entryDate) {
+      try {
+        await tx.parkingBilling.update({
+          where: { vehicleId: id },
+          data: {
+            billingStartDate: new Date(data.entryDate),
+          },
+        });
+      } catch (billingErr) {
+        console.warn('[VehicleService] Billing record update skipped:', billingErr);
+      }
     }
 
     // Log action

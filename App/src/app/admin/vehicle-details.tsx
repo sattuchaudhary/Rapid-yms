@@ -17,7 +17,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { apiRequest, getUserInfo, UserSession } from '@/services/api';
 import { bluetoothService } from '@/services/bluetooth';
-import { getCachedVehicleByNumber, getCachedVehicleById, CachedVehicle } from '@/services/sqlite';
+import { getCachedVehicleByNumber, getCachedVehicleById, queueOfflineJob, cacheVehicles, getCachedBanks, CachedVehicle } from '@/services/sqlite';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import NetInfo from '@react-native-community/netinfo';
@@ -42,7 +42,9 @@ import {
   Trash2,
   FileText,
   Pencil,
+  ChevronDown,
 } from 'lucide-react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const { width } = Dimensions.get('window');
 
@@ -76,6 +78,43 @@ export default function VehicleDetailsScreen() {
   const [editCustomerPhone, setEditCustomerPhone] = useState('');
   const [editVehicleType, setEditVehicleType] = useState<'TW' | 'THREE_W' | 'FW' | 'CV'>('FW');
   const [editBankName, setEditBankName] = useState('');
+  const [editEntryDate, setEditEntryDate] = useState<Date>(new Date());
+  const [editYardStatus, setEditYardStatus] = useState<'KACHHA' | 'PAKKA'>('KACHHA');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [bankPickerVisible, setBankPickerVisible] = useState(false);
+  const [bankSearch, setBankSearch] = useState('');
+  const [cachedBanks, setCachedBanks] = useState<any[]>([]);
+
+  const loadCachedBanksList = () => {
+    try {
+      const list = getCachedBanks();
+      setCachedBanks(list);
+    } catch (err) {
+      console.warn('[EditDetails] Failed to load banks from cache:', err);
+    }
+  };
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      const newDate = new Date(editEntryDate);
+      newDate.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+      setEditEntryDate(newDate);
+      if (Platform.OS === 'android') {
+        setTimeout(() => setShowTimePicker(true), 200);
+      }
+    }
+  };
+
+  const handleTimeChange = (event: any, selectedTime?: Date) => {
+    setShowTimePicker(false);
+    if (selectedTime) {
+      const newDate = new Date(editEntryDate);
+      newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+      setEditEntryDate(newDate);
+    }
+  };
 
   // Photo Sharing & Viewer States
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
@@ -501,9 +540,27 @@ export default function VehicleDetailsScreen() {
           customerPhone: editCustomerPhone.trim(),
           vehicleType: editVehicleType,
           bankName: editBankName.trim(),
+          entryDate: editEntryDate.toISOString(),
+          yardStatus: editYardStatus,
         }),
       });
       if (res.success) {
+        // Update local SQLite cache
+        try {
+          cacheVehicles([{
+            id: vehicle.id,
+            vehicleNumber: editVehicleNumber.trim().toUpperCase(),
+            brand: editBrand.trim() || null,
+            model: editModel.trim() || null,
+            vehicleType: editVehicleType,
+            entryDate: editEntryDate.toISOString(),
+            yardStatus: editYardStatus,
+            bankName: editBankName.trim() || null,
+            tenantId: vehicle.tenantId,
+          }]);
+        } catch (cacheErr) {
+          console.warn('[EditVehicle] Failed to update local cache:', cacheErr);
+        }
         Alert.alert('Success', 'Vehicle details updated successfully.', [
           {
             text: 'OK',
@@ -1228,6 +1285,9 @@ export default function VehicleDetailsScreen() {
                   setEditCustomerPhone(vehicle?.customerPhone || '');
                   setEditVehicleType(vehicle?.vehicleType || 'FW');
                   setEditBankName(vehicle?.bankName || '');
+                  setEditYardStatus(vehicle?.yardStatus || 'KACHHA');
+                  setEditEntryDate(vehicle?.entryDate ? new Date(vehicle?.entryDate) : new Date());
+                  loadCachedBanksList();
                   setTimeout(() => {
                     setEditModalVisible(true);
                   }, 150);
@@ -1400,6 +1460,61 @@ export default function VehicleDetailsScreen() {
                   </View>
 
                   <View>
+                    <ThemedText style={styles.inputLabel}>Check-In Date & Time *</ThemedText>
+                    <View style={{ flexDirection: 'row', gap: 8, marginVertical: 4 }}>
+                      <TouchableOpacity
+                        style={[styles.pickerBtn, { flex: 1 }]}
+                        onPress={() => setShowDatePicker(true)}
+                        activeOpacity={0.8}
+                      >
+                        <ThemedText style={styles.pickerBtnText}>
+                          {editEntryDate.toLocaleDateString('en-IN')}
+                        </ThemedText>
+                        <Calendar size={16} color="#64748B" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.pickerBtn, { flex: 1 }]}
+                        onPress={() => setShowTimePicker(true)}
+                        activeOpacity={0.8}
+                      >
+                        <ThemedText style={styles.pickerBtnText}>
+                          {editEntryDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                        </ThemedText>
+                        <Clock size={16} color="#64748B" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View>
+                    <ThemedText style={styles.inputLabel}>Yard Status *</ThemedText>
+                    <View style={{ flexDirection: 'row', gap: 6, marginVertical: 4 }}>
+                      {[
+                        { label: 'Kachha (Pending)', value: 'KACHHA' },
+                        { label: 'Pakka (Active)', value: 'PAKKA' },
+                      ].map((status) => (
+                        <TouchableOpacity
+                          key={status.value}
+                          style={[
+                            styles.typeSelectBtn,
+                            editYardStatus === status.value && styles.typeSelectBtnActive,
+                          ]}
+                          activeOpacity={0.7}
+                          onPress={() => setEditYardStatus(status.value as any)}
+                        >
+                          <ThemedText
+                            style={[
+                              styles.typeSelectText,
+                              editYardStatus === status.value && styles.typeSelectTextActive,
+                            ]}
+                          >
+                            {status.label}
+                          </ThemedText>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  <View>
                     <ThemedText style={styles.inputLabel}>Vehicle Type *</ThemedText>
                     <View style={{ flexDirection: 'row', gap: 6, marginVertical: 4 }}>
                       {[
@@ -1431,13 +1546,17 @@ export default function VehicleDetailsScreen() {
                   </View>
 
                   <View style={{ marginBottom: 12 }}>
-                    <ThemedText style={styles.inputLabel}>Bank Name</ThemedText>
-                    <TextInput
-                      style={styles.textEditInput}
-                      value={editBankName}
-                      onChangeText={setEditBankName}
-                      placeholder="e.g. IDFC, HDB, Tatkal"
-                    />
+                    <ThemedText style={styles.inputLabel}>Bank Name *</ThemedText>
+                    <TouchableOpacity
+                      style={[styles.pickerBtn, { marginVertical: 4 }]}
+                      onPress={() => setBankPickerVisible(true)}
+                      activeOpacity={0.8}
+                    >
+                      <ThemedText style={[styles.pickerBtnText, !editBankName && { color: '#94A3B8' }]} numberOfLines={1}>
+                        {editBankName || '-- Select Bank --'}
+                      </ThemedText>
+                      <ChevronDown size={16} color="#64748B" />
+                    </TouchableOpacity>
                   </View>
                 </View>
               </ScrollView>
@@ -1463,6 +1582,89 @@ export default function VehicleDetailsScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Searchable Bank Picker Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={bankPickerVisible}
+        onRequestClose={() => setBankPickerVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.actionsSheetOverlay}
+          activeOpacity={1}
+          onPress={() => setBankPickerVisible(false)}
+        >
+          <View style={[styles.actionsSheetContent, { height: '80%' }]}>
+            <View style={styles.actionsSheetHeader}>
+              <View style={styles.actionsSheetIndicator} />
+              <ThemedText style={styles.actionsSheetTitle}>Select Bank / Financier</ThemedText>
+            </View>
+
+            {/* Search Input */}
+            <View style={{ marginBottom: 12 }}>
+              <TextInput
+                style={styles.textEditInput}
+                placeholder="Search bank name..."
+                placeholderTextColor="#94A3B8"
+                value={bankSearch}
+                onChangeText={setBankSearch}
+                autoFocus={true}
+              />
+            </View>
+
+            {/* List */}
+            <FlatList
+              data={cachedBanks.filter(b => b.name.toLowerCase().includes(bankSearch.toLowerCase()))}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={{ gap: 8, paddingBottom: 24 }}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.actionsSheetItem}
+                  onPress={() => {
+                    setEditBankName(item.name);
+                    setBankPickerVisible(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <ThemedText style={styles.actionsSheetText}>{item.name}</ThemedText>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={() => (
+                <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                  <ThemedText style={{ color: '#64748B' }}>No banks found matching search</ThemedText>
+                </View>
+              )}
+            />
+
+            <TouchableOpacity
+              style={styles.actionsSheetCancel}
+              onPress={() => setBankPickerVisible(false)}
+              activeOpacity={0.8}
+            >
+              <ThemedText style={styles.actionsSheetCancelText}>Cancel</ThemedText>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {showDatePicker && (
+        <DateTimePicker
+          value={editEntryDate}
+          mode="date"
+          display="default"
+          onChange={handleDateChange}
+        />
+      )}
+
+      {showTimePicker && (
+        <DateTimePicker
+          value={editEntryDate}
+          mode="time"
+          display="default"
+          onChange={handleTimeChange}
+        />
+      )}
     </ThemedView>
   );
 }
@@ -2204,6 +2406,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: '#475569',
+  },
+  pickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#FFFFFF',
+    height: 44,
+  },
+  pickerBtnText: {
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '600',
   },
 });
 
