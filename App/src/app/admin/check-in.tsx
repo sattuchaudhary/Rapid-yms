@@ -14,13 +14,13 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useRouter, useNavigation } from 'expo-router';
+import { useRouter, useNavigation, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
-import { queueOfflineJob, getCachedVehicleByNumber, cacheVehicles, cacheBanks, getCachedBanks } from '@/services/sqlite';
+import { queueOfflineJob, getCachedVehicleByNumber, cacheVehicles, cacheBanks, getCachedBanks, getCachedVehicleById } from '@/services/sqlite';
 import { apiRequest, getUserInfo } from '@/services/api';
 import { bluetoothService } from '@/services/bluetooth';
 import { ThemedText } from '@/components/themed-text';
@@ -91,9 +91,11 @@ type VehicleType = 'TW' | 'THREE_W' | 'FW' | 'CV';
 export default function CheckInScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+  const { editVehicleId } = useLocalSearchParams();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [isOfflineSaved, setIsOfflineSaved] = useState(false);
+  const [loadingVehicle, setLoadingVehicle] = useState(false);
 
   // Bank Selection State
   const [banks, setBanks] = useState<any[]>([]);
@@ -197,6 +199,83 @@ export default function CheckInScreen() {
 
     return unsubscribe;
   }, [navigation, step, vehicleNumber, customerName, customerPhone, brand, model, photos, bankCategory]);
+
+  useEffect(() => {
+    if (!editVehicleId) return;
+
+    const loadVehicleForEdit = async () => {
+      setLoadingVehicle(true);
+      try {
+        const netInfo = await NetInfo.fetch();
+        const isOnline = !!netInfo.isConnected;
+        let vehicleData: any = null;
+
+        if (isOnline) {
+          const res = await apiRequest(`/api/vehicles/${editVehicleId}`);
+          if (res.success && res.data) {
+            vehicleData = res.data;
+          }
+        } else {
+          vehicleData = getCachedVehicleById(editVehicleId as string);
+        }
+
+        if (vehicleData) {
+          setVehicleNumber(vehicleData.vehicleNumber || '');
+          setVehicleType(vehicleData.vehicleType || '');
+          setCustomerName(vehicleData.customerName || '');
+          setCustomerPhone(vehicleData.customerPhone || '');
+          setBrand(vehicleData.brand || '');
+          setModel(vehicleData.model || '');
+          setChassisNumber(vehicleData.chassisNumber || '');
+          setEngineNumber(vehicleData.engineNumber || '');
+          setEntryDate(vehicleData.entryDate ? new Date(vehicleData.entryDate) : new Date());
+          setBankName(vehicleData.bankName || '');
+          setBankId(vehicleData.bankId || '');
+          
+          if (vehicleData.bankName) {
+            try {
+              const cachedList = getCachedBanks();
+              const matchedBank = cachedList.find(b => b.name === vehicleData.bankName);
+              if (matchedBank) {
+                setBankCategory(matchedBank.isThirdParty || matchedBank.parentId ? 'third_party' : 'direct');
+                setBankId(matchedBank.id);
+                if (matchedBank.parentId) {
+                  setSelectedThirdPartyId(matchedBank.parentId);
+                  const parentBank = cachedList.find(b => b.id === matchedBank.parentId);
+                  if (parentBank) {
+                    setSelectedGroupName(parentBank.name);
+                  }
+                }
+              } else {
+                setBankCategory('direct');
+              }
+            } catch (err) {
+              console.warn('[EditMode] Failed to match bank category:', err);
+              setBankCategory('direct');
+            }
+          }
+
+          if (vehicleData.inventory && vehicleData.inventory.length > 0) {
+            const loadedChecklist = INITIAL_CHECKLIST.map(item => {
+              const matched = vehicleData.inventory.find((inv: any) => inv.itemName === item.itemName);
+              return matched ? { itemName: item.itemName, isPresent: matched.isPresent, remarks: matched.remarks || '', make: matched.make || '' } : item;
+            });
+            setChecklist(loadedChecklist);
+          }
+
+          if (vehicleData.photos && vehicleData.photos.length > 0) {
+            setPhotos(vehicleData.photos.map((p: any) => ({ type: p.photoType, uri: p.s3Url })));
+          }
+        }
+      } catch (err: any) {
+        Alert.alert('Error', err.message || 'Failed to load vehicle details for editing');
+      } finally {
+        setLoadingVehicle(false);
+      }
+    };
+
+    loadVehicleForEdit();
+  }, [editVehicleId]);
 
   const checkDuplicateVehicle = async (plateNumber: string) => {
     try {
@@ -647,36 +726,66 @@ export default function CheckInScreen() {
         console.log('[CheckIn] App is online. Direct upload...');
         setIsOfflineSaved(false);
         
-        // Step 1: Submit vehicle basic specs
-        const checkinResponse = await apiRequest('/api/vehicles', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
+        let vehicleId = editVehicleId;
 
-        const vehicleId = checkinResponse.data.id;
-        const sNo = checkinResponse.data.serialNumber;
-        setSerialNumber(sNo || null);
-        console.log(`[CheckIn] Vehicle entry created in DB: ${vehicleId}, Serial: ${sNo}`);
+        if (editVehicleId) {
+          const updateRes = await apiRequest(`/api/vehicles/${editVehicleId}`, {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+          });
+          console.log(`[CheckIn] Vehicle entry updated in DB: ${editVehicleId}`);
 
-        // Update local SQLite cache
-        try {
-          cacheVehicles([{
-            id: vehicleId,
-            vehicleNumber: payload.vehicleNumber,
-            brand: payload.brand || null,
-            model: payload.model || null,
-            vehicleType: payload.vehicleType,
-            entryDate: payload.entryDate,
-            yardStatus: checkinResponse.data.yardStatus || 'KACHHA',
-            bankName: payload.bankName || null,
-            tenantId: checkinResponse.data.tenantId,
-          }]);
-        } catch (cacheErr) {
-          console.warn('[CheckIn] Failed to cache vehicle locally:', cacheErr);
+          // Update local SQLite cache
+          try {
+            cacheVehicles([{
+              id: editVehicleId as string,
+              vehicleNumber: payload.vehicleNumber,
+              brand: payload.brand || null,
+              model: payload.model || null,
+              vehicleType: payload.vehicleType,
+              entryDate: payload.entryDate,
+              yardStatus: updateRes.data?.yardStatus || 'KACHHA',
+              bankName: payload.bankName || null,
+              tenantId: updateRes.data?.tenantId || '',
+            }]);
+          } catch (cacheErr) {
+            console.warn('[CheckIn] Failed to cache vehicle locally:', cacheErr);
+          }
+        } else {
+          // Create Mode
+          const checkinResponse = await apiRequest('/api/vehicles', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          });
+
+          vehicleId = checkinResponse.data.id;
+          const sNo = checkinResponse.data.serialNumber;
+          setSerialNumber(sNo || null);
+          console.log(`[CheckIn] Vehicle entry created in DB: ${vehicleId}, Serial: ${sNo}`);
+
+          // Update local SQLite cache
+          try {
+            cacheVehicles([{
+              id: vehicleId,
+              vehicleNumber: payload.vehicleNumber,
+              brand: payload.brand || null,
+              model: payload.model || null,
+              vehicleType: payload.vehicleType,
+              entryDate: payload.entryDate,
+              yardStatus: checkinResponse.data.yardStatus || 'KACHHA',
+              bankName: payload.bankName || null,
+              tenantId: checkinResponse.data.tenantId,
+            }]);
+          } catch (cacheErr) {
+            console.warn('[CheckIn] Failed to cache vehicle locally:', cacheErr);
+          }
         }
 
         // Step 2: Upload images to presigned URL
         for (const photo of photos) {
+          if (photo.uri.startsWith('http')) {
+            continue;
+          }
           try {
             const presignedRes = await apiRequest(
               `/api/uploads/presigned-url?fileType=image/jpeg&folder=vehicles&fileSize=100000`
@@ -715,7 +824,27 @@ export default function CheckInScreen() {
         console.log('[CheckIn] App is offline. Queuing in SQLite...');
         setIsOfflineSaved(true);
         setSerialNumber(null);
-        queueOfflineJob('CHECK_IN', payload, photos);
+        if (editVehicleId) {
+          queueOfflineJob('EDIT_VEHICLE', { ...payload, vehicleId: editVehicleId }, []);
+          // Sync local SQLite cache
+          try {
+            cacheVehicles([{
+              id: editVehicleId as string,
+              vehicleNumber: payload.vehicleNumber,
+              brand: payload.brand || null,
+              model: payload.model || null,
+              vehicleType: payload.vehicleType,
+              entryDate: payload.entryDate,
+              yardStatus: 'KACHHA',
+              bankName: payload.bankName || null,
+              tenantId: '',
+            }]);
+          } catch (cacheErr) {
+            console.warn('[CheckIn] Failed to cache vehicle locally offline:', cacheErr);
+          }
+        } else {
+          queueOfflineJob('CHECK_IN', payload, photos);
+        }
         
         // Advance to success page
         setStep(4);
@@ -847,7 +976,7 @@ export default function CheckInScreen() {
           <View style={{ width: 40 }} />
         )}
         <ThemedText style={styles.headerTitle}>
-          {step === 4 ? 'Status Screen' : 'New Vehicle Entry'}
+          {step === 4 ? 'Status Screen' : (editVehicleId ? 'Edit Vehicle Entry' : 'New Vehicle Entry')}
         </ThemedText>
         <View style={{ width: 40 }} />
       </View>
@@ -1309,9 +1438,11 @@ export default function CheckInScreen() {
               <Check size={48} color="#FFFFFF" />
             </View>
             
-            <ThemedText style={styles.successTitle}>Inventory Generated</ThemedText>
+            <ThemedText style={styles.successTitle}>
+              {editVehicleId ? 'Vehicle Details Updated' : 'Inventory Generated'}
+            </ThemedText>
             <ThemedText style={styles.successSubtitle}>
-              Vehicle record has been saved successfully.
+              {editVehicleId ? 'Vehicle details have been updated successfully.' : 'Vehicle record has been saved successfully.'}
             </ThemedText>
 
             <View style={styles.receiptCard}>
@@ -1400,11 +1531,27 @@ export default function CheckInScreen() {
 
             <TouchableOpacity
               style={styles.doneActionBtn}
-              onPress={() => router.replace('/admin/dashboard')}
+              onPress={() => {
+                if (editVehicleId) {
+                  router.back();
+                } else {
+                  router.replace('/admin/dashboard');
+                }
+              }}
               activeOpacity={0.7}
             >
-              <ThemedText style={styles.doneActionBtnText}>Go to Home Dashboard</ThemedText>
+              <ThemedText style={styles.doneActionBtnText}>
+                {editVehicleId ? 'Go Back to Details' : 'Go to Home Dashboard'}
+              </ThemedText>
             </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Loading overlay if loading vehicle data */}
+        {loadingVehicle && (
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
+            <ActivityIndicator size="large" color="#2563EB" />
+            <ThemedText style={{ marginTop: 12, color: '#64748B', fontWeight: '600' }}>Loading vehicle specs...</ThemedText>
           </View>
         )}
 

@@ -205,6 +205,16 @@ const processJob = async (job: OfflineJob) => {
       }),
     });
     console.log(`[Sync] Kachha to Pakka transition synced for vehicle ID: ${vehicleId}`);
+  } else if (job.type === 'EDIT_VEHICLE') {
+    const { vehicleId } = payload;
+    const body = { ...payload };
+    delete body.vehicleId;
+
+    await apiRequest(`/api/vehicles/${vehicleId}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+    console.log(`[Sync] Processed offline vehicle edit for: ${vehicleId}`);
   }
 };
 

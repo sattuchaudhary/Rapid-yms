@@ -14,7 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { apiRequest, getUserInfo, UserSession } from '@/services/api';
 import { bluetoothService } from '@/services/bluetooth';
 import { getCachedVehicleByNumber, getCachedVehicleById, queueOfflineJob, cacheVehicles, getCachedBanks, CachedVehicle } from '@/services/sqlite';
@@ -67,54 +67,8 @@ export default function VehicleDetailsScreen() {
   const [calcDays, setCalcDays] = useState('30');
   const [calcResult, setCalcResult] = useState<number | null>(null);
 
-  // Edit Vehicle States
-  const [editModalVisible, setEditModalVisible] = useState(false);
-  const [editVehicleNumber, setEditVehicleNumber] = useState('');
-  const [editBrand, setEditBrand] = useState('');
-  const [editModel, setEditModel] = useState('');
-  const [editChassisNumber, setEditChassisNumber] = useState('');
-  const [editEngineNumber, setEditEngineNumber] = useState('');
-  const [editCustomerName, setEditCustomerName] = useState('');
-  const [editCustomerPhone, setEditCustomerPhone] = useState('');
-  const [editVehicleType, setEditVehicleType] = useState<'TW' | 'THREE_W' | 'FW' | 'CV'>('FW');
-  const [editBankName, setEditBankName] = useState('');
-  const [editEntryDate, setEditEntryDate] = useState<Date>(new Date());
-  const [editYardStatus, setEditYardStatus] = useState<'KACHHA' | 'PAKKA'>('KACHHA');
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [bankPickerVisible, setBankPickerVisible] = useState(false);
-  const [bankSearch, setBankSearch] = useState('');
-  const [cachedBanks, setCachedBanks] = useState<any[]>([]);
-
-  const loadCachedBanksList = () => {
-    try {
-      const list = getCachedBanks();
-      setCachedBanks(list);
-    } catch (err) {
-      console.warn('[EditDetails] Failed to load banks from cache:', err);
-    }
-  };
-
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
-      const newDate = new Date(editEntryDate);
-      newDate.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
-      setEditEntryDate(newDate);
-      if (Platform.OS === 'android') {
-        setTimeout(() => setShowTimePicker(true), 200);
-      }
-    }
-  };
-
-  const handleTimeChange = (event: any, selectedTime?: Date) => {
-    setShowTimePicker(false);
-    if (selectedTime) {
-      const newDate = new Date(editEntryDate);
-      newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
-      setEditEntryDate(newDate);
-    }
-  };
+  // Navigation states
+  const navigation = useNavigation();
 
   // Photo Sharing & Viewer States
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
@@ -251,6 +205,13 @@ export default function VehicleDetailsScreen() {
     };
     init();
   }, [id]);
+
+  useEffect(() => {
+    const unsubscribeFocus = navigation.addListener('focus', () => {
+      fetchVehicleDetails();
+    });
+    return unsubscribeFocus;
+  }, [navigation, fetchVehicleDetails]);
 
   // Daily rate fallback
   const getDailyRate = () => {
@@ -513,72 +474,7 @@ export default function VehicleDetailsScreen() {
     }
   };
 
-  const handleSaveEdit = async () => {
-    if (!editVehicleNumber.trim()) {
-      Alert.alert('Error', 'License plate is required');
-      return;
-    }
-    if (editCustomerPhone.trim()) {
-      const cleanPhone = editCustomerPhone.trim().replace(/[^0-9]/g, '');
-      if (cleanPhone.length !== 10 || !/^[6-9]/.test(cleanPhone)) {
-        Alert.alert('Error', 'Please enter a valid 10-digit Indian mobile number');
-        return;
-      }
-    }
-
-    try {
-      setLoading(true);
-      const res = await apiRequest(`/api/vehicles/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          vehicleNumber: editVehicleNumber.trim().toUpperCase(),
-          brand: editBrand.trim(),
-          model: editModel.trim(),
-          chassisNumber: editChassisNumber.trim(),
-          engineNumber: editEngineNumber.trim(),
-          customerName: editCustomerName.trim(),
-          customerPhone: editCustomerPhone.trim(),
-          vehicleType: editVehicleType,
-          bankName: editBankName.trim(),
-          entryDate: editEntryDate.toISOString(),
-          yardStatus: editYardStatus,
-        }),
-      });
-      if (res.success) {
-        // Update local SQLite cache
-        try {
-          cacheVehicles([{
-            id: vehicle.id,
-            vehicleNumber: editVehicleNumber.trim().toUpperCase(),
-            brand: editBrand.trim() || null,
-            model: editModel.trim() || null,
-            vehicleType: editVehicleType,
-            entryDate: editEntryDate.toISOString(),
-            yardStatus: editYardStatus,
-            bankName: editBankName.trim() || null,
-            tenantId: vehicle.tenantId,
-          }]);
-        } catch (cacheErr) {
-          console.warn('[EditVehicle] Failed to update local cache:', cacheErr);
-        }
-        Alert.alert('Success', 'Vehicle details updated successfully.', [
-          {
-            text: 'OK',
-            onPress: () => {
-              setEditModalVisible(false);
-              fetchVehicleDetails();
-            }
-          }
-        ]);
-      } else {
-        Alert.alert('Error', res.error || 'Failed to update vehicle');
-      }
-    } catch (e: any) {
-      Alert.alert('Error', e.message || 'Could not update vehicle');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Save edit helper deleted: redirected to check-in wizard
 
   // Print Gate Pass Receipt
   const handlePrint = async () => {
@@ -1276,21 +1172,10 @@ export default function VehicleDetailsScreen() {
                 style={styles.actionsSheetItem}
                 onPress={() => {
                   setActionsSheetVisible(false);
-                  setEditVehicleNumber(vehicle?.vehicleNumber || '');
-                  setEditBrand(vehicle?.brand || '');
-                  setEditModel(vehicle?.model || '');
-                  setEditChassisNumber(vehicle?.chassisNumber || '');
-                  setEditEngineNumber(vehicle?.engineNumber || '');
-                  setEditCustomerName(vehicle?.customerName || '');
-                  setEditCustomerPhone(vehicle?.customerPhone || '');
-                  setEditVehicleType(vehicle?.vehicleType || 'FW');
-                  setEditBankName(vehicle?.bankName || '');
-                  setEditYardStatus(vehicle?.yardStatus || 'KACHHA');
-                  setEditEntryDate(vehicle?.entryDate ? new Date(vehicle?.entryDate) : new Date());
-                  loadCachedBanksList();
-                  setTimeout(() => {
-                    setEditModalVisible(true);
-                  }, 150);
+                  router.push({
+                    pathname: '/admin/check-in',
+                    params: { editVehicleId: id },
+                  });
                 }}
                 activeOpacity={0.7}
               >
@@ -1363,308 +1248,7 @@ export default function VehicleDetailsScreen() {
         </TouchableOpacity>
       </Modal>
 
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={editModalVisible}
-        onRequestClose={() => setEditModalVisible(false)}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-          style={{ flex: 1 }}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { maxHeight: '85%', width: '100%' }]}>
-              <View style={styles.modalHeader}>
-                <ThemedText style={styles.modalTitle}>Edit Vehicle Details</ThemedText>
-                <ThemedText style={styles.modalSub}>Update basic registration and customer info</ThemedText>
-              </View>
-
-              <ScrollView style={{ flex: 1, marginVertical: 10 }} contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
-                <View style={{ gap: 12 }}>
-                  <View>
-                    <ThemedText style={styles.inputLabel}>License Plate *</ThemedText>
-                    <TextInput
-                      style={styles.textEditInput}
-                      value={editVehicleNumber}
-                      onChangeText={setEditVehicleNumber}
-                      autoCapitalize="characters"
-                      placeholder="e.g. MH12PQ1234"
-                    />
-                  </View>
-
-                  <View style={{ flexDirection: 'row', gap: 10 }}>
-                    <View style={{ flex: 1 }}>
-                      <ThemedText style={styles.inputLabel}>Brand / Maker</ThemedText>
-                      <TextInput
-                        style={styles.textEditInput}
-                        value={editBrand}
-                        onChangeText={setEditBrand}
-                        placeholder="e.g. Tata Motors"
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <ThemedText style={styles.inputLabel}>Model Name</ThemedText>
-                      <TextInput
-                        style={styles.textEditInput}
-                        value={editModel}
-                        onChangeText={setEditModel}
-                        placeholder="e.g. Nexon"
-                      />
-                    </View>
-                  </View>
-
-                  <View>
-                    <ThemedText style={styles.inputLabel}>Chassis Number</ThemedText>
-                    <TextInput
-                      style={styles.textEditInput}
-                      value={editChassisNumber}
-                      onChangeText={setEditChassisNumber}
-                      autoCapitalize="characters"
-                      placeholder="Enter Chassis No."
-                    />
-                  </View>
-
-                  <View>
-                    <ThemedText style={styles.inputLabel}>Engine Number</ThemedText>
-                    <TextInput
-                      style={styles.textEditInput}
-                      value={editEngineNumber}
-                      onChangeText={setEditEngineNumber}
-                      autoCapitalize="characters"
-                      placeholder="Enter Engine No."
-                    />
-                  </View>
-
-                  <View>
-                    <ThemedText style={styles.inputLabel}>Customer Name</ThemedText>
-                    <TextInput
-                      style={styles.textEditInput}
-                      value={editCustomerName}
-                      onChangeText={setEditCustomerName}
-                      placeholder="Enter Customer Name"
-                    />
-                  </View>
-
-                  <View>
-                    <ThemedText style={styles.inputLabel}>Customer Mob No.</ThemedText>
-                    <TextInput
-                      style={styles.textEditInput}
-                      value={editCustomerPhone}
-                      onChangeText={(val) => setEditCustomerPhone(val.replace(/[^0-9]/g, ''))}
-                      keyboardType="numeric"
-                      maxLength={10}
-                      placeholder="Enter 10 digit Indian number"
-                    />
-                  </View>
-
-                  <View>
-                    <ThemedText style={styles.inputLabel}>Check-In Date & Time *</ThemedText>
-                    <View style={{ flexDirection: 'row', gap: 8, marginVertical: 4 }}>
-                      <TouchableOpacity
-                        style={[styles.pickerBtn, { flex: 1 }]}
-                        onPress={() => setShowDatePicker(true)}
-                        activeOpacity={0.8}
-                      >
-                        <ThemedText style={styles.pickerBtnText}>
-                          {editEntryDate.toLocaleDateString('en-IN')}
-                        </ThemedText>
-                        <Calendar size={16} color="#64748B" />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.pickerBtn, { flex: 1 }]}
-                        onPress={() => setShowTimePicker(true)}
-                        activeOpacity={0.8}
-                      >
-                        <ThemedText style={styles.pickerBtnText}>
-                          {editEntryDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                        </ThemedText>
-                        <Clock size={16} color="#64748B" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  <View>
-                    <ThemedText style={styles.inputLabel}>Yard Status *</ThemedText>
-                    <View style={{ flexDirection: 'row', gap: 6, marginVertical: 4 }}>
-                      {[
-                        { label: 'Kachha (Pending)', value: 'KACHHA' },
-                        { label: 'Pakka (Active)', value: 'PAKKA' },
-                      ].map((status) => (
-                        <TouchableOpacity
-                          key={status.value}
-                          style={[
-                            styles.typeSelectBtn,
-                            editYardStatus === status.value && styles.typeSelectBtnActive,
-                          ]}
-                          activeOpacity={0.7}
-                          onPress={() => setEditYardStatus(status.value as any)}
-                        >
-                          <ThemedText
-                            style={[
-                              styles.typeSelectText,
-                              editYardStatus === status.value && styles.typeSelectTextActive,
-                            ]}
-                          >
-                            {status.label}
-                          </ThemedText>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-
-                  <View>
-                    <ThemedText style={styles.inputLabel}>Vehicle Type *</ThemedText>
-                    <View style={{ flexDirection: 'row', gap: 6, marginVertical: 4 }}>
-                      {[
-                        { label: '2W', value: 'TW' },
-                        { label: '3W', value: 'THREE_W' },
-                        { label: '4W', value: 'FW' },
-                        { label: 'CV', value: 'CV' },
-                      ].map((t) => (
-                        <TouchableOpacity
-                          key={t.value}
-                          style={[
-                            styles.typeSelectBtn,
-                            editVehicleType === t.value && styles.typeSelectBtnActive,
-                          ]}
-                          activeOpacity={0.7}
-                          onPress={() => setEditVehicleType(t.value as any)}
-                        >
-                          <ThemedText
-                            style={[
-                              styles.typeSelectText,
-                              editVehicleType === t.value && styles.typeSelectTextActive,
-                            ]}
-                          >
-                            {t.label}
-                          </ThemedText>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-
-                  <View style={{ marginBottom: 12 }}>
-                    <ThemedText style={styles.inputLabel}>Bank Name *</ThemedText>
-                    <TouchableOpacity
-                      style={[styles.pickerBtn, { marginVertical: 4 }]}
-                      onPress={() => setBankPickerVisible(true)}
-                      activeOpacity={0.8}
-                    >
-                      <ThemedText style={[styles.pickerBtnText, !editBankName && { color: '#94A3B8' }]} numberOfLines={1}>
-                        {editBankName || '-- Select Bank --'}
-                      </ThemedText>
-                      <ChevronDown size={16} color="#64748B" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </ScrollView>
-
-              <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-                <TouchableOpacity
-                  style={[styles.modalActionBtn, { backgroundColor: '#64748B' }]}
-                  onPress={() => setEditModalVisible(false)}
-                  activeOpacity={0.7}
-                >
-                  <ThemedText style={{ color: '#FFFFFF', fontWeight: '700' }}>Cancel</ThemedText>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.modalActionBtn, { backgroundColor: '#2563EB' }]}
-                  onPress={handleSaveEdit}
-                  activeOpacity={0.8}
-                >
-                  <ThemedText style={{ color: '#FFFFFF', fontWeight: '700' }}>Save Changes</ThemedText>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Searchable Bank Picker Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={bankPickerVisible}
-        onRequestClose={() => setBankPickerVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.actionsSheetOverlay}
-          activeOpacity={1}
-          onPress={() => setBankPickerVisible(false)}
-        >
-          <View style={[styles.actionsSheetContent, { height: '80%' }]}>
-            <View style={styles.actionsSheetHeader}>
-              <View style={styles.actionsSheetIndicator} />
-              <ThemedText style={styles.actionsSheetTitle}>Select Bank / Financier</ThemedText>
-            </View>
-
-            {/* Search Input */}
-            <View style={{ marginBottom: 12 }}>
-              <TextInput
-                style={styles.textEditInput}
-                placeholder="Search bank name..."
-                placeholderTextColor="#94A3B8"
-                value={bankSearch}
-                onChangeText={setBankSearch}
-                autoFocus={true}
-              />
-            </View>
-
-            {/* List */}
-            <FlatList
-              data={cachedBanks.filter(b => b.name.toLowerCase().includes(bankSearch.toLowerCase()))}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={{ gap: 8, paddingBottom: 24 }}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.actionsSheetItem}
-                  onPress={() => {
-                    setEditBankName(item.name);
-                    setBankPickerVisible(false);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <ThemedText style={styles.actionsSheetText}>{item.name}</ThemedText>
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={() => (
-                <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                  <ThemedText style={{ color: '#64748B' }}>No banks found matching search</ThemedText>
-                </View>
-              )}
-            />
-
-            <TouchableOpacity
-              style={styles.actionsSheetCancel}
-              onPress={() => setBankPickerVisible(false)}
-              activeOpacity={0.8}
-            >
-              <ThemedText style={styles.actionsSheetCancelText}>Cancel</ThemedText>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {showDatePicker && (
-        <DateTimePicker
-          value={editEntryDate}
-          mode="date"
-          display="default"
-          onChange={handleDateChange}
-        />
-      )}
-
-      {showTimePicker && (
-        <DateTimePicker
-          value={editEntryDate}
-          mode="time"
-          display="default"
-          onChange={handleTimeChange}
-        />
-      )}
+      {/* Redundant local Edit Modals deleted */}
     </ThemedView>
   );
 }

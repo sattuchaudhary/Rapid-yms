@@ -413,6 +413,7 @@ export const updateVehicleService = async (
     repoKitDate?: string;
     pakkaDate?: string;
     entryDate?: string;
+    inventory?: { itemName: string; isPresent: boolean; remarks?: string }[];
   }
 ) => {
   const vehicle = await prisma.vehicle.findFirst({
@@ -422,6 +423,7 @@ export const updateVehicleService = async (
 
   const oldLocationId = vehicle.yardLocationId;
   const updateData: any = { ...data };
+  delete updateData.inventory;
 
   if (data.bankId) {
     const bank = await prisma.bank.findFirst({
@@ -465,6 +467,22 @@ export const updateVehicleService = async (
       where: { id },
       data: updateData,
     });
+
+    // Update inventory checklist if provided
+    if (data.inventory) {
+      await tx.vehicleInventory.deleteMany({
+        where: { vehicleId: id },
+      });
+      await tx.vehicleInventory.createMany({
+        data: data.inventory.map(item => ({
+          vehicleId: id,
+          tenantId,
+          itemName: item.itemName,
+          isPresent: item.isPresent,
+          remarks: item.remarks || '',
+        })),
+      });
+    }
 
     // If bank was updated, look up and apply the bank's custom rate to billing
     if (data.bankId !== undefined && data.bankId !== vehicle.bankId) {
