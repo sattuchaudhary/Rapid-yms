@@ -292,6 +292,9 @@ export default function CheckInScreen() {
             (v: any) => v.vehicleNumber.toUpperCase() === formattedPlate
           );
           if (matched) {
+            if (editVehicleId && matched.id === editVehicleId) {
+              return true;
+            }
             if (matched.yardStatus === 'KACHHA' || matched.yardStatus === 'PAKKA') {
               Alert.alert(
                 'Vehicle Already In Yard',
@@ -321,6 +324,9 @@ export default function CheckInScreen() {
         // Offline check
         const cached = getCachedVehicleByNumber(formattedPlate);
         if (cached) {
+          if (editVehicleId && cached.id === editVehicleId) {
+            return true;
+          }
           if (cached.yardStatus === 'KACHHA' || cached.yardStatus === 'PAKKA') {
             Alert.alert(
               'Vehicle Already In Yard (Offline Cache)',
