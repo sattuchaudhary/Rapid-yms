@@ -24,7 +24,6 @@ import {
   Check,
   AlertTriangle,
   FileText,
-  CheckCircle,
   Calendar,
   ImageIcon,
   Car,
@@ -647,8 +646,8 @@ export default function KachhaToPakkaScreen() {
       >
         <View style={styles.successOverlay}>
           <View style={styles.successCard}>
-            <View style={styles.successIcon}>
-              <CheckCircle size={48} color="#10B981" />
+            <View style={styles.successIconWrapper}>
+              <Check size={36} color="#FFFFFF" />
             </View>
             <ThemedText style={styles.successTitle}>Transition Complete!</ThemedText>
             <ThemedText style={styles.successMsg}>
@@ -1037,7 +1036,20 @@ const styles = StyleSheet.create({
     maxWidth: 380,
     alignItems: 'center',
   },
-  successIcon: { marginBottom: 16 },
+  successIconWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#10B981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
   successTitle: { fontSize: 20, fontWeight: '800', color: '#0F172A', marginBottom: 10, textAlign: 'center' },
   successMsg: { fontSize: 14, color: '#475569', textAlign: 'center', lineHeight: 22, marginBottom: 20 },
   successInfoCard: {
