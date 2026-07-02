@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -62,6 +62,14 @@ const REPO_KIT_DOCS = [
 export default function KachhaToPakkaScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   const [vehicle, setVehicle] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -116,6 +124,7 @@ export default function KachhaToPakkaScreen() {
 
       if (isOnline) {
         const res = await apiRequest(`/api/vehicles/${id}`);
+        if (!isMounted.current) return;
         if (res.success && res.data) {
           if (res.data.yardStatus !== 'KACHHA') {
             Alert.alert(
@@ -129,6 +138,7 @@ export default function KachhaToPakkaScreen() {
         }
       } else {
         const cached = getCachedVehicleById(id as string);
+        if (!isMounted.current) return;
         if (cached) {
           if (cached.yardStatus !== 'KACHHA') {
             Alert.alert(
@@ -144,9 +154,13 @@ export default function KachhaToPakkaScreen() {
         }
       }
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to load vehicle details');
+      if (isMounted.current) {
+        Alert.alert('Error', err.message || 'Failed to load vehicle details');
+      }
     } finally {
-      setLoading(false);
+      if (isMounted.current) {
+        setLoading(false);
+      }
     }
   }, [id]);
 
@@ -314,14 +328,21 @@ export default function KachhaToPakkaScreen() {
         if (vehicle) {
           try {
             cacheVehicles([{
-              ...vehicle,
+              id: vehicle.id,
+              vehicleNumber: vehicle.vehicleNumber,
+              brand: vehicle.brand ?? null,
+              model: vehicle.model ?? null,
+              vehicleType: vehicle.vehicleType,
+              entryDate: vehicle.entryDate ?? null,
               yardStatus: 'PAKKA',
+              bankName: vehicle.bank?.name ?? vehicle.bankName ?? null,
+              tenantId: vehicle.tenantId,
             }]);
           } catch (cacheErr) {
             console.warn('[KachhaToPakka] Failed to update local cache offline:', cacheErr);
           }
         }
-        setSuccessVisible(true);
+        if (isMounted.current) setSuccessVisible(true);
         return;
       }
 
@@ -338,6 +359,8 @@ export default function KachhaToPakkaScreen() {
         )
       );
 
+      if (!isMounted.current) return;
+
       // Step 2: Update vehicle status to PAKKA
       const res = await apiRequest(`/api/vehicles/${id}`, {
         method: 'PUT',
@@ -348,26 +371,39 @@ export default function KachhaToPakkaScreen() {
         }),
       });
 
+      if (!isMounted.current) return;
+
       if (res.success) {
         // Update local SQLite cache
         if (vehicle) {
           try {
             cacheVehicles([{
-              ...vehicle,
+              id: vehicle.id,
+              vehicleNumber: vehicle.vehicleNumber,
+              brand: vehicle.brand ?? null,
+              model: vehicle.model ?? null,
+              vehicleType: vehicle.vehicleType,
+              entryDate: vehicle.entryDate ?? null,
               yardStatus: 'PAKKA',
+              bankName: vehicle.bank?.name ?? vehicle.bankName ?? null,
+              tenantId: vehicle.tenantId,
             }]);
           } catch (cacheErr) {
             console.warn('[KachhaToPakka] Failed to update local cache:', cacheErr);
           }
         }
-        setSuccessVisible(true);
+        if (isMounted.current) setSuccessVisible(true);
       } else {
         throw new Error(res.error || 'Transition failed');
       }
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to complete Kachha→Pakka transition');
+      if (isMounted.current) {
+        Alert.alert('Error', err.message || 'Failed to complete Kachha→Pakka transition');
+      }
     } finally {
-      setSubmitting(false);
+      if (isMounted.current) {
+        setSubmitting(false);
+      }
     }
   };
 
