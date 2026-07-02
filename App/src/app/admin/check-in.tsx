@@ -232,6 +232,30 @@ export default function CheckInScreen() {
           setBankName(vehicleData.bankName || '');
           setBankId(vehicleData.bankId || '');
           
+          if (vehicleData.repoAgency) {
+            if (vehicleData.repoAgency.includes('|') || vehicleData.repoAgency.includes('Agency:')) {
+              const parts = vehicleData.repoAgency.split('|').map((s: string) => s.trim());
+              let parsedAgency = '';
+              let parsedAgent = '';
+              let parsedPlace = '';
+
+              for (const part of parts) {
+                if (part.startsWith('Agency:')) {
+                  parsedAgency = part.replace('Agency:', '').trim();
+                } else if (part.startsWith('Agent:')) {
+                  parsedAgent = part.replace('Agent:', '').trim();
+                } else if (part.startsWith('Place:')) {
+                  parsedPlace = part.replace('Place:', '').trim();
+                }
+              }
+              setRepoAgencyName(parsedAgency);
+              setRepoAgentName(parsedAgent);
+              setPlaceOfPossession(parsedPlace);
+            } else {
+              setRepoAgencyName(vehicleData.repoAgency);
+            }
+          }
+
           if (vehicleData.bankName) {
             try {
               const cachedList = getCachedBanks();
@@ -256,9 +280,42 @@ export default function CheckInScreen() {
           }
 
           if (vehicleData.inventory && vehicleData.inventory.length > 0) {
+            // Extract body condition, yard remarks, and customer remarks
+            const bodyCondItem = vehicleData.inventory.find((inv: any) => inv.itemName === 'Body Condition');
+            if (bodyCondItem) {
+              setBodyCondition(bodyCondItem.remarks || 'Average');
+            }
+
+            const yardRemarksItem = vehicleData.inventory.find((inv: any) => inv.itemName === 'Yard Remarks');
+            if (yardRemarksItem) {
+              setYardRemarks(yardRemarksItem.remarks || '');
+            }
+
+            const custRemarksItem = vehicleData.inventory.find((inv: any) => inv.itemName === 'Customer Remarks');
+            if (custRemarksItem) {
+              setCustomerRemarks(custRemarksItem.remarks || '');
+            }
+
             const loadedChecklist = INITIAL_CHECKLIST.map(item => {
               const matched = vehicleData.inventory.find((inv: any) => inv.itemName === item.itemName);
-              return matched ? { itemName: item.itemName, isPresent: matched.isPresent, remarks: matched.remarks || '', make: matched.make || '' } : item;
+              if (matched) {
+                let cleanRemarks = matched.remarks || '';
+                let parsedMake = matched.make || '';
+                if (item.itemName === 'Front Tyre' || item.itemName === 'Back Tyre') {
+                  const match = cleanRemarks.match(/\(Tyre Make:\s*(.*?)\)/i);
+                  if (match) {
+                    parsedMake = match[1];
+                    cleanRemarks = cleanRemarks.replace(/\(Tyre Make:\s*.*?\)/i, '').trim();
+                  }
+                }
+                return {
+                  itemName: item.itemName,
+                  isPresent: matched.isPresent,
+                  remarks: cleanRemarks,
+                  make: parsedMake || 'Unknown',
+                };
+              }
+              return item;
             });
             setChecklist(loadedChecklist);
           }
@@ -732,7 +789,7 @@ export default function CheckInScreen() {
         console.log('[CheckIn] App is online. Direct upload...');
         setIsOfflineSaved(false);
         
-        let vehicleId = editVehicleId;
+        let vehicleId: string = typeof editVehicleId === 'string' ? editVehicleId : '';
 
         if (editVehicleId) {
           const updateRes = await apiRequest(`/api/vehicles/${editVehicleId}`, {
@@ -831,7 +888,7 @@ export default function CheckInScreen() {
         setIsOfflineSaved(true);
         setSerialNumber(null);
         if (editVehicleId) {
-          queueOfflineJob('EDIT_VEHICLE', { ...payload, vehicleId: editVehicleId }, []);
+          queueOfflineJob('EDIT_VEHICLE' as any, { ...payload, vehicleId: editVehicleId }, []);
           // Sync local SQLite cache
           try {
             cacheVehicles([{

@@ -8,6 +8,7 @@ import {
   Alert,
   Image,
   Modal,
+  Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -24,7 +25,10 @@ import {
   AlertTriangle,
   FileText,
   CheckCircle,
+  Calendar,
+  ImageIcon,
 } from 'lucide-react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 // The 4 mandatory repo kit documents
 const REPO_KIT_DOCS = [
@@ -77,8 +81,16 @@ export default function KachhaToPakkaScreen() {
     bank_inventory: false,
   });
 
-  // Repo Kit date (when docs were submitted)
-  const today = new Date().toISOString().split('T')[0];
+  // Date State for Transition (Pakka Date)
+  const [pakkaDate, setPakkaDate] = useState(() => new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      setPakkaDate(selectedDate);
+    }
+  };
 
   const fetchVehicle = useCallback(async () => {
     if (!id) return;
@@ -251,6 +263,7 @@ export default function KachhaToPakkaScreen() {
     try {
       const netInfo = await NetInfo.fetch();
       const isOnline = !!netInfo.isConnected;
+      const dateStr = pakkaDate.toISOString();
 
       if (!isOnline) {
         // Offline: Queue check-in transition job
@@ -258,8 +271,8 @@ export default function KachhaToPakkaScreen() {
           'KACHHA_TO_PAKKA',
           {
             vehicleId: id,
-            repoKitDate: today,
-            pakkaDate: today,
+            repoKitDate: dateStr,
+            pakkaDate: dateStr,
           },
           photos as any
         );
@@ -296,8 +309,8 @@ export default function KachhaToPakkaScreen() {
         method: 'PUT',
         body: JSON.stringify({
           yardStatus: 'PAKKA',
-          repoKitDate: today,
-          pakkaDate: today,
+          repoKitDate: dateStr,
+          pakkaDate: dateStr,
         }),
       });
 
@@ -371,6 +384,43 @@ export default function KachhaToPakkaScreen() {
           </View>
         )}
 
+        {/* Date Selection Section */}
+        <View style={styles.dateSectionCard}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <Calendar size={18} color="#2563EB" />
+            <ThemedText style={styles.dateSectionTitle}>Transition Date (Pakka Date)</ThemedText>
+          </View>
+          <ThemedText style={styles.dateSectionSubtitle}>
+            Select the date of transition to PAKKA status. Billing starts from this date.
+          </ThemedText>
+          
+          <TouchableOpacity 
+            style={styles.datePickerBtn}
+            onPress={() => setShowDatePicker(true)}
+            activeOpacity={0.7}
+          >
+            <ThemedText style={styles.datePickerBtnText}>
+              {pakkaDate.toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric',
+              })}
+            </ThemedText>
+            <ThemedText style={styles.changeDateLabel}>Change Date</ThemedText>
+          </TouchableOpacity>
+          
+          {showDatePicker && (
+            <DateTimePicker
+              value={pakkaDate}
+              mode="date"
+              display="default"
+              maximumDate={new Date()}
+              minimumDate={vehicle?.entryDate ? new Date(vehicle.entryDate) : undefined}
+              onChange={handleDateChange}
+            />
+          )}
+        </View>
+
         {/* Document Upload Section */}
         <ThemedText style={styles.sectionTitle}>📁 Upload Repo Kit Documents</ThemedText>
         <ThemedText style={styles.sectionSubtitle}>All 4 documents are mandatory</ThemedText>
@@ -408,24 +458,44 @@ export default function KachhaToPakkaScreen() {
               ) : hasPhoto ? (
                 <View>
                   <Image source={{ uri: photos[doc.key] }} style={styles.docPreview} />
-                  <TouchableOpacity
-                    style={styles.retakeBtn}
-                    onPress={() => showPhotoOptions(doc.key)}
-                    activeOpacity={0.7}
-                  >
-                    <Camera size={14} color="#2563EB" style={{ marginRight: 6 }} />
-                    <ThemedText style={styles.retakeBtnText}>Retake</ThemedText>
-                  </TouchableOpacity>
+                  <View style={[styles.captureActionRow, { marginTop: 10 }]}>
+                    <TouchableOpacity
+                      style={[styles.retakeActionBtn, { backgroundColor: '#EFF6FF', borderColor: '#DBEAFE' }]}
+                      onPress={() => capturePhoto(doc.key)}
+                      activeOpacity={0.7}
+                    >
+                      <Camera size={14} color="#2563EB" style={{ marginRight: 4 }} />
+                      <ThemedText style={[styles.retakeActionBtnText, { color: '#2563EB' }]}>Retake (Camera)</ThemedText>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.retakeActionBtn, { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' }]}
+                      onPress={() => pickFromGallery(doc.key)}
+                      activeOpacity={0.7}
+                    >
+                      <ImageIcon size={14} color="#475569" style={{ marginRight: 4 }} />
+                      <ThemedText style={[styles.retakeActionBtnText, { color: '#475569' }]}>Choose Gallery</ThemedText>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               ) : (
-                <TouchableOpacity
-                  style={styles.captureDocBtn}
-                  onPress={() => showPhotoOptions(doc.key)}
-                  activeOpacity={0.8}
-                >
-                  <Camera size={20} color="#2563EB" style={{ marginRight: 8 }} />
-                  <ThemedText style={styles.captureDocBtnText}>Tap to Capture Document</ThemedText>
-                </TouchableOpacity>
+                <View style={styles.captureActionRow}>
+                  <TouchableOpacity
+                    style={[styles.captureActionBtn, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}
+                    onPress={() => capturePhoto(doc.key)}
+                    activeOpacity={0.8}
+                  >
+                    <Camera size={18} color="#2563EB" style={{ marginRight: 6 }} />
+                    <ThemedText style={[styles.captureActionBtnText, { color: '#2563EB' }]}>Camera</ThemedText>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.captureActionBtn, { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' }]}
+                    onPress={() => pickFromGallery(doc.key)}
+                    activeOpacity={0.8}
+                  >
+                    <ImageIcon size={18} color="#475569" style={{ marginRight: 6 }} />
+                    <ThemedText style={[styles.captureActionBtnText, { color: '#475569' }]}>Gallery</ThemedText>
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
           );
@@ -496,7 +566,7 @@ export default function KachhaToPakkaScreen() {
               <View style={styles.successInfoRow}>
                 <ThemedText style={styles.successInfoLabel}>Billing Starts</ThemedText>
                 <ThemedText style={styles.successInfoVal}>
-                  {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  {pakkaDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                 </ThemedText>
               </View>
               <View style={styles.successInfoRow}>
@@ -604,6 +674,53 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 
+  dateSectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  dateSectionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  dateSectionSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 12,
+    lineHeight: 16,
+  },
+  datePickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#F8FAFC',
+    height: 44,
+  },
+  datePickerBtnText: {
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '700',
+  },
+  changeDateLabel: {
+    fontSize: 12,
+    color: '#2563EB',
+    fontWeight: '700',
+  },
+
   sectionTitle: { fontSize: 15, fontWeight: '800', color: '#0F172A', marginBottom: 4 },
   sectionSubtitle: { fontSize: 12, color: '#64748B', marginBottom: 14 },
 
@@ -655,6 +772,37 @@ const styles = StyleSheet.create({
     backgroundColor: '#EFF6FF',
   },
   captureDocBtnText: { color: '#2563EB', fontSize: 14, fontWeight: '600' },
+
+  captureActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  captureActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingVertical: 12,
+  },
+  captureActionBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  retakeActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 8,
+  },
+  retakeActionBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
 
   docPreview: { width: '100%', height: 160, borderRadius: 10, resizeMode: 'cover' },
   retakeBtn: {

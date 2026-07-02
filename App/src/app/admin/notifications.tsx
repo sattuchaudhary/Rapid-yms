@@ -66,7 +66,7 @@ export default function NotificationsScreen() {
           id: 'printer_log',
           type: 'HARDWARE',
           title: printer ? 'Thermal Printer Connected' : 'No Printer Connected',
-          message: printer 
+          message: printer
             ? `Active thermal receipt print output is routed to: ${printer.name} (${printer.address}).`
             : 'Bluetooth receipt printing is offline. Connect a printer in settings.',
           time: '5m ago',
@@ -149,7 +149,7 @@ export default function NotificationsScreen() {
         });
       } else {
         // remove sync required alert if zero
-        setNotifications((prev) => 
+        setNotifications((prev) =>
           prev.filter((n) => n.id !== 'sync_alert_required')
         );
       }
@@ -283,7 +283,7 @@ export default function NotificationsScreen() {
                 </View>
 
                 <ThemedText style={styles.cardMessage}>{item.message}</ThemedText>
-                
+
                 <View style={styles.timeRow}>
                   <Clock size={12} color="#94A3B8" style={{ marginRight: 4 }} />
                   <ThemedText style={styles.cardTime}>{item.time}</ThemedText>

@@ -5,7 +5,7 @@ const db = SQLite.openDatabaseSync('yms_offline.db');
 
 export interface OfflineJob {
   id: string;
-  type: 'CHECK_IN' | 'CHECK_OUT' | 'KACHHA_TO_PAKKA';
+  type: 'CHECK_IN' | 'CHECK_OUT' | 'KACHHA_TO_PAKKA' | 'EDIT_VEHICLE';
   payload: string; // JSON string of request body
   photos: string;  // JSON string of local image paths array
   createdAt: number;
@@ -59,7 +59,7 @@ export const initDatabase = () => {
 };
 
 // Queue operations
-export const queueOfflineJob = (type: 'CHECK_IN' | 'CHECK_OUT' | 'KACHHA_TO_PAKKA', payload: object, photos: any[] = []) => {
+export const queueOfflineJob = (type: 'CHECK_IN' | 'CHECK_OUT' | 'KACHHA_TO_PAKKA' | 'EDIT_VEHICLE', payload: object, photos: any[] = []) => {
   const id = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   const createdAt = Date.now();
   const payloadStr = JSON.stringify(payload);
