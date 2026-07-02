@@ -189,6 +189,17 @@ export default function GuardDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [offlineStats, setOfflineStats] = useState<any>({ totalVehicles: 0, inYard: 0, released: 0, todayEntry: 0 });
 
+  const formatRole = (roleStr: string | undefined) => {
+    if (!roleStr) return 'Yard Operator';
+    if (roleStr === 'SUPER_ADMIN' || roleStr === 'TENANT_ADMIN') {
+      return 'Yard Manager';
+    }
+    if (roleStr === 'GUARD') {
+      return 'Yard Guard';
+    }
+    return roleStr.charAt(0) + roleStr.slice(1).toLowerCase().replace('_', ' ');
+  };
+
   const loadDashboardStats = async () => {
     setStatsLoading(true);
     // 1. Get offline fallback stats first
@@ -371,7 +382,7 @@ export default function GuardDashboard() {
           </TouchableOpacity>
           <TouchableOpacity 
             activeOpacity={0.7}
-            onPress={changeProfilePic}
+            onPress={() => router.push('/admin/profile')}
             style={styles.avatarCircle}
           >
             {profilePic ? (
@@ -1054,16 +1065,29 @@ export default function GuardDashboard() {
             {/* Blue Banner Header */}
             <View style={styles.drawerHeaderBanner}>
               <View style={styles.drawerAvatarWrapper}>
-                <Image 
-                  source={{ uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100' }} 
-                  style={styles.drawerAvatarImg} 
-                />
+                {profilePic ? (
+                  <Image 
+                    source={{ uri: profilePic }} 
+                    style={styles.drawerAvatarImg} 
+                  />
+                ) : (
+                  <View style={[styles.drawerAvatarImg, styles.drawerAvatarInitialsContainer]}>
+                    <ThemedText style={styles.drawerAvatarInitialsText}>
+                      {(user?.name || 'M').charAt(0).toUpperCase()}
+                    </ThemedText>
+                  </View>
+                )}
                 <View style={styles.drawerAvatarActiveBadge} />
               </View>
               <View style={styles.drawerHeaderMeta}>
                 <ThemedText style={styles.drawerHeaderTitle}>
                   {user?.name || 'Yard Manager'}
                 </ThemedText>
+                <View style={styles.drawerRoleBadge}>
+                  <ThemedText style={styles.drawerRoleText}>
+                    {formatRole(user?.role)}
+                  </ThemedText>
+                </View>
                 <ThemedText style={styles.drawerHeaderEmail} numberOfLines={1}>
                   {user?.email || 'yard.manager@bank.com'}
                 </ThemedText>
@@ -2035,5 +2059,30 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     marginTop: 2,
+  },
+  drawerAvatarInitialsContainer: {
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  drawerAvatarInitialsText: {
+    color: '#2563EB',
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  drawerRoleBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginVertical: 2,
+  },
+  drawerRoleText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
   },
 });

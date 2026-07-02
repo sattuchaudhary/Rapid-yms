@@ -10,6 +10,7 @@ import {
   Modal,
   ActivityIndicator,
   Switch,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -17,7 +18,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import NetInfo from '@react-native-community/netinfo';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Camera, ChevronLeft, ChevronRight, Lock, LogOut, Settings, Check, WifiOff } from 'lucide-react-native';
+import { Camera, ChevronLeft, ChevronRight, Lock, LogOut, Settings, Check, WifiOff, ImageIcon } from 'lucide-react-native';
 import { getUserInfo, saveUserInfo, UserSession, apiRequest, clearTokens, getProfileImage, setProfileImage } from '@/services/api';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -27,6 +28,7 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
   const [profilePic, setProfilePic] = useState('');
+  const [photoModalVisible, setPhotoModalVisible] = useState(false);
 
   // Change Password Modal States
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
@@ -117,23 +119,7 @@ export default function ProfileScreen() {
   };
 
   const changeProfilePic = async () => {
-    Alert.alert(
-      'Profile Photo',
-      'Select action for profile picture',
-      [
-        { text: 'Take Photo', onPress: () => captureProfilePic() },
-        { text: 'Choose from Gallery', onPress: () => pickProfilePic() },
-        {
-          text: 'Remove Photo',
-          style: 'destructive',
-          onPress: async () => {
-            setProfilePic('');
-            await setProfileImage('');
-          },
-        },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
+    setPhotoModalVisible(true);
   };
 
   const captureProfilePic = async () => {
@@ -511,6 +497,70 @@ export default function ProfileScreen() {
             </View>
           </View>
         </Modal>
+
+        {/* Custom Bottom Sheet for Profile Photo Options */}
+        <Modal
+          visible={photoModalVisible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setPhotoModalVisible(false)}
+        >
+          <View style={styles.actionSheetOverlay}>
+            <TouchableOpacity 
+              style={styles.actionSheetBackdrop} 
+              activeOpacity={1} 
+              onPress={() => setPhotoModalVisible(false)} 
+            />
+            <View style={styles.actionSheetContent}>
+              <View style={styles.actionSheetIndicator} />
+              <ThemedText style={styles.actionSheetTitle}>Profile Photo</ThemedText>
+              <ThemedText style={styles.actionSheetSubtitle}>Select action for profile picture</ThemedText>
+              
+              <TouchableOpacity
+                style={styles.actionSheetBtn}
+                onPress={() => {
+                  setPhotoModalVisible(false);
+                  captureProfilePic();
+                }}
+              >
+                <Camera size={20} color="#2563EB" style={{ marginRight: 12 }} />
+                <ThemedText style={styles.actionSheetBtnText}>Take Photo</ThemedText>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionSheetBtn}
+                onPress={() => {
+                  setPhotoModalVisible(false);
+                  pickProfilePic();
+                }}
+              >
+                <ImageIcon size={20} color="#64748B" style={{ marginRight: 12 }} />
+                <ThemedText style={styles.actionSheetBtnText}>Choose from Gallery</ThemedText>
+              </TouchableOpacity>
+
+              {!!profilePic && (
+                <TouchableOpacity
+                  style={[styles.actionSheetBtn, styles.actionSheetDeleteBtn]}
+                  onPress={async () => {
+                    setPhotoModalVisible(false);
+                    setProfilePic('');
+                    await setProfileImage('');
+                  }}
+                >
+                  <LogOut size={20} color="#EF4444" style={{ marginRight: 12 }} />
+                  <ThemedText style={[styles.actionSheetBtnText, { color: '#EF4444' }]}>Remove Photo</ThemedText>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={[styles.actionSheetBtn, styles.actionSheetCancelBtn]}
+                onPress={() => setPhotoModalVisible(false)}
+              >
+                <ThemedText style={styles.actionSheetCancelText}>Cancel</ThemedText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     </ThemedView>
   );
@@ -848,5 +898,76 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700',
+  },
+  actionSheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    justifyContent: 'flex-end',
+  },
+  actionSheetBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  actionSheetContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
+  },
+  actionSheetIndicator: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E2E8F0',
+    alignSelf: 'center',
+    marginBottom: 18,
+  },
+  actionSheetTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+    textAlign: 'center',
+  },
+  actionSheetSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 20,
+    fontWeight: '500',
+  },
+  actionSheetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 52,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8FAFC',
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  actionSheetBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  actionSheetDeleteBtn: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FEE2E2',
+  },
+  actionSheetCancelBtn: {
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    marginTop: 6,
+    marginBottom: 0,
+  },
+  actionSheetCancelText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#475569',
   },
 });
