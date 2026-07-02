@@ -27,8 +27,10 @@ import {
   CheckCircle,
   Calendar,
   ImageIcon,
+  Car,
 } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as DocumentPicker from 'expo-document-picker';
 
 // The 4 mandatory repo kit documents
 const REPO_KIT_DOCS = [
@@ -79,6 +81,20 @@ export default function KachhaToPakkaScreen() {
     post_intimation: false,
     yard_inventory: false,
     bank_inventory: false,
+  });
+
+  const [docUploadMode, setDocUploadMode] = useState<Record<string, 'image' | 'pdf'>>({
+    pre_intimation: 'image',
+    post_intimation: 'image',
+    yard_inventory: 'image',
+    bank_inventory: 'image',
+  });
+
+  const [fileTypes, setFileTypes] = useState<Record<string, 'image' | 'pdf'>>({
+    pre_intimation: 'image',
+    post_intimation: 'image',
+    yard_inventory: 'image',
+    bank_inventory: 'image',
   });
 
   // Date State for Transition (Pakka Date)
@@ -160,7 +176,7 @@ export default function KachhaToPakkaScreen() {
         );
 
         // Start upload immediately
-        uploadPhoto(docKey, compressed.uri);
+        uploadFile(docKey, compressed.uri, false);
       }
     } catch (err: any) {
       Alert.alert('Camera Error', err.message || 'Could not capture photo');
@@ -186,17 +202,18 @@ export default function KachhaToPakkaScreen() {
           [{ resize: { width: 1280 } }],
           { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG }
         );
-        uploadPhoto(docKey, compressed.uri);
+        uploadFile(docKey, compressed.uri, false);
       }
     } catch (err: any) {
       Alert.alert('Gallery Error', err.message || 'Could not pick image');
     }
   };
 
-  const uploadPhoto = async (docKey: string, localUri: string) => {
+  const uploadFile = async (docKey: string, localUri: string, isPdf = false) => {
     // Show local preview immediately
     setPhotos(prev => ({ ...prev, [docKey]: localUri }));
     setUploading(prev => ({ ...prev, [docKey]: true }));
+    setFileTypes(prev => ({ ...prev, [docKey]: isPdf ? 'pdf' : 'image' }));
 
     try {
       const netInfo = await NetInfo.fetch();
@@ -208,9 +225,11 @@ export default function KachhaToPakkaScreen() {
         return;
       }
 
+      const mimeType = isPdf ? 'application/pdf' : 'image/jpeg';
+
       // Get presigned URL
       const presignRes = await apiRequest(
-        `/api/uploads/presigned-url?fileType=image/jpeg&folder=repokit&fileSize=200000`
+        `/api/uploads/presigned-url?fileType=${mimeType}&folder=repokit&fileSize=200000`
       );
       const { uploadUrl, publicUrl } = presignRes.data;
 
@@ -219,7 +238,7 @@ export default function KachhaToPakkaScreen() {
         const uploadRes = await fetch(uploadUrl, {
           method: 'PUT',
           body: blob,
-          headers: { 'Content-Type': 'image/jpeg' },
+          headers: { 'Content-Type': mimeType },
         });
         if (!uploadRes.ok) throw new Error('Upload failed');
       }
@@ -227,9 +246,25 @@ export default function KachhaToPakkaScreen() {
       setPhotos(prev => ({ ...prev, [docKey]: publicUrl }));
     } catch (err: any) {
       console.error(`[KachhaToPakka] Upload failed for ${docKey}:`, err);
-      Alert.alert('Upload Error', 'Could not upload photo. Using local copy.');
+      Alert.alert('Upload Error', 'Could not upload file. Using local copy.');
     } finally {
       setUploading(prev => ({ ...prev, [docKey]: false }));
+    }
+  };
+
+  const pickPDF = async (docKey: string) => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/pdf',
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets?.length > 0) {
+        const file = result.assets[0];
+        uploadFile(docKey, file.uri, true);
+      }
+    } catch (err: any) {
+      Alert.alert('PDF Error', err.message || 'Could not pick PDF file');
     }
   };
 
@@ -360,29 +395,32 @@ export default function KachhaToPakkaScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Info Banner */}
-        <View style={styles.infoBanner}>
-          <AlertTriangle size={20} color="#B45309" />
-          <ThemedText style={styles.infoText}>
-            Upload all 4 Repo Kit documents to move this vehicle to PAKKA status. Parking billing will start from today.
-          </ThemedText>
-        </View>
-
         {/* Vehicle Banner Card */}
-        {vehicle && (
-          <View style={styles.vehicleBannerCard}>
-            <Image source={{ uri: 'https://images.unsplash.com/photo-1542282088-fe8426682b8f?w=400' }} style={styles.vehicleThumbnail} />
-            <View style={styles.vehicleMeta}>
-              <ThemedText style={styles.plateNumber}>{vehicle.vehicleNumber.toUpperCase()}</ThemedText>
-              <ThemedText style={styles.inventoryNo}>
-                INV-{new Date(vehicle.entryDate || Date.now()).getFullYear()}-{String(vehicle.id).substring(0, 6).toUpperCase()}
-              </ThemedText>
-              <View style={styles.statusBadge}>
-                <ThemedText style={styles.statusBadgeText}>KACHHA — Billing Inactive</ThemedText>
+        {vehicle && (() => {
+          const vehiclePhoto = vehicle.photos && vehicle.photos.length > 0
+            ? { uri: vehicle.photos[0].s3Url || vehicle.photos[0].uri }
+            : null;
+          return (
+            <View style={styles.vehicleBannerCard}>
+              <View style={styles.vehicleThumbnailPlaceholder}>
+                {vehiclePhoto ? (
+                  <Image source={vehiclePhoto} style={styles.vehicleThumbnail} />
+                ) : (
+                  <Car size={28} color="#2563EB" />
+                )}
+              </View>
+              <View style={styles.vehicleMeta}>
+                <ThemedText style={styles.plateNumber}>{vehicle.vehicleNumber.toUpperCase()}</ThemedText>
+                <ThemedText style={styles.inventoryNo}>
+                  INV-{new Date(vehicle.entryDate || Date.now()).getFullYear()}-{String(vehicle.id).substring(0, 6).toUpperCase()}
+                </ThemedText>
+                <View style={styles.statusBadge}>
+                  <ThemedText style={styles.statusBadgeText}>KACHHA — Billing Inactive</ThemedText>
+                </View>
               </View>
             </View>
-          </View>
-        )}
+          );
+        })()}
 
         {/* Date Selection Section */}
         <View style={styles.dateSectionCard}>
@@ -415,7 +453,6 @@ export default function KachhaToPakkaScreen() {
               mode="date"
               display="default"
               maximumDate={new Date()}
-              minimumDate={vehicle?.entryDate ? new Date(vehicle.entryDate) : undefined}
               onChange={handleDateChange}
             />
           )}
@@ -428,6 +465,7 @@ export default function KachhaToPakkaScreen() {
         {REPO_KIT_DOCS.map((doc, index) => {
           const hasPhoto = !!photos[doc.key];
           const isUploading = uploading[doc.key];
+          const fileType = fileTypes[doc.key];
 
           return (
             <View key={doc.key} style={[styles.docCard, hasPhoto && styles.docCardDone]}>
@@ -445,10 +483,34 @@ export default function KachhaToPakkaScreen() {
                 </View>
                 {hasPhoto && !isUploading && (
                   <View style={styles.docDoneBadge}>
-                    <ThemedText style={styles.docDoneBadgeText}>✓ Captured</ThemedText>
+                    <ThemedText style={styles.docDoneBadgeText}>✓ Loaded</ThemedText>
                   </View>
                 )}
               </View>
+
+              {/* Upload Mode Selector */}
+              {!hasPhoto && !isUploading && (
+                <View style={styles.uploadModeRow}>
+                  <TouchableOpacity
+                    style={[styles.uploadModeBtn, docUploadMode[doc.key] === 'image' && styles.uploadModeBtnActive]}
+                    onPress={() => setDocUploadMode(prev => ({ ...prev, [doc.key]: 'image' }))}
+                    activeOpacity={0.7}
+                  >
+                    <ThemedText style={[styles.uploadModeText, docUploadMode[doc.key] === 'image' && styles.uploadModeTextActive]}>
+                      📷 Image
+                    </ThemedText>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.uploadModeBtn, docUploadMode[doc.key] === 'pdf' && styles.uploadModeBtnActive]}
+                    onPress={() => setDocUploadMode(prev => ({ ...prev, [doc.key]: 'pdf' }))}
+                    activeOpacity={0.7}
+                  >
+                    <ThemedText style={[styles.uploadModeText, docUploadMode[doc.key] === 'pdf' && styles.uploadModeTextActive]}>
+                      📄 PDF File
+                    </ThemedText>
+                  </TouchableOpacity>
+                </View>
+              )}
 
               {isUploading ? (
                 <View style={styles.uploadingRow}>
@@ -457,45 +519,84 @@ export default function KachhaToPakkaScreen() {
                 </View>
               ) : hasPhoto ? (
                 <View>
-                  <Image source={{ uri: photos[doc.key] }} style={styles.docPreview} />
-                  <View style={[styles.captureActionRow, { marginTop: 10 }]}>
+                  {fileType === 'pdf' ? (
+                    <View style={styles.pdfPreviewCard}>
+                      <FileText size={38} color="#EF4444" />
+                      <ThemedText style={styles.pdfPreviewText}>PDF Document Selected</ThemedText>
+                      {photos[doc.key].startsWith('http') ? (
+                        <ThemedText style={styles.pdfSubText} numberOfLines={1}>
+                          {photos[doc.key]}
+                        </ThemedText>
+                      ) : (
+                        <ThemedText style={styles.pdfSubText} numberOfLines={1}>
+                          Local File: {photos[doc.key].split('/').pop()}
+                        </ThemedText>
+                      )}
+                    </View>
+                  ) : (
+                    <Image source={{ uri: photos[doc.key] }} style={styles.docPreview} />
+                  )}
+
+                  {docUploadMode[doc.key] === 'pdf' ? (
                     <TouchableOpacity
-                      style={[styles.retakeActionBtn, { backgroundColor: '#EFF6FF', borderColor: '#DBEAFE' }]}
-                      onPress={() => capturePhoto(doc.key)}
-                      activeOpacity={0.7}
+                      style={styles.pdfPickerBtn}
+                      onPress={() => pickPDF(doc.key)}
+                      activeOpacity={0.8}
                     >
-                      <Camera size={14} color="#2563EB" style={{ marginRight: 4 }} />
-                      <ThemedText style={[styles.retakeActionBtnText, { color: '#2563EB' }]}>Retake (Camera)</ThemedText>
+                      <FileText size={16} color="#2563EB" style={{ marginRight: 6 }} />
+                      <ThemedText style={styles.pdfPickerBtnText}>Choose Another PDF</ThemedText>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.retakeActionBtn, { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' }]}
-                      onPress={() => pickFromGallery(doc.key)}
-                      activeOpacity={0.7}
-                    >
-                      <ImageIcon size={14} color="#475569" style={{ marginRight: 4 }} />
-                      <ThemedText style={[styles.retakeActionBtnText, { color: '#475569' }]}>Choose Gallery</ThemedText>
-                    </TouchableOpacity>
-                  </View>
+                  ) : (
+                    <View style={[styles.captureActionRow, { marginTop: 10 }]}>
+                      <TouchableOpacity
+                        style={[styles.retakeActionBtn, { backgroundColor: '#EFF6FF', borderColor: '#DBEAFE' }]}
+                        onPress={() => capturePhoto(doc.key)}
+                        activeOpacity={0.7}
+                      >
+                        <Camera size={14} color="#2563EB" style={{ marginRight: 4 }} />
+                        <ThemedText style={[styles.retakeActionBtnText, { color: '#2563EB' }]}>Retake (Camera)</ThemedText>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.retakeActionBtn, { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' }]}
+                        onPress={() => pickFromGallery(doc.key)}
+                        activeOpacity={0.7}
+                      >
+                        <ImageIcon size={14} color="#475569" style={{ marginRight: 4 }} />
+                        <ThemedText style={[styles.retakeActionBtnText, { color: '#475569' }]}>Choose Gallery</ThemedText>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               ) : (
-                <View style={styles.captureActionRow}>
+                docUploadMode[doc.key] === 'pdf' ? (
                   <TouchableOpacity
-                    style={[styles.captureActionBtn, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}
-                    onPress={() => capturePhoto(doc.key)}
+                    style={styles.pdfPickerBtn}
+                    onPress={() => pickPDF(doc.key)}
                     activeOpacity={0.8}
                   >
-                    <Camera size={18} color="#2563EB" style={{ marginRight: 6 }} />
-                    <ThemedText style={[styles.captureActionBtnText, { color: '#2563EB' }]}>Camera</ThemedText>
+                    <FileText size={18} color="#2563EB" style={{ marginRight: 6 }} />
+                    <ThemedText style={styles.pdfPickerBtnText}>Select PDF Document</ThemedText>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.captureActionBtn, { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' }]}
-                    onPress={() => pickFromGallery(doc.key)}
-                    activeOpacity={0.8}
-                  >
-                    <ImageIcon size={18} color="#475569" style={{ marginRight: 6 }} />
-                    <ThemedText style={[styles.captureActionBtnText, { color: '#475569' }]}>Gallery</ThemedText>
-                  </TouchableOpacity>
-                </View>
+                ) : (
+                  <View style={styles.captureActionRow}>
+                    <TouchableOpacity
+                      style={[styles.captureActionBtn, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}
+                      onPress={() => capturePhoto(doc.key)}
+                      activeOpacity={0.8}
+                    >
+                      <Camera size={18} color="#2563EB" style={{ marginRight: 6 }} />
+                      <ThemedText style={[styles.captureActionBtnText, { color: '#2563EB' }]}>Camera</ThemedText>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.captureActionBtn, { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' }]}
+                      onPress={() => pickFromGallery(doc.key)}
+                      activeOpacity={0.8}
+                    >
+                      <ImageIcon size={18} color="#475569" style={{ marginRight: 6 }} />
+                      <ThemedText style={[styles.captureActionBtnText, { color: '#475569' }]}>Gallery</ThemedText>
+                    </TouchableOpacity>
+                  </View>
+                )
               )}
             </View>
           );
@@ -618,58 +719,62 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 17, fontWeight: '700', color: '#0F172A' },
   scrollContent: { padding: 16, paddingBottom: 40 },
 
-  infoBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFBEB',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 18,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-  },
-  infoText: { flex: 1, color: '#B45309', fontSize: 13, lineHeight: 18, fontWeight: '600' },
-
   vehicleBannerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2563EB',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 16,
     gap: 14,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 4,
+    elevation: 1,
   },
   vehicleThumbnail: {
     width: 68,
     height: 68,
     borderRadius: 12,
-    backgroundColor: '#FFFFFF',
+    resizeMode: 'cover',
+  },
+  vehicleThumbnailPlaceholder: {
+    width: 68,
+    height: 68,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   vehicleMeta: {
     flex: 1,
     gap: 4,
   },
   plateNumber: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: '#0F172A',
   },
   inventoryNo: {
     fontSize: 12,
-    color: '#BFDBFE',
+    color: '#64748B',
     fontWeight: '600',
   },
   statusBadge: {
-    backgroundColor: '#F59E0B',
-    paddingHorizontal: 10,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
     alignSelf: 'flex-start',
     marginTop: 2,
   },
   statusBadgeText: {
-    color: '#FFFFFF',
+    color: '#D97706',
     fontSize: 10,
     fontWeight: '800',
   },
@@ -802,6 +907,79 @@ const styles = StyleSheet.create({
   retakeActionBtnText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+
+  uploadModeRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 12,
+    gap: 4,
+  },
+  uploadModeBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  uploadModeBtnActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  uploadModeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  uploadModeTextActive: {
+    color: '#0F172A',
+    fontWeight: '700',
+  },
+
+  pdfPreviewCard: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    borderRadius: 12,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    gap: 8,
+    width: '100%',
+  },
+  pdfPreviewText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#991B1B',
+  },
+  pdfSubText: {
+    fontSize: 11,
+    color: '#EF4444',
+    textAlign: 'center',
+    maxWidth: '90%',
+  },
+  pdfPickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#BFDBFE',
+    borderRadius: 12,
+    paddingVertical: 14,
+    backgroundColor: '#EFF6FF',
+    width: '100%',
+  },
+  pdfPickerBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2563EB',
   },
 
   docPreview: { width: '100%', height: 160, borderRadius: 10, resizeMode: 'cover' },
