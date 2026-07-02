@@ -396,31 +396,29 @@ export default function KachhaToPakkaScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Vehicle Banner Card */}
-        {vehicle && (() => {
-          const vehiclePhoto = vehicle.photos && vehicle.photos.length > 0
-            ? { uri: vehicle.photos[0].s3Url || vehicle.photos[0].uri }
-            : null;
-          return (
-            <View style={styles.vehicleBannerCard}>
-              <View style={styles.vehicleThumbnailPlaceholder}>
-                {vehiclePhoto ? (
-                  <Image source={vehiclePhoto} style={styles.vehicleThumbnail} />
-                ) : (
-                  <Car size={28} color="#2563EB" />
-                )}
-              </View>
-              <View style={styles.vehicleMeta}>
-                <ThemedText style={styles.plateNumber}>{vehicle.vehicleNumber.toUpperCase()}</ThemedText>
-                <ThemedText style={styles.inventoryNo}>
-                  INV-{new Date(vehicle.entryDate || Date.now()).getFullYear()}-{String(vehicle.id).substring(0, 6).toUpperCase()}
-                </ThemedText>
-                <View style={styles.statusBadge}>
-                  <ThemedText style={styles.statusBadgeText}>KACHHA — Billing Inactive</ThemedText>
-                </View>
+        {vehicle && (
+          <View style={styles.vehicleBannerCard}>
+            <View style={styles.vehicleThumbnailPlaceholder}>
+              {vehicle.photos && vehicle.photos.length > 0 && (vehicle.photos[0].s3Url || vehicle.photos[0].uri) ? (
+                <Image 
+                  source={{ uri: vehicle.photos[0].s3Url || vehicle.photos[0].uri }} 
+                  style={styles.vehicleThumbnail} 
+                />
+              ) : (
+                <Car size={28} color="#2563EB" />
+              )}
+            </View>
+            <View style={styles.vehicleMeta}>
+              <ThemedText style={styles.plateNumber}>{vehicle.vehicleNumber.toUpperCase()}</ThemedText>
+              <ThemedText style={styles.inventoryNo}>
+                INV-{new Date(vehicle.entryDate || Date.now()).getFullYear()}-{String(vehicle.id).substring(0, 6).toUpperCase()}
+              </ThemedText>
+              <View style={styles.statusBadge}>
+                <ThemedText style={styles.statusBadgeText}>KACHHA — Billing Inactive</ThemedText>
               </View>
             </View>
-          );
-        })()}
+          </View>
+        )}
 
         {/* Date Selection Section */}
         <View style={styles.dateSectionCard}>
