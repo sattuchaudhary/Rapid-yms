@@ -76,18 +76,22 @@ export default function KachhaToPakkaScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [successVisible, setSuccessVisible] = useState(false);
 
+  const [uploadMethod, setUploadMethod] = useState<'single_pdf' | 'separate' | null>(null);
+
   // Repo kit photos state — key: docKey, value: local URI or uploaded URL
   const [photos, setPhotos] = useState<Record<string, string>>({
     pre_intimation: '',
     post_intimation: '',
     yard_inventory: '',
     bank_inventory: '',
+    combined_pdf: '',
   });
   const [uploading, setUploading] = useState<Record<string, boolean>>({
     pre_intimation: false,
     post_intimation: false,
     yard_inventory: false,
     bank_inventory: false,
+    combined_pdf: false,
   });
 
   const [docUploadMode, setDocUploadMode] = useState<Record<string, 'image' | 'pdf'>>({
@@ -95,6 +99,7 @@ export default function KachhaToPakkaScreen() {
     post_intimation: 'image',
     yard_inventory: 'image',
     bank_inventory: 'image',
+    combined_pdf: 'pdf',
   });
 
   const [fileTypes, setFileTypes] = useState<Record<string, 'image' | 'pdf'>>({
@@ -102,6 +107,7 @@ export default function KachhaToPakkaScreen() {
     post_intimation: 'image',
     yard_inventory: 'image',
     bank_inventory: 'image',
+    combined_pdf: 'pdf',
   });
 
   // Date State for Transition (Pakka Date)
@@ -290,20 +296,27 @@ export default function KachhaToPakkaScreen() {
   };
 
   const handleSubmit = async () => {
-    // Check all 4 photos are captured
-    const missing = REPO_KIT_DOCS.filter(doc => !photos[doc.key]);
-    if (missing.length > 0) {
-      Alert.alert(
-        'Documents Missing',
-        `Please capture these required photos:\n\n${missing.map(d => `• ${d.label}`).join('\n')}`
-      );
-      return;
+    // Check files are captured
+    if (uploadMethod === 'single_pdf') {
+      if (!photos.combined_pdf) {
+        Alert.alert('Document Missing', 'Please upload the combined Repo Kit PDF file.');
+        return;
+      }
+    } else {
+      const missing = REPO_KIT_DOCS.filter(doc => !photos[doc.key]);
+      if (missing.length > 0) {
+        Alert.alert(
+          'Documents Missing',
+          `Please capture these required photos:\n\n${missing.map(d => `• ${d.label}`).join('\n')}`
+        );
+        return;
+      }
     }
 
     // Check any uploads still in progress
     const stillUploading = Object.values(uploading).some(Boolean);
     if (stillUploading) {
-      Alert.alert('Please Wait', 'Photos are still uploading. Please wait and try again.');
+      Alert.alert('Please Wait', 'Files are still uploading. Please wait and try again.');
       return;
     }
 
@@ -315,6 +328,15 @@ export default function KachhaToPakkaScreen() {
 
       if (!isOnline) {
         // Offline: Queue check-in transition job
+        const offlinePhotos = uploadMethod === 'single_pdf'
+          ? {
+              pre_intimation: photos.combined_pdf,
+              post_intimation: photos.combined_pdf,
+              yard_inventory: photos.combined_pdf,
+              bank_inventory: photos.combined_pdf,
+            }
+          : photos;
+
         queueOfflineJob(
           'KACHHA_TO_PAKKA',
           {
@@ -322,7 +344,7 @@ export default function KachhaToPakkaScreen() {
             repoKitDate: dateStr,
             pakkaDate: dateStr,
           },
-          photos as any
+          offlinePhotos as any
         );
         // Update local SQLite cache
         if (vehicle) {
@@ -347,17 +369,27 @@ export default function KachhaToPakkaScreen() {
       }
 
       // Step 1: Register all 4 repo kit photos in the vehicle's photo gallery
-      await Promise.all(
-        REPO_KIT_DOCS.map(doc =>
-          apiRequest(`/api/vehicles/${id}/photos`, {
-            method: 'POST',
-            body: JSON.stringify({
-              photoType: doc.key,
-              s3Url: photos[doc.key],
-            }),
-          })
-        )
-      );
+      const photoRegistrations = uploadMethod === 'single_pdf'
+        ? REPO_KIT_DOCS.map(doc =>
+            apiRequest(`/api/vehicles/${id}/photos`, {
+              method: 'POST',
+              body: JSON.stringify({
+                photoType: doc.key,
+                s3Url: photos.combined_pdf,
+              }),
+            })
+          )
+        : REPO_KIT_DOCS.map(doc =>
+            apiRequest(`/api/vehicles/${id}/photos`, {
+              method: 'POST',
+              body: JSON.stringify({
+                photoType: doc.key,
+                s3Url: photos[doc.key],
+              }),
+            })
+          );
+
+      await Promise.all(photoRegistrations);
 
       if (!isMounted.current) return;
 
@@ -407,7 +439,7 @@ export default function KachhaToPakkaScreen() {
     }
   };
 
-  const allPhotosReady = REPO_KIT_DOCS.every(doc => !!photos[doc.key]);
+  const allPhotosReady = uploadMethod === 'single_pdf' ? !!photos.combined_pdf : REPO_KIT_DOCS.every(doc => !!photos[doc.key]);
 
   if (loading) {
     return (
@@ -491,11 +523,95 @@ export default function KachhaToPakkaScreen() {
           )}
         </View>
 
-        {/* Document Upload Section */}
-        <ThemedText style={styles.sectionTitle}>📁 Upload Repo Kit Documents</ThemedText>
-        <ThemedText style={styles.sectionSubtitle}>All 4 documents are mandatory</ThemedText>
+        {/* Method Selection Header Row */}
+        {uploadMethod !== null && (
+          <View style={styles.sectionHeaderRow}>
+            <View style={{ flex: 1 }}>
+              <ThemedText style={styles.sectionTitle}>
+                {uploadMethod === 'single_pdf' ? '📄 Combined Repo Kit Upload' : '📁 Upload Repo Kit Documents'}
+              </ThemedText>
+              <ThemedText style={styles.sectionSubtitle}>
+                {uploadMethod === 'single_pdf' ? 'Upload 1 PDF containing all pages' : 'All 4 documents are mandatory'}
+              </ThemedText>
+            </View>
+            <TouchableOpacity 
+              style={styles.switchMethodBtn}
+              onPress={() => setUploadMethod(prev => prev === 'single_pdf' ? 'separate' : 'single_pdf')}
+              activeOpacity={0.7}
+            >
+              <ThemedText style={styles.switchMethodText}>Switch Mode</ThemedText>
+            </TouchableOpacity>
+          </View>
+        )}
 
-        {REPO_KIT_DOCS.map((doc, index) => {
+        {/* Mode 1: Single Combined PDF Upload Card */}
+        {uploadMethod === 'single_pdf' && (
+          <View style={[styles.docCard, !!photos.combined_pdf && styles.docCardDone]}>
+            <View style={styles.docHeader}>
+              <View style={styles.docIndexCircle}>
+                {photos.combined_pdf ? (
+                  <Check size={14} color="#FFFFFF" />
+                ) : (
+                  <FileText size={14} color="#FFFFFF" />
+                )}
+              </View>
+              <View style={{ flex: 1 }}>
+                <ThemedText style={styles.docLabel}>Combined Repo Kit PDF File</ThemedText>
+                <ThemedText style={styles.docDesc}>
+                  Select a single PDF containing Pre-Intimation, Post-Intimation, Yard Inventory, and Bank Inventory.
+                </ThemedText>
+              </View>
+              {!!photos.combined_pdf && !uploading.combined_pdf && (
+                <View style={styles.docDoneBadge}>
+                  <ThemedText style={styles.docDoneBadgeText}>✓ Loaded</ThemedText>
+                </View>
+              )}
+            </View>
+
+            {uploading.combined_pdf ? (
+              <View style={styles.uploadingRow}>
+                <ActivityIndicator size="small" color="#2563EB" />
+                <ThemedText style={styles.uploadingText}>Uploading PDF to cloud...</ThemedText>
+              </View>
+            ) : photos.combined_pdf ? (
+              <View>
+                <View style={styles.pdfPreviewCard}>
+                  <FileText size={38} color="#EF4444" />
+                  <ThemedText style={styles.pdfPreviewText}>Repo Kit PDF Selected</ThemedText>
+                  {photos.combined_pdf.startsWith('http') ? (
+                    <ThemedText style={styles.pdfSubText} numberOfLines={1}>
+                      {photos.combined_pdf}
+                    </ThemedText>
+                  ) : (
+                    <ThemedText style={styles.pdfSubText} numberOfLines={1}>
+                      Local File: {photos.combined_pdf.split('/').pop()}
+                    </ThemedText>
+                  )}
+                </View>
+                <TouchableOpacity
+                  style={[styles.pdfPickerBtn, { marginTop: 10 }]}
+                  onPress={() => pickPDF('combined_pdf')}
+                  activeOpacity={0.8}
+                >
+                  <FileText size={16} color="#2563EB" style={{ marginRight: 6 }} />
+                  <ThemedText style={styles.pdfPickerBtnText}>Choose Another PDF</ThemedText>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.pdfPickerBtn}
+                onPress={() => pickPDF('combined_pdf')}
+                activeOpacity={0.8}
+              >
+                <FileText size={18} color="#2563EB" style={{ marginRight: 6 }} />
+                <ThemedText style={styles.pdfPickerBtnText}>Select Combined PDF File</ThemedText>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Mode 2: 4 Separate Documents Upload Cards (Original) */}
+        {uploadMethod === 'separate' && REPO_KIT_DOCS.map((doc, index) => {
           const hasPhoto = !!photos[doc.key];
           const isUploading = uploading[doc.key];
           const fileType = fileTypes[doc.key];
@@ -636,36 +752,117 @@ export default function KachhaToPakkaScreen() {
         })}
 
         {/* Progress Indicator */}
-        <View style={styles.progressBar}>
-          {REPO_KIT_DOCS.map(doc => (
-            <View
-              key={doc.key}
-              style={[styles.progressDot, photos[doc.key] && styles.progressDotDone]}
-            />
-          ))}
-        </View>
-        <ThemedText style={styles.progressText}>
-          {REPO_KIT_DOCS.filter(d => photos[d.key]).length} / {REPO_KIT_DOCS.length} documents captured
-        </ThemedText>
+        {uploadMethod !== null && (
+          <>
+            <View style={styles.progressBar}>
+              {uploadMethod === 'single_pdf' ? (
+                <View
+                  style={[styles.progressDot, !!photos.combined_pdf && styles.progressDotDone, { width: 40 }]}
+                />
+              ) : (
+                REPO_KIT_DOCS.map(doc => (
+                  <View
+                    key={doc.key}
+                    style={[styles.progressDot, photos[doc.key] && styles.progressDotDone]}
+                  />
+                ))
+              )}
+            </View>
+            <ThemedText style={styles.progressText}>
+              {uploadMethod === 'single_pdf'
+                ? (photos.combined_pdf ? 'Combined PDF loaded successfully' : 'No PDF selected yet')
+                : `${REPO_KIT_DOCS.filter(d => photos[d.key]).length} / ${REPO_KIT_DOCS.length} documents captured`}
+            </ThemedText>
+          </>
+        )}
 
         {/* Submit Button */}
-        <TouchableOpacity
-          style={[styles.submitBtn, !allPhotosReady && styles.submitBtnDisabled]}
-          onPress={handleSubmit}
-          disabled={!allPhotosReady || submitting}
-          activeOpacity={0.8}
+        {uploadMethod !== null && (
+          <TouchableOpacity
+            style={[styles.submitBtn, !allPhotosReady && styles.submitBtnDisabled]}
+            onPress={handleSubmit}
+            disabled={!allPhotosReady || submitting}
+            activeOpacity={0.8}
+          >
+            {submitting ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <FileText size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                <ThemedText style={styles.submitBtnText}>
+                  {allPhotosReady
+                    ? (uploadMethod === 'single_pdf' ? 'Submit Combined PDF & Convert' : 'Submit Repo Kit & Convert to Pakka')
+                    : (uploadMethod === 'single_pdf' ? 'Select Combined PDF First' : 'Complete All 4 Documents First')}
+                </ThemedText>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {/* Upload Mode Initial Selection Modal */}
+        <Modal
+          visible={uploadMethod === null}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => router.back()}
         >
-          {submitting ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <>
-              <FileText size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-              <ThemedText style={styles.submitBtnText}>
-                {allPhotosReady ? 'Submit Repo Kit & Convert to Pakka' : 'Complete All 4 Documents First'}
+          <View style={styles.methodOverlay}>
+            <View style={styles.methodCard}>
+              <View style={styles.methodHeader}>
+                <FileText size={28} color="#2563EB" />
+                <ThemedText style={styles.methodTitle}>Repo Kit Upload Method</ThemedText>
+              </View>
+              <ThemedText style={styles.methodDesc}>
+                Choose how you want to upload the repo kit documents to convert this vehicle to PAKKA status.
               </ThemedText>
-            </>
-          )}
-        </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.methodBtn, styles.methodBtnRecommend]}
+                activeOpacity={0.8}
+                onPress={() => setUploadMethod('single_pdf')}
+              >
+                <View style={styles.methodBtnIconCol}>
+                  <FileText size={22} color="#2563EB" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <ThemedText style={styles.methodBtnTitle}>Single Combined PDF</ThemedText>
+                    <View style={styles.recommendBadge}>
+                      <ThemedText style={styles.recommendBadgeText}>Recommended</ThemedText>
+                    </View>
+                  </View>
+                  <ThemedText style={styles.methodBtnDesc}>
+                    Upload one combined PDF file containing all pages in one go
+                  </ThemedText>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.methodBtn}
+                activeOpacity={0.8}
+                onPress={() => setUploadMethod('separate')}
+              >
+                <View style={[styles.methodBtnIconCol, { backgroundColor: '#F1F5F9' }]}>
+                  <ImageIcon size={22} color="#64748B" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <ThemedText style={styles.methodBtnTitle}>4 Separate Documents</ThemedText>
+                  <ThemedText style={styles.methodBtnDesc}>
+                    Upload individual documents/images for each of the 4 slots
+                  </ThemedText>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.methodCancelBtn}
+                activeOpacity={0.7}
+                onPress={() => router.back()}
+              >
+                <ThemedText style={styles.methodCancelText}>Cancel & Go Back</ThemedText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -1115,4 +1312,119 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   doneBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+
+  // Upload Method Selection Styles
+  methodOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  methodCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+    maxWidth: 380,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  methodHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  methodTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  methodDesc: {
+    fontSize: 13,
+    color: '#475569',
+    lineHeight: 18,
+    marginBottom: 20,
+  },
+  methodBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    marginBottom: 12,
+  },
+  methodBtnRecommend: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+  },
+  methodBtnIconCol: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#DBEAFE',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  methodBtnTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  methodBtnDesc: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 3,
+    lineHeight: 14,
+  },
+  recommendBadge: {
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+  },
+  recommendBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontWeight: '800',
+  },
+  methodCancelBtn: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  methodCancelText: {
+    color: '#64748B',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  // Toggle mode switch components
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  switchMethodBtn: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  switchMethodText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#2563EB',
+  },
 });
