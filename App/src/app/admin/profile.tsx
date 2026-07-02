@@ -299,9 +299,14 @@ export default function ProfileScreen() {
             <View style={styles.activeDot} />
           </TouchableOpacity>
           <View style={styles.profileMeta}>
-            <ThemedText style={styles.profileRole}>
-              {currentUser?.name || formatRole(currentUser?.role)}
+            <ThemedText style={styles.profileName}>
+              {currentUser?.name || 'N/A'}
             </ThemedText>
+            <View style={styles.roleBadge}>
+              <ThemedText style={styles.profileRole}>
+                {formatRole(currentUser?.role)}
+              </ThemedText>
+            </View>
             <ThemedText style={styles.profileEmail}>
               {currentUser?.email || 'N/A'}
             </ThemedText>
@@ -546,10 +551,17 @@ const styles = StyleSheet.create({
   profileHeaderCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 20,
-    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
     gap: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 4,
+    elevation: 1,
   },
   avatarWrapper: {
     position: 'relative',
@@ -579,7 +591,7 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     backgroundColor: '#10B981',
     borderWidth: 2,
-    borderColor: '#F1F5F9',
+    borderColor: '#FFFFFF',
   },
   cameraIconBadge: {
     position: 'absolute',
@@ -592,16 +604,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#F1F5F9',
+    borderColor: '#FFFFFF',
   },
   profileMeta: {
     flex: 1,
-    gap: 3,
+    gap: 4,
   },
-  profileRole: {
+  profileName: {
     fontSize: 18,
     fontWeight: '800',
     color: '#0F172A',
+  },
+  roleBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  profileRole: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#2563EB',
   },
   profileEmail: {
     fontSize: 13,

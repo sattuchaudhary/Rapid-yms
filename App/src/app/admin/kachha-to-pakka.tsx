@@ -153,7 +153,7 @@ export default function KachhaToPakkaScreen() {
 
   useEffect(() => {
     fetchVehicle();
-  }, []);
+  }, [id, fetchVehicle]);
 
   const capturePhoto = async (docKey: string) => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
@@ -399,9 +399,9 @@ export default function KachhaToPakkaScreen() {
         {vehicle && (
           <View style={styles.vehicleBannerCard}>
             <View style={styles.vehicleThumbnailPlaceholder}>
-              {vehicle.photos && vehicle.photos.length > 0 && (vehicle.photos[0].s3Url || vehicle.photos[0].uri) ? (
+              {vehicle.photos && vehicle.photos.length > 0 && (vehicle.photos[0]?.s3Url || vehicle.photos[0]?.uri) ? (
                 <Image 
-                  source={{ uri: vehicle.photos[0].s3Url || vehicle.photos[0].uri }} 
+                  source={{ uri: vehicle.photos[0]?.s3Url || vehicle.photos[0]?.uri }} 
                   style={styles.vehicleThumbnail} 
                 />
               ) : (
@@ -409,9 +409,9 @@ export default function KachhaToPakkaScreen() {
               )}
             </View>
             <View style={styles.vehicleMeta}>
-              <ThemedText style={styles.plateNumber}>{vehicle.vehicleNumber.toUpperCase()}</ThemedText>
+              <ThemedText style={styles.plateNumber}>{(vehicle.vehicleNumber || '').toUpperCase()}</ThemedText>
               <ThemedText style={styles.inventoryNo}>
-                INV-{new Date(vehicle.entryDate || Date.now()).getFullYear()}-{String(vehicle.id).substring(0, 6).toUpperCase()}
+                INV-{new Date(vehicle.entryDate || Date.now()).getFullYear()}-{String(vehicle.id || '').substring(0, 6).toUpperCase()}
               </ThemedText>
               <View style={styles.statusBadge}>
                 <ThemedText style={styles.statusBadgeText}>KACHHA — Billing Inactive</ThemedText>
