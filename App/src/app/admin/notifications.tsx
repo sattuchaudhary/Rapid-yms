@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { apiRequest } from '@/services/api';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { registerSyncListener } from '@/services/sync';
@@ -42,15 +44,40 @@ export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const formatRelativeTime = (dateStr: string) => {
+    try {
+      const date = new Date(dateStr);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffSec = Math.floor(diffMs / 1000);
+      const diffMin = Math.floor(diffSec / 60);
+      const diffHour = Math.floor(diffMin / 60);
+      const diffDay = Math.floor(diffHour / 24);
+
+      if (diffSec < 60) return 'Just now';
+      if (diffMin < 60) return `${diffMin}m ago`;
+      if (diffHour < 24) return `${diffHour}h ago`;
+      if (diffDay === 1) return 'Yesterday';
+      return `${diffDay} days ago`;
+    } catch (err) {
+      return 'Recently';
+    }
+  };
+
   useEffect(() => {
-    // Build initial list based on real status + simulated history logs
     const loadLogs = async () => {
       setLoading(true);
       try {
         let list: NotificationItem[] = [];
 
-        // 1. Check sync queue count (subscribed or current check)
-        // Note: For simplicity, we create a default sync log
+        // 1. Fetch read/deleted notification IDs from AsyncStorage
+        const readIdsStr = await AsyncStorage.getItem('read_notifications');
+        const readIds: string[] = readIdsStr ? JSON.parse(readIdsStr) : [];
+
+        const deletedIdsStr = await AsyncStorage.getItem('deleted_notifications');
+        const deletedIds: string[] = deletedIdsStr ? JSON.parse(deletedIdsStr) : [];
+
+        // 2. Add dynamic sync queue log
         list.push({
           id: 'sync_log',
           type: 'SYNC',
@@ -60,7 +87,7 @@ export default function NotificationsScreen() {
           unread: false,
         });
 
-        // 2. Check Printer
+        // 3. Add dynamic Printer log
         const printer = bluetoothService.getConnectedPrinter();
         list.push({
           id: 'printer_log',
@@ -70,54 +97,26 @@ export default function NotificationsScreen() {
             ? `Active thermal receipt print output is routed to: ${printer.name} (${printer.address}).`
             : 'Bluetooth receipt printing is offline. Connect a printer in settings.',
           time: '5m ago',
-          unread: !printer,
+          unread: !printer && !readIds.includes('printer_log'),
         });
 
-        // 3. Add simulated historical logs for realistic feel
-        list.push(
-          {
-            id: '1',
-            type: 'ACTIVITY',
-            title: 'Vehicle Released (Gate Exit)',
-            message: 'Vehicle MH-12-AB-5678 (4W) has been released successfully to owner.',
-            time: '1h ago',
-            unread: false,
-          },
-          {
-            id: '2',
-            type: 'ACTIVITY',
-            title: 'New Vehicle Checked-In',
-            message: 'Kachha entry recorded for commercial truck HR-55-XY-0091.',
-            time: '3h ago',
-            unread: true,
-          },
-          {
-            id: '3',
-            type: 'SYSTEM',
-            title: 'Tariff Rates Refreshed',
-            message: 'Latest daily parking rates for financing bank repos updated successfully.',
-            time: 'Yesterday',
-            unread: false,
-          },
-          {
-            id: '4',
-            type: 'ACTIVITY',
-            title: 'Kachha to Pakka Conversion',
-            message: 'Vehicle MH-02-CP-7711 moved to PAKKA status after uploading all 4 repo kit docs.',
-            time: 'Yesterday',
-            unread: false,
-          },
-          {
-            id: '5',
-            type: 'SYSTEM',
-            title: 'Security Alert: Manager Override',
-            message: 'Manager passcode verification accepted for custom parking fee waiver override.',
-            time: '2 days ago',
-            unread: false,
-          }
-        );
+        // 4. Fetch live audit logs from backend report reports
+        const res = await apiRequest('/api/notifications');
+        if (res.success && Array.isArray(res.data)) {
+          const apiLogs: NotificationItem[] = res.data.map((item: any) => ({
+            id: item.id,
+            type: item.type,
+            title: item.title,
+            message: item.message,
+            time: formatRelativeTime(item.time),
+            unread: !readIds.includes(item.id),
+          }));
+          list = [...list, ...apiLogs];
+        }
 
-        setNotifications(list);
+        // 5. Filter out deleted notifications
+        const finalLogs = list.filter((n) => !deletedIds.includes(n.id));
+        setNotifications(finalLogs);
       } catch (err) {
         console.error('Error loading notification logs:', err);
       } finally {
@@ -131,7 +130,6 @@ export default function NotificationsScreen() {
     const unsubscribeSync = registerSyncListener((syncing, count) => {
       if (count > 0) {
         setNotifications((prev) => {
-          // Check if sync alert already exists
           const exists = prev.some((n) => n.id === 'sync_alert_required');
           if (exists) return prev;
 
@@ -144,11 +142,10 @@ export default function NotificationsScreen() {
               time: 'Just now',
               unread: true,
             },
-            ...prev.filter((n) => n.id !== 'sync_log'), // replace the success log
+            ...prev.filter((n) => n.id !== 'sync_log'),
           ];
         });
       } else {
-        // remove sync required alert if zero
         setNotifications((prev) =>
           prev.filter((n) => n.id !== 'sync_alert_required')
         );
@@ -160,21 +157,55 @@ export default function NotificationsScreen() {
     };
   }, []);
 
-  const markAllAsRead = () => {
+  const markAllAsRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
+    try {
+      const allIds = notifications.map((n) => n.id);
+      const readIdsStr = await AsyncStorage.getItem('read_notifications');
+      const readIds = readIdsStr ? JSON.parse(readIdsStr) : [];
+      const newRead = Array.from(new Set([...readIds, ...allIds]));
+      await AsyncStorage.setItem('read_notifications', JSON.stringify(newRead));
+    } catch (e) {
+      console.warn('Failed to save read notifications status:', e);
+    }
   };
 
   const clearAll = () => {
     Alert.alert('Clear Notifications', 'Are you sure you want to clear all alerts?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Clear', style: 'destructive', onPress: () => setNotifications([]) },
+      {
+        text: 'Clear',
+        style: 'destructive',
+        onPress: async () => {
+          const allIds = notifications.map((n) => n.id);
+          setNotifications([]);
+          try {
+            const deletedIdsStr = await AsyncStorage.getItem('deleted_notifications');
+            const deletedIds = deletedIdsStr ? JSON.parse(deletedIdsStr) : [];
+            const newDeleted = Array.from(new Set([...deletedIds, ...allIds]));
+            await AsyncStorage.setItem('deleted_notifications', JSON.stringify(newDeleted));
+          } catch (e) {
+            console.warn('Failed to save deleted notifications status:', e);
+          }
+        },
+      },
     ]);
   };
 
-  const handleNotificationTap = (id: string) => {
+  const handleNotificationTap = async (id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, unread: false } : n))
     );
+    try {
+      const readIdsStr = await AsyncStorage.getItem('read_notifications');
+      const readIds = readIdsStr ? JSON.parse(readIdsStr) : [];
+      if (!readIds.includes(id)) {
+        readIds.push(id);
+        await AsyncStorage.setItem('read_notifications', JSON.stringify(readIds));
+      }
+    } catch (e) {
+      console.warn('Failed to save read notification status:', e);
+    }
   };
 
   const filteredData = notifications.filter((n) => {
