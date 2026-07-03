@@ -205,6 +205,8 @@ export interface OfflineStats {
   inYard: number;
   released: number;
   todayEntry: number;
+  cashRevenue?: number;
+  upiRevenue?: number;
 }
 
 export const getOfflineStats = (): OfflineStats => {
@@ -225,15 +227,40 @@ export const getOfflineStats = (): OfflineStats => {
       [`${todayStr}%`]
     );
 
+    // Parse and sum offline checkout collection amounts
+    const queueRows = db.getAllSync<{ type: string; payload: string }>(
+      "SELECT type, payload FROM offline_queue WHERE type = 'CHECK_OUT'"
+    );
+
+    let cashRevenue = 0;
+    let upiRevenue = 0;
+
+    for (const row of queueRows) {
+      try {
+        const jobPayload = JSON.parse(row.payload);
+        const paidVal = Number(jobPayload.paidAmount) || 0;
+        const pMode = jobPayload.paymentMode || 'Cash';
+        if (pMode === 'UPI') {
+          upiRevenue += paidVal;
+        } else {
+          cashRevenue += paidVal;
+        }
+      } catch (parseErr) {
+        console.warn('[SQLite] Error parsing offline queue job payload:', parseErr);
+      }
+    }
+
     return {
       totalVehicles: totalRow?.count || 0,
       inYard: inYardRow?.count || 0,
       released: releasedRow?.count || 0,
       todayEntry: todayEntryRow?.count || 0,
+      cashRevenue,
+      upiRevenue,
     };
   } catch (error) {
     console.error('[SQLite] Error getting offline stats:', error);
-    return { totalVehicles: 0, inYard: 0, released: 0, todayEntry: 0 };
+    return { totalVehicles: 0, inYard: 0, released: 0, todayEntry: 0, cashRevenue: 0, upiRevenue: 0 };
   }
 };
 

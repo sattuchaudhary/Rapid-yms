@@ -346,10 +346,12 @@ export default function GuardDashboard() {
 
   const displayReportsCheckIn = stats ? `${displayTodayEntry} Units` : `${offlineStats.todayEntry} Units`;
   const displayReportsReleased = stats ? `${displayReleased} Units` : `${offlineStats.released} Units`;
-  const displayReportsCash = finances ? `₹${Math.round(finances.totalSettledPakka * 0.4)}` : '₹0';
-  const displayReportsUpi = finances ? `₹${Math.round(finances.totalSettledPakka * 0.5)}` : '₹0';
-  const displayReportsOnline = finances ? `₹${Math.round(finances.totalSettledPakka * 0.1)}` : '₹0';
-  const displayReportsTotal = finances ? `₹${finances.totalSettledPakka + finances.kachhaRevenueRealized}` : '₹0';
+  const displayReportsCash = finances ? `₹${finances.cashRevenue ?? 0}` : `₹${offlineStats.cashRevenue ?? 0}`;
+  const displayReportsUpi = finances ? `₹${finances.upiRevenue ?? 0}` : `₹${offlineStats.upiRevenue ?? 0}`;
+  const displayReportsOnline = finances ? `₹${finances.onlineRevenue ?? 0}` : '₹0';
+  const displayReportsTotal = finances
+    ? `₹${finances.totalSettledPakka + finances.kachhaRevenueRealized}`
+    : `₹${(offlineStats.cashRevenue ?? 0) + (offlineStats.upiRevenue ?? 0)}`;
   const displayReportsWaived = finances ? `₹${finances.reconciliationLoss}` : '₹0';
 
   return (
@@ -638,8 +640,8 @@ export default function GuardDashboard() {
               <View style={[styles.financialBadge, { backgroundColor: '#F1F5F9' }]}>
                 <ThemedText style={styles.financialBadgeText}>KACHHA LIABILITY</ThemedText>
               </View>
-              <ThemedText style={styles.financialCardTitle}>YARD DAILY LOSS</ThemedText>
-              <ThemedText style={styles.financialCardSub}>Loss from Kachha delay</ThemedText>
+              <ThemedText style={styles.financialCardTitle}>KACHHA ACCRUED VALUE</ThemedText>
+              <ThemedText style={styles.financialCardSub}>Accrued Kachha dues</ThemedText>
             </View>
             <View style={[styles.financialIconBg, { backgroundColor: '#EF4444' }]}>
               <TrendingUp size={20} color="#FFFFFF" />

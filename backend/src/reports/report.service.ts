@@ -666,11 +666,26 @@ export const getProfitLossStatsService = async (tenantId: string) => {
   let reconciliationLoss = 0;
   let kachhaRevenueRealized = 0;
 
+  let cashRevenue = 0;
+  let upiRevenue = 0;
+  let onlineRevenue = 0;
+
   const bankReceivablesMap: Record<string, number> = {};
 
   for (const b of releasedBillings) {
     const isPakka = b.vehicle?.release?.releaseType === 'PAKKA';
     const isKachha = b.vehicle?.release?.releaseType === 'KACHHA';
+
+    const pMode = b.paymentMode || 'Cash';
+    const amountToCredit = b.paidAmount || 0;
+
+    if (pMode === 'UPI') {
+      upiRevenue += amountToCredit;
+    } else if (pMode === 'Online') {
+      onlineRevenue += amountToCredit;
+    } else {
+      cashRevenue += amountToCredit;
+    }
 
     if (isKachha) {
       kachhaRevenueRealized += b.paidAmount;
@@ -720,7 +735,10 @@ export const getProfitLossStatsService = async (tenantId: string) => {
     reconciliationLoss,
     kachhaRevenueRealized,
     kachhaRunningOpportunityLoss,
-    bankReceivablesBreakdown
+    bankReceivablesBreakdown,
+    cashRevenue,
+    upiRevenue,
+    onlineRevenue
   };
 };
 

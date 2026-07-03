@@ -208,6 +208,7 @@ export const directReleaseVehicleService = async (
     paidAmount: number;
     totalAmount: number;
     approvedTillDate?: string;
+    paymentMode?: string;
   }
 ) => {
   const vehicle = await prisma.vehicle.findFirst({
@@ -279,6 +280,7 @@ export const directReleaseVehicleService = async (
           totalAmount: data.totalAmount,
           paidAmount: data.paidAmount,
           paymentStatus: data.paidAmount >= data.totalAmount ? 'PAID' : 'PARTIAL',
+          paymentMode: data.paymentMode || 'Cash',
           approvedTillDate: data.approvedTillDate ? new Date(data.approvedTillDate) : undefined,
         },
       });

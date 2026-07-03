@@ -117,6 +117,7 @@ const directReleaseSchema = z.object({
   paidAmount: z.number().nonnegative(),
   totalAmount: z.number().nonnegative(),
   approvedTillDate: z.string().optional(),
+  paymentMode: z.string().optional(),
 });
 
 export const directRelease = async (req: AuthRequest, res: Response, next: NextFunction) => {
