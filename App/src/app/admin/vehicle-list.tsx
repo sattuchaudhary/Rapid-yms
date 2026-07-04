@@ -277,7 +277,7 @@ export default function VehicleListScreen() {
             activeOpacity={0.7}
             onPress={handleExportCSV}
           >
-            <Share2 size={20} color="#2563EB" />
+            <Share2 size={20} color="#4F46E5" />
           </TouchableOpacity>
         </View>
       </View>
@@ -346,7 +346,7 @@ export default function VehicleListScreen() {
       {/* Vehicle List */}
       {loading && filteredVehicles.length === 0 ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color="#4F46E5" />
           <ThemedText style={styles.loadingText}>Loading stock inventory...</ThemedText>
         </View>
       ) : (
@@ -354,7 +354,7 @@ export default function VehicleListScreen() {
           data={filteredVehicles}
           keyExtractor={(item) => item.id}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2563EB" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4F46E5" />
           }
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
@@ -500,8 +500,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   filterTabButtonActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
+    backgroundColor: '#4F46E5',
+    borderColor: '#4F46E5',
   },
   filterTabButtonText: {
     fontSize: 11,

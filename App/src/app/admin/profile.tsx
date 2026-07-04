@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Switch,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -379,61 +380,66 @@ export default function ProfileScreen() {
           visible={passwordModalVisible}
           onRequestClose={() => setPasswordModalVisible(false)}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <ThemedText style={styles.modalTitle}>Change Password</ThemedText>
-              
-              <TextInput
-                style={styles.modalInput}
-                placeholder="New Password"
-                placeholderTextColor="#94A3B8"
-                value={newPassword}
-                onChangeText={setNewPassword}
-                secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <ThemedText style={styles.modalTitle}>Change Password</ThemedText>
+                
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="New Password"
+                  placeholderTextColor="#94A3B8"
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
 
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Confirm New Password"
-                placeholderTextColor="#94A3B8"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="Confirm New Password"
+                  placeholderTextColor="#94A3B8"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
 
-              <View style={styles.modalBtnRow}>
-                <TouchableOpacity
-                  style={[styles.modalBtn, styles.modalCloseBtn]}
-                  onPress={() => {
-                    setPasswordModalVisible(false);
-                    setNewPassword('');
-                    setConfirmPassword('');
-                  }}
-                >
-                  <ThemedText style={styles.modalCloseText}>Cancel</ThemedText>
-                </TouchableOpacity>
+                <View style={styles.modalBtnRow}>
+                  <TouchableOpacity
+                    style={[styles.modalBtn, styles.modalCloseBtn]}
+                    onPress={() => {
+                      setPasswordModalVisible(false);
+                      setNewPassword('');
+                      setConfirmPassword('');
+                    }}
+                  >
+                    <ThemedText style={styles.modalCloseText}>Cancel</ThemedText>
+                  </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[styles.modalBtn, styles.modalSaveBtn]}
-                  onPress={handleChangePassword}
-                  disabled={changingPassword}
-                >
-                  {changingPassword ? (
-                    <ActivityIndicator size="small" color="#FFF" />
-                  ) : (
-                    <>
-                      <Check size={16} color="#FFF" style={{ marginRight: 4 }} />
-                      <ThemedText style={styles.modalSaveText}>Update</ThemedText>
-                    </>
-                  )}
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalBtn, styles.modalSaveBtn]}
+                    onPress={handleChangePassword}
+                    disabled={changingPassword}
+                  >
+                    {changingPassword ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <>
+                        <Check size={16} color="#FFF" style={{ marginRight: 4 }} />
+                        <ThemedText style={styles.modalSaveText}>Update</ThemedText>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         {/* App Settings Modal */}
@@ -484,7 +490,7 @@ export default function ProfileScreen() {
                     await AsyncStorage.setItem('yms_settings_warning_enabled', val ? 'true' : 'false');
                   }}
                   trackColor={{ false: '#CBD5E1', true: '#BFDBFE' }}
-                  thumbColor={warningEnabled ? '#2563EB' : '#F1F5F9'}
+                  thumbColor={warningEnabled ? '#4F46E5' : '#F1F5F9'}
                 />
               </View>
 
@@ -523,7 +529,7 @@ export default function ProfileScreen() {
                   captureProfilePic();
                 }}
               >
-                <Camera size={20} color="#2563EB" style={{ marginRight: 12 }} />
+                <Camera size={20} color="#4F46E5" style={{ marginRight: 12 }} />
                 <ThemedText style={styles.actionSheetBtnText}>Take Photo</ThemedText>
               </TouchableOpacity>
 
@@ -623,7 +629,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#CBD5E1',
   },
   avatarInitialsContainer: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -650,7 +656,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
@@ -667,7 +673,7 @@ const styles = StyleSheet.create({
   },
   roleBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#EEF2FF',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
@@ -677,7 +683,7 @@ const styles = StyleSheet.create({
   profileRole: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#2563EB',
+    color: '#4F46E5',
   },
   profileEmail: {
     fontSize: 13,
@@ -829,7 +835,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#64748B',
   },
   modalSaveBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
   },
   modalCloseText: {
     color: '#FFFFFF',
@@ -861,8 +867,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   syncOptionBtnSelected: {
-    borderColor: '#2563EB',
-    backgroundColor: '#EFF6FF',
+    borderColor: '#4F46E5',
+    backgroundColor: '#EEF2FF',
   },
   syncOptionText: {
     fontSize: 13,
@@ -870,7 +876,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   syncOptionTextSelected: {
-    color: '#2563EB',
+    color: '#4F46E5',
     fontWeight: '700',
   },
   settingsRow: {
@@ -887,7 +893,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   loginBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     borderRadius: 10,
     height: 50,
     justifyContent: 'center',

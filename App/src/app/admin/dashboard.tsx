@@ -19,6 +19,7 @@ import { registerSyncListener, runSyncQueue, syncBanksOnline } from '@/services/
 import { bluetoothService, BluetoothDevice } from '@/services/bluetooth';
 import { cacheVehicles, getOfflineStats, CachedVehicle } from '@/services/sqlite';
 import NetInfo from '@react-native-community/netinfo';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import {
@@ -53,6 +54,7 @@ import {
 export default function GuardDashboard() {
   const router = useRouter();
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const [user, setUser] = useState<UserSession | null>(null);
   const [isConnected, setIsConnected] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -405,10 +407,10 @@ export default function GuardDashboard() {
       </View>
 
       <ScrollView 
-        contentContainerStyle={styles.scrollContent} 
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 90 + (insets.bottom || 0) }]} 
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2563EB']} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#4F46E5']} />
         }
       >
         {/* Blue Card Banner (Today Overview) */}
@@ -521,7 +523,7 @@ export default function GuardDashboard() {
               activeOpacity={0.8}
             >
               <View style={[styles.mockupIconBg, { backgroundColor: '#DBEAFE' }]}>
-                <Car size={20} color="#2563EB" />
+                <Car size={20} color="#4F46E5" />
               </View>
               <ThemedText style={styles.mockupCardLabel}>Vehicle List</ThemedText>
             </TouchableOpacity>
@@ -756,8 +758,8 @@ export default function GuardDashboard() {
 
               <View style={styles.reportRowItem}>
                 <View style={styles.reportRowLeft}>
-                  <View style={[styles.reportIconBg, { backgroundColor: '#EFF6FF' }]}>
-                    <DollarSign size={16} color="#2563EB" />
+                  <View style={[styles.reportIconBg, { backgroundColor: '#EEF2FF' }]}>
+                    <DollarSign size={16} color="#4F46E5" />
                   </View>
                   <ThemedText style={styles.reportLabelText}>Cash Payments</ThemedText>
                 </View>
@@ -804,7 +806,7 @@ export default function GuardDashboard() {
 
             <TouchableOpacity
               onPress={() => setReportsModalVisible(false)}
-              style={[styles.modalBtn, { backgroundColor: '#2563EB', marginTop: 16 }]}
+              style={[styles.modalBtn, { backgroundColor: '#4F46E5', marginTop: 16 }]}
             >
               <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Close Reports</ThemedText>
             </TouchableOpacity>
@@ -826,7 +828,7 @@ export default function GuardDashboard() {
                 <ThemedText style={styles.modalTitle}>Recent Alerts & Notifications</ThemedText>
                 <ThemedText style={styles.modalSub}>Active system logs</ThemedText>
               </View>
-              <Bell size={22} color="#2563EB" />
+              <Bell size={22} color="#4F46E5" />
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1, marginTop: 10 }}>
@@ -883,7 +885,7 @@ export default function GuardDashboard() {
               )}
 
               <View style={[styles.alertCard, { borderColor: '#E2E8F0', backgroundColor: '#F8FAFC' }]}>
-                <Database size={20} color="#2563EB" />
+                <Database size={20} color="#4F46E5" />
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <ThemedText style={{ color: '#334155', fontWeight: '700', fontSize: 13 }}>
                     SQLite Initialized
@@ -897,7 +899,7 @@ export default function GuardDashboard() {
 
             <TouchableOpacity
               onPress={() => setNotificationsModalVisible(false)}
-              style={[styles.modalBtn, { backgroundColor: '#2563EB', marginTop: 16 }]}
+              style={[styles.modalBtn, { backgroundColor: '#4F46E5', marginTop: 16 }]}
             >
               <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Close Alerts</ThemedText>
             </TouchableOpacity>
@@ -919,7 +921,7 @@ export default function GuardDashboard() {
                 <ThemedText style={styles.modalTitle}>Bluetooth Printers</ThemedText>
                 <ThemedText style={styles.modalSub}>Select printer to connect</ThemedText>
               </View>
-              {scanning && <ActivityIndicator color="#2563EB" size="small" />}
+              {scanning && <ActivityIndicator color="#4F46E5" size="small" />}
             </View>
 
             {connectedPrinter && (
@@ -981,7 +983,7 @@ export default function GuardDashboard() {
                     style={styles.pairBtn}
                     onPress={() => connectDevice(item)}
                   >
-                    <ThemedText style={{ color: '#2563EB', fontWeight: '700', fontSize: 13 }}>Pair</ThemedText>
+                    <ThemedText style={{ color: '#4F46E5', fontWeight: '700', fontSize: 13 }}>Pair</ThemedText>
                   </TouchableOpacity>
                 </TouchableOpacity>
               )}
@@ -998,7 +1000,7 @@ export default function GuardDashboard() {
 
               <TouchableOpacity
                 onPress={() => setPrinterModalVisible(false)}
-                style={[styles.modalBtn, { backgroundColor: '#2563EB' }]}
+                style={[styles.modalBtn, { backgroundColor: '#4F46E5' }]}
               >
                 <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Close</ThemedText>
               </TouchableOpacity>
@@ -1008,13 +1010,16 @@ export default function GuardDashboard() {
       </Modal>
 
       {/* Floating Center Plus Tab Bar */}
-      <View style={styles.bottomTabBar}>
+      <View style={[styles.bottomTabBar, { 
+        height: 76 + (insets.bottom > 0 ? insets.bottom - 10 : 0), 
+        paddingBottom: insets.bottom || 14 
+      }]}>
         <TouchableOpacity 
           style={styles.tabItem} 
           activeOpacity={0.7}
           onPress={() => router.push('/admin/dashboard')}
         >
-          <Home size={22} color="#2563EB" />
+          <Home size={22} color="#4F46E5" />
           <ThemedText style={[styles.tabItemText, styles.tabItemTextActive]}>Home</ThemedText>
         </TouchableOpacity>
 
@@ -1106,7 +1111,7 @@ export default function GuardDashboard() {
                   router.push('/admin/dashboard');
                 }}
               >
-                <Home size={18} color="#2563EB" style={{ marginRight: 12 }} />
+                <Home size={18} color="#4F46E5" style={{ marginRight: 12 }} />
                 <ThemedText style={[styles.drawerLinkLabel, styles.drawerLinkLabelActive]}>Dashboard</ThemedText>
               </TouchableOpacity>
 
@@ -1182,6 +1187,20 @@ export default function GuardDashboard() {
                 <ThemedText style={styles.drawerLinkLabel}>Bank Management</ThemedText>
               </TouchableOpacity>
 
+              {/* Link 6c: Crew Management */}
+              {(user?.role === 'SUPER_ADMIN' || user?.role === 'TENANT_ADMIN' || user?.role === 'MANAGER') && (
+                <TouchableOpacity
+                  style={styles.drawerLinkRow}
+                  onPress={() => {
+                    setDrawerVisible(false);
+                    router.push('/admin/crew' as any);
+                  }}
+                >
+                  <User size={18} color="#64748B" style={{ marginRight: 12 }} />
+                  <ThemedText style={styles.drawerLinkLabel}>Crew Management</ThemedText>
+                </TouchableOpacity>
+              )}
+
               {/* Link 7: Notifications */}
               <TouchableOpacity
                 style={styles.drawerLinkRow}
@@ -1215,8 +1234,8 @@ export default function GuardDashboard() {
                     router.push('/admin/dashboard');
                   }}
                 >
-                  <Shield size={18} color="#2563EB" style={{ marginRight: 12 }} />
-                  <ThemedText style={[styles.drawerLinkLabel, { color: '#2563EB' }]}>Admin Panel</ThemedText>
+                  <Shield size={18} color="#4F46E5" style={{ marginRight: 12 }} />
+                  <ThemedText style={[styles.drawerLinkLabel, { color: '#4F46E5' }]}>Admin Panel</ThemedText>
                 </TouchableOpacity>
               )}
 
@@ -1273,7 +1292,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
@@ -1332,7 +1351,7 @@ const styles = StyleSheet.create({
   yardBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#EEF2FF',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 6,
@@ -1341,7 +1360,7 @@ const styles = StyleSheet.create({
   },
   yardText: {
     fontSize: 12,
-    color: '#2563EB',
+    color: '#4F46E5',
     fontWeight: '600',
   },
   statusPill: {
@@ -1365,11 +1384,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   overviewCard: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     borderRadius: 16,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    shadowColor: '#2563EB',
+    shadowColor: '#4F46E5',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.15,
     shadowRadius: 10,
@@ -1648,6 +1667,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   emptyDevices: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
     paddingVertical: 40,
     alignItems: 'center',
   },
@@ -1670,7 +1692,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 6,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#EEF2FF',
   },
   modalBtnRow: {
     flexDirection: 'row',
@@ -1724,7 +1746,7 @@ const styles = StyleSheet.create({
     marginVertical: 12,
   },
   reportTotalRow: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#EEF2FF',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 14,
@@ -1734,12 +1756,12 @@ const styles = StyleSheet.create({
   reportTotalLabel: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#2563EB',
+    color: '#4F46E5',
   },
   reportTotalValue: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#2563EB',
+    color: '#4F46E5',
   },
   alertCard: {
     flexDirection: 'row',
@@ -1797,7 +1819,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E2E8F0',
   },
   avatarInitialsContainer: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1923,17 +1945,17 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   tabItemTextActive: {
-    color: '#2563EB',
+    color: '#4F46E5',
   },
   floatingTabItem: {
     width: 54,
     height: 54,
     borderRadius: 27,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: -32,
-    shadowColor: '#2563EB',
+    shadowColor: '#4F46E5',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 6,
@@ -1958,7 +1980,7 @@ const styles = StyleSheet.create({
     elevation: 16,
   },
   drawerHeaderBanner: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     paddingTop: 60,
     paddingBottom: 24,
     paddingHorizontal: 20,
@@ -1986,7 +2008,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: '#10B981',
     borderWidth: 1.5,
-    borderColor: '#2563EB',
+    borderColor: '#4F46E5',
   },
   drawerHeaderMeta: {
     flex: 1,
@@ -2015,7 +2037,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   drawerLinkRowActive: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#EEF2FF',
   },
   drawerLinkLabel: {
     fontSize: 14,
@@ -2023,7 +2045,7 @@ const styles = StyleSheet.create({
     color: '#475569',
   },
   drawerLinkLabelActive: {
-    color: '#2563EB',
+    color: '#4F46E5',
   },
   drawerDivider: {
     height: 1,
@@ -2070,7 +2092,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   drawerAvatarInitialsText: {
-    color: '#2563EB',
+    color: '#4F46E5',
     fontSize: 22,
     fontWeight: '800',
   },

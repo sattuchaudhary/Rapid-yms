@@ -660,7 +660,7 @@ export default function ReleaseVehicleScreen() {
         </View>
 
         {isUploading ? (
-          <ActivityIndicator size="small" color="#2563EB" style={{ padding: 10 }} />
+          <ActivityIndicator size="small" color="#4F46E5" style={{ padding: 10 }} />
         ) : uri ? (
           <View style={styles.docThumbnailWrapper}>
             <Image source={{ uri }} style={styles.docThumbnail} />
@@ -685,14 +685,14 @@ export default function ReleaseVehicleScreen() {
               onPress={() => captureDocument(type)}
               activeOpacity={0.7}
             >
-              <Camera size={14} color="#2563EB" />
+              <Camera size={14} color="#4F46E5" />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.docMiniBtn, { marginLeft: 6 }]}
               onPress={() => pickDocumentFromGallery(type)}
               activeOpacity={0.7}
             >
-              <Plus size={14} color="#2563EB" />
+              <Plus size={14} color="#4F46E5" />
             </TouchableOpacity>
           </View>
         )}
@@ -850,7 +850,7 @@ export default function ReleaseVehicleScreen() {
                         <ThemedText style={styles.fieldInputText}>
                           {releaseOrderDateText || 'Select Date'}
                         </ThemedText>
-                        <Calendar size={18} color="#2563EB" />
+                        <Calendar size={18} color="#4F46E5" />
                       </TouchableOpacity>
                     </View>
                     <View style={styles.divider} />
@@ -877,7 +877,7 @@ export default function ReleaseVehicleScreen() {
                         <ThemedText style={styles.fieldInputText}>
                           {entryDateText || 'Select Entry Date'}
                         </ThemedText>
-                        <Calendar size={18} color="#2563EB" />
+                        <Calendar size={18} color="#4F46E5" />
                       </TouchableOpacity>
                     </View>
                     <View style={styles.divider} />
@@ -902,7 +902,7 @@ export default function ReleaseVehicleScreen() {
                     <ThemedText style={styles.fieldInputText}>
                       {releaseDateText || 'Select Date'}
                     </ThemedText>
-                    <Calendar size={18} color="#2563EB" />
+                    <Calendar size={18} color="#4F46E5" />
                   </TouchableOpacity>
                 </View>
 
@@ -947,7 +947,7 @@ export default function ReleaseVehicleScreen() {
                     <View style={styles.divider} />
                     <View style={styles.fieldRowColumn}>
                       <View style={styles.fieldLabelContainer}>
-                        <User size={14} color="#2563EB" style={{ marginRight: 6 }} />
+                        <User size={14} color="#4F46E5" style={{ marginRight: 6 }} />
                         <ThemedText style={styles.fieldLabel}>Third Party Name <ThemedText style={styles.required}>*</ThemedText></ThemedText>
                       </View>
                       <TextInput
@@ -963,7 +963,7 @@ export default function ReleaseVehicleScreen() {
 
                     <View style={styles.fieldRowColumn}>
                       <View style={styles.fieldLabelContainer}>
-                        <Phone size={14} color="#2563EB" style={{ marginRight: 6 }} />
+                        <Phone size={14} color="#4F46E5" style={{ marginRight: 6 }} />
                         <ThemedText style={styles.fieldLabel}>Third Party Mobile <ThemedText style={styles.required}>*</ThemedText></ThemedText>
                       </View>
                       <TextInput
@@ -1210,7 +1210,7 @@ export default function ReleaseVehicleScreen() {
                   >
                     {type === 'Customer' ? 'Customer (First Party)' : 'Third Party'}
                   </ThemedText>
-                  {releaseToType === type && <Check size={16} color="#2563EB" />}
+                  {releaseToType === type && <Check size={16} color="#4F46E5" />}
                 </TouchableOpacity>
               ))}
             </View>
@@ -1252,7 +1252,7 @@ export default function ReleaseVehicleScreen() {
                   >
                     {mode}
                   </ThemedText>
-                  {paymentMode === mode && <Check size={16} color="#2563EB" />}
+                  {paymentMode === mode && <Check size={16} color="#4F46E5" />}
                 </TouchableOpacity>
               ))}
             </View>
@@ -1454,7 +1454,7 @@ const styles = StyleSheet.create({
   searchBtn: {
     width: 46,
     height: 46,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1524,7 +1524,7 @@ const styles = StyleSheet.create({
     borderColor: '#F59E0B',
   },
   bgPakka: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#EEF2FF',
     borderColor: '#3B82F6',
   },
   infoBannerText: {
@@ -1701,7 +1701,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#EEF2FF',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -1711,12 +1711,12 @@ const styles = StyleSheet.create({
   // Confirm Button
   confirmBtn: {
     flexDirection: 'row',
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     borderRadius: 14,
     height: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#2563EB',
+    shadowColor: '#4F46E5',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -1764,7 +1764,7 @@ const styles = StyleSheet.create({
   },
   printBtn: {
     flexDirection: 'row',
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     borderRadius: 10,
     height: 46,
     alignItems: 'center',
@@ -1825,7 +1825,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F1F5F9',
   },
   dropdownOptionSelected: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#EEF2FF',
     borderRadius: 8,
     paddingHorizontal: 10,
   },
@@ -1835,11 +1835,11 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   dropdownOptionTextSelected: {
-    color: '#2563EB',
+    color: '#4F46E5',
     fontWeight: '700',
   },
   duesBannerCard: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#EEF2FF',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#BFDBFE',
@@ -1884,7 +1884,7 @@ const styles = StyleSheet.create({
   duesTotalValue: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#2563EB',
+    color: '#4F46E5',
   },
   duesExplanation: {
     borderTopWidth: 0.5,
@@ -1916,8 +1916,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   checkboxChecked: {
-    borderColor: '#2563EB',
-    backgroundColor: '#2563EB',
+    borderColor: '#4F46E5',
+    backgroundColor: '#4F46E5',
   },
   checkboxLabel: {
     fontSize: 14,
@@ -2020,7 +2020,7 @@ const styles = StyleSheet.create({
     marginVertical: 2,
   },
   dayCellSelected: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
   },
   dayCellEmpty: {
     opacity: 0,

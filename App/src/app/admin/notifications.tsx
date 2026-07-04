@@ -218,7 +218,7 @@ export default function NotificationsScreen() {
       case 'SYNC':
         return <Wifi size={18} color="#D97706" />;
       case 'HARDWARE':
-        return <Printer size={18} color="#2563EB" />;
+        return <Printer size={18} color="#4F46E5" />;
       case 'ACTIVITY':
         return <Car size={18} color="#10B981" />;
       default:
@@ -231,7 +231,7 @@ export default function NotificationsScreen() {
       case 'SYNC':
         return '#FEF3C7';
       case 'HARDWARE':
-        return '#EFF6FF';
+        return '#EEF2FF';
       case 'ACTIVITY':
         return '#DCFCE7';
       default:
@@ -279,7 +279,7 @@ export default function NotificationsScreen() {
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color="#4F46E5" />
           <ThemedText style={styles.loadingText}>Fetching system logs...</ThemedText>
         </View>
       ) : (
@@ -387,8 +387,8 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   filterTabActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
+    backgroundColor: '#4F46E5',
+    borderColor: '#4F46E5',
   },
   filterTabText: {
     fontSize: 12,
@@ -446,9 +446,9 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   notificationCardUnread: {
-    borderColor: '#2563EB',
+    borderColor: '#4F46E5',
     borderWidth: 1.5,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#EEF2FF',
   },
   iconBg: {
     width: 40,
@@ -495,6 +495,6 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
   },
 });

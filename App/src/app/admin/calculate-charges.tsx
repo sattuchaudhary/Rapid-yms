@@ -492,7 +492,7 @@ const styles = StyleSheet.create({
   searchBtn: {
     width: 44,
     height: 44,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
@@ -500,7 +500,7 @@ const styles = StyleSheet.create({
   vehicleHeaderCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     borderRadius: 16,
     padding: 18,
     gap: 16,
@@ -598,7 +598,7 @@ const styles = StyleSheet.create({
   slabValueBlue: {
     fontSize: 24,
     fontWeight: '900',
-    color: '#2563EB',
+    color: '#4F46E5',
   },
   slabValueGreen: {
     fontSize: 24,
@@ -630,7 +630,7 @@ const styles = StyleSheet.create({
   },
   saveBtn: {
     flexDirection: 'row',
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     height: 48,
     borderRadius: 12,
     alignItems: 'center',

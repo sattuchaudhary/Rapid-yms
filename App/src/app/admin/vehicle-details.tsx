@@ -345,7 +345,7 @@ export default function VehicleDetailsScreen() {
           .header { text-align: center; margin-bottom: 15px; border-bottom: 3px double #1e3a8a; padding-bottom: 8px; }
           .header h1 { margin: 0; font-size: 24px; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.75px; font-weight: 800; }
           .header p { margin: 4px 0 0 0; font-size: 11px; color: #475569; font-weight: 600; }
-          .section-title { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #1e3a8a; background-color: #eff6ff; padding: 5px 10px; margin: 14px 0 6px 0; border-left: 5px solid #1e3a8a; border-radius: 0 4px 4px 0; page-break-inside: avoid; }
+          .section-title { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #1e3a8a; background-color: #EEF2FF; padding: 5px 10px; margin: 14px 0 6px 0; border-left: 5px solid #1e3a8a; border-radius: 0 4px 4px 0; page-break-inside: avoid; }
           table { width: 100%; border-collapse: collapse; margin-bottom: 10px; page-break-inside: avoid; }
           td { padding: 6px 8px; border: 1px solid #cbd5e1; font-size: 11px; color: #1e293b; }
           .info-table td { width: 50%; }
@@ -357,7 +357,7 @@ export default function VehicleDetailsScreen() {
         <div class="header">
           <h1>${tenantName}</h1>
           <p>${tenantAddress}</p>
-          <p style="font-size: 10px; margin-top: 5px; border: 1px solid #1e3a8a; display: inline-block; padding: 3px 10px; border-radius: 4px; color: #1e3a8a; background-color: #eff6ff; font-weight: bold; letter-spacing: 0.5px;">
+          <p style="font-size: 10px; margin-top: 5px; border: 1px solid #1e3a8a; display: inline-block; padding: 3px 10px; border-radius: 4px; color: #1e3a8a; background-color: #EEF2FF; font-weight: bold; letter-spacing: 0.5px;">
             YARD POSSESSION & VEHICLE CONDITION REPORT
           </p>
         </div>
@@ -536,7 +536,7 @@ export default function VehicleDetailsScreen() {
   if (loading) {
     return (
       <ThemedView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator size="large" color="#4F46E5" />
         <ThemedText style={styles.loadingText}>Fetching details from cloud...</ThemedText>
       </ThemedView>
     );
@@ -706,7 +706,7 @@ export default function VehicleDetailsScreen() {
           <ThemedText style={styles.sectionHeader}>Specifications & Yard Info</ThemedText>
           <View style={styles.detailRow}>
             <ThemedText style={styles.detailLabel}>Serial No.</ThemedText>
-            <ThemedText style={[styles.detailValue, { color: '#2563EB', fontWeight: '800' }]}>
+            <ThemedText style={[styles.detailValue, { color: '#4F46E5', fontWeight: '800' }]}>
               #{vehicle.serialNumber || 'N/A'}
             </ThemedText>
           </View>
@@ -865,7 +865,7 @@ export default function VehicleDetailsScreen() {
       {/* Bottom Actions Tab Bar */}
       <View style={styles.actionTabBar}>
         <TouchableOpacity style={styles.tabButton} onPress={() => setPhotosVisible(true)} activeOpacity={0.7}>
-          <Camera size={20} color="#2563EB" />
+          <Camera size={20} color="#4F46E5" />
           <ThemedText style={styles.tabLabelText}>Photos</ThemedText>
         </TouchableOpacity>
 
@@ -874,7 +874,7 @@ export default function VehicleDetailsScreen() {
           onPress={() => router.push({ pathname: '/admin/calculate-charges', params: { id: vehicle.id } })} 
           activeOpacity={0.7}
         >
-          <Calculator size={20} color="#2563EB" />
+          <Calculator size={20} color="#4F46E5" />
           <ThemedText style={styles.tabLabelText}>Calculate</ThemedText>
         </TouchableOpacity>
 
@@ -883,12 +883,12 @@ export default function VehicleDetailsScreen() {
           onPress={() => router.push({ pathname: '/admin/check-out', params: { plate: vehicle.vehicleNumber } })} 
           activeOpacity={0.7}
         >
-          <Key size={20} color="#2563EB" />
+          <Key size={20} color="#4F46E5" />
           <ThemedText style={styles.tabLabelText}>Release</ThemedText>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.tabButton} onPress={handleMoreMenu} activeOpacity={0.7}>
-          <MoreHorizontal size={20} color="#2563EB" />
+          <MoreHorizontal size={20} color="#4F46E5" />
           <ThemedText style={styles.tabLabelText}>More</ThemedText>
         </TouchableOpacity>
       </View>
@@ -1162,8 +1162,8 @@ export default function VehicleDetailsScreen() {
                 }}
                 activeOpacity={0.7}
               >
-                <View style={[styles.actionsSheetIconBox, { backgroundColor: '#EFF6FF' }]}>
-                  <FileText size={18} color="#2563EB" />
+                <View style={[styles.actionsSheetIconBox, { backgroundColor: '#EEF2FF' }]}>
+                  <FileText size={18} color="#4F46E5" />
                 </View>
                 <ThemedText style={styles.actionsSheetText}>Share Condition Report PDF</ThemedText>
               </TouchableOpacity>
@@ -1285,7 +1285,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   retryBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
@@ -1320,12 +1320,12 @@ const styles = StyleSheet.create({
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     borderRadius: 16,
     padding: 18,
     gap: 16,
     marginBottom: 16,
-    shadowColor: '#2563EB',
+    shadowColor: '#4F46E5',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 10,
@@ -1552,7 +1552,7 @@ const styles = StyleSheet.create({
   slabValue: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#2563EB',
+    color: '#4F46E5',
     marginTop: 6,
     marginBottom: 4,
   },
@@ -1611,8 +1611,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   typeSelectBtnActive: {
-    borderColor: '#2563EB',
-    backgroundColor: '#EFF6FF',
+    borderColor: '#4F46E5',
+    backgroundColor: '#EEF2FF',
   },
   typeSelectText: {
     fontSize: 13,
@@ -1620,7 +1620,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   typeSelectTextActive: {
-    color: '#2563EB',
+    color: '#4F46E5',
     fontWeight: '700',
   },
   modalHeader: {
@@ -1673,7 +1673,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   closeModalBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     height: 48,
     borderRadius: 12,
     alignItems: 'center',
@@ -1705,7 +1705,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   calculateBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     height: 44,
     borderRadius: 10,
     alignItems: 'center',
@@ -1826,7 +1826,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   drawerActionBtnPrimary: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
   },
   drawerActionBtnSecondary: {
     backgroundColor: '#F1F5F9',

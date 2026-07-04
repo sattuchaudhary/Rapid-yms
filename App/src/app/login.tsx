@@ -195,20 +195,20 @@ export default function LoginScreen() {
       style={{ flex: 1 }}
     >
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-        <ThemedView style={styles.container}>
+        <View style={styles.container}>
           {/* Settings Icon */}
           <TouchableOpacity
             style={styles.settingsBtn}
             onPress={() => setModalVisible(true)}
             activeOpacity={0.7}
           >
-            <Server size={22} color="#2563EB" />
+            <Server size={22} color="#6366F1" />
           </TouchableOpacity>
 
           {/* Logo Header */}
           <View style={styles.header}>
             <View style={styles.logoBadge}>
-              <Shield size={38} color="#2563EB" />
+              <Shield size={38} color="#6366F1" />
             </View>
             <ThemedText style={styles.brandTitle}>ENTERPRISE YMS</ThemedText>
             <ThemedText style={styles.brandSubtitle}>Yard Management SaaS Mobile</ThemedText>
@@ -224,7 +224,7 @@ export default function LoginScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Email Address"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor="#64748B"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -239,7 +239,7 @@ export default function LoginScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Password"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor="#64748B"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
@@ -270,7 +270,7 @@ export default function LoginScreen() {
                   disabled={loading}
                   activeOpacity={0.7}
                 >
-                  <Key size={24} color="#2563EB" />
+                  <Key size={24} color="#6366F1" />
                 </TouchableOpacity>
               )}
             </View>
@@ -292,41 +292,46 @@ export default function LoginScreen() {
             visible={modalVisible}
             onRequestClose={() => setModalVisible(false)}
           >
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <ThemedText style={styles.modalTitle}>Server Configuration</ThemedText>
-                <ThemedText style={styles.modalSubtitle}>
-                  Change API Server endpoint if testing on custom LAN IP:
-                </ThemedText>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={{ flex: 1 }}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                  <ThemedText style={styles.modalTitle}>Server Configuration</ThemedText>
+                  <ThemedText style={styles.modalSubtitle}>
+                    Change API Server endpoint if testing on custom LAN IP:
+                  </ThemedText>
 
-                <TextInput
-                  style={styles.modalInput}
-                  placeholder="http://192.168.1.XX:5000"
-                  placeholderTextColor="#94A3B8"
-                  value={serverUrl}
-                  onChangeText={setServerUrlState}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="http://192.168.1.XX:5000"
+                    placeholderTextColor="#64748B"
+                    value={serverUrl}
+                    onChangeText={setServerUrlState}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
 
-                <View style={styles.modalBtnRow}>
-                  <TouchableOpacity
-                    style={[styles.modalBtn, styles.modalCloseBtn]}
-                    onPress={() => setModalVisible(false)}
-                  >
-                    <ThemedText style={styles.modalCloseText}>Cancel</ThemedText>
-                  </TouchableOpacity>
+                  <View style={styles.modalBtnRow}>
+                    <TouchableOpacity
+                      style={[styles.modalBtn, styles.modalCloseBtn]}
+                      onPress={() => setModalVisible(false)}
+                    >
+                      <ThemedText style={styles.modalCloseText}>Cancel</ThemedText>
+                    </TouchableOpacity>
 
-                  <TouchableOpacity
-                    style={[styles.modalBtn, styles.modalSaveBtn]}
-                    onPress={handleSaveServer}
-                  >
-                    <Check size={16} color="#FFF" style={{ marginRight: 4 }} />
-                    <ThemedText style={styles.modalSaveText}>Save</ThemedText>
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.modalBtn, styles.modalSaveBtn]}
+                      onPress={handleSaveServer}
+                    >
+                      <Check size={16} color="#FFF" style={{ marginRight: 4 }} />
+                      <ThemedText style={styles.modalSaveText}>Save</ThemedText>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
-            </View>
+            </KeyboardAvoidingView>
           </Modal>
 
           {/* Forgot Password Modal */}
@@ -339,13 +344,13 @@ export default function LoginScreen() {
             <View style={styles.modalOverlay}>
               <View style={styles.modalContent}>
                 <View style={{ alignItems: 'center', marginBottom: 16 }}>
-                  <View style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', marginBottom: 10 }}>
-                    <Shield size={26} color="#2563EB" />
+                  <View style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: '#1E1B4B', justifyContent: 'center', alignItems: 'center', marginBottom: 10 }}>
+                    <Shield size={26} color="#6366F1" />
                   </View>
                   <ThemedText style={styles.modalTitle}>Forgot Password?</ThemedText>
                 </View>
                 
-                <ThemedText style={{ color: '#475569', fontSize: 13, lineHeight: 20, textAlign: 'center', marginBottom: 20 }}>
+                <ThemedText style={{ color: '#94A3B8', fontSize: 13, lineHeight: 20, textAlign: 'center', marginBottom: 20 }}>
                   Security rules ke anusar, please reset ke liye apne **Yard Tenant Admin** ya crew supervisor se contact karein. Wo aapka credentials details panel se override kar sakte hain.
                 </ThemedText>
 
@@ -358,7 +363,7 @@ export default function LoginScreen() {
               </View>
             </View>
           </Modal>
-        </ThemedView>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -367,7 +372,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#0B0F19',
     paddingHorizontal: 24,
     justifyContent: 'center',
     paddingBottom: 40,
@@ -379,68 +384,73 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#111827',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#1F2937',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     elevation: 2,
   },
   header: {
     alignItems: 'center',
     marginBottom: 36,
-    marginTop: 40,
+    marginTop: 45,
   },
   logoBadge: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#DBEAFE',
+    backgroundColor: '#1E1B4B',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
     borderWidth: 2,
-    borderColor: '#2563EB',
+    borderColor: '#4F46E5',
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 3,
   },
   brandTitle: {
     fontSize: 26,
     fontWeight: '800',
-    color: '#2563EB',
+    color: '#FFFFFF',
     letterSpacing: 1.5,
   },
   brandSubtitle: {
     fontSize: 14,
-    color: '#64748B',
+    color: '#94A3B8',
     marginTop: 4,
   },
   formCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#111827',
     borderRadius: 16,
     padding: 24,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#1F2937',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
     elevation: 3,
   },
   formTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#FFFFFF',
     marginBottom: 20,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#1F2937',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#374151',
     borderRadius: 10,
     paddingHorizontal: 12,
     marginBottom: 16,
@@ -451,17 +461,17 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    color: '#0F172A',
+    color: '#FFFFFF',
     fontSize: 15,
   },
   loginBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     borderRadius: 10,
     height: 50,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 8,
-    shadowColor: '#2563EB',
+    shadowColor: '#4F46E5',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
@@ -477,8 +487,8 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#2563EB',
-    backgroundColor: '#EFF6FF',
+    borderColor: '#374151',
+    backgroundColor: '#1E1B4B',
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 8,
@@ -489,26 +499,26 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   forgotText: {
-    color: '#64748B',
+    color: '#818CF8',
     fontSize: 13,
     fontWeight: '600',
     textDecorationLine: 'underline',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#111827',
     borderRadius: 16,
     padding: 24,
     width: '100%',
     maxWidth: 400,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#1F2937',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -518,21 +528,21 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#FFFFFF',
     marginBottom: 8,
   },
   modalSubtitle: {
     fontSize: 14,
-    color: '#64748B',
+    color: '#94A3B8',
     marginBottom: 16,
   },
   modalInput: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#1F2937',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#374151',
     borderRadius: 10,
     paddingHorizontal: 12,
-    color: '#0F172A',
+    color: '#FFFFFF',
     height: 50,
     fontSize: 15,
     marginBottom: 20,
@@ -550,10 +560,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalCloseBtn: {
-    backgroundColor: '#64748B',
+    backgroundColor: '#374151',
   },
   modalSaveBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
   },
   modalCloseText: {
     color: '#FFFFFF',

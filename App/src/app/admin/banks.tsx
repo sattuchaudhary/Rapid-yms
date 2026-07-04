@@ -371,14 +371,14 @@ export default function BanksScreen() {
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color="#4F46E5" />
           <ThemedText style={{ color: '#64748B', marginTop: 10 }}>Loading banks...</ThemedText>
         </View>
       ) : (
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#2563EB" />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#4F46E5" />}
         >
           {/* Stats row */}
           <View style={styles.statsRow}>
@@ -404,7 +404,7 @@ export default function BanksScreen() {
                 <View key={bank.id} style={styles.bankCard}>
                   <View style={styles.bankCardHeader}>
                     <View style={styles.bankIconCircle}>
-                      <Building size={16} color="#2563EB" />
+                      <Building size={16} color="#4F46E5" />
                     </View>
                     <View style={{ flex: 1 }}>
                       <ThemedText style={styles.bankName}>{bank.name}</ThemedText>
@@ -460,7 +460,7 @@ export default function BanksScreen() {
                       {isAdmin && (
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 8 }}>
                           <TouchableOpacity onPress={() => handleOpenAddSubModal(group)} activeOpacity={0.7}>
-                            <Plus size={16} color="#2563EB" />
+                            <Plus size={16} color="#4F46E5" />
                           </TouchableOpacity>
                           <TouchableOpacity onPress={() => handleDeleteBank(group)} activeOpacity={0.7}>
                             <Trash2 size={16} color="#EF4444" />
@@ -644,7 +644,7 @@ export default function BanksScreen() {
                       }
                       activeOpacity={0.7}
                     >
-                      <Plus size={14} color="#2563EB" style={{ marginRight: 6 }} />
+                      <Plus size={14} color="#4F46E5" style={{ marginRight: 6 }} />
                       <ThemedText style={styles.addSubBankBtnText}>Add Sub-Bank</ThemedText>
                     </TouchableOpacity>
                   </>
@@ -817,7 +817,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
   addBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#2563EB', justifyContent: 'center', alignItems: 'center',
+    backgroundColor: '#4F46E5', justifyContent: 'center', alignItems: 'center',
   },
   searchBar: {
     flexDirection: 'row',
@@ -836,7 +836,7 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: '#FFFFFF', borderRadius: 10,
     paddingVertical: 8, paddingHorizontal: 10, alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0',
   },
-  statValue: { fontSize: 18, fontWeight: '800', color: '#2563EB' },
+  statValue: { fontSize: 18, fontWeight: '800', color: '#4F46E5' },
   statLabel: { fontSize: 9, color: '#64748B', fontWeight: '600', marginTop: 1, textAlign: 'center' },
 
   sectionTitle: { fontSize: 11, fontWeight: '800', color: '#64748B', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 4 },
@@ -848,7 +848,7 @@ const styles = StyleSheet.create({
   bankCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   bankIconCircle: {
     width: 28, height: 28, borderRadius: 14,
-    backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center',
+    backgroundColor: '#EEF2FF', justifyContent: 'center', alignItems: 'center',
   },
   bankName: { fontSize: 13, fontWeight: '700', color: '#0F172A' },
   bankType: { fontSize: 10, color: '#94A3B8', fontWeight: '500', marginTop: 0 },
@@ -871,12 +871,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#F1F5F9', gap: 8,
   },
   subBankDot: {
-    width: 4, height: 4, borderRadius: 2, backgroundColor: '#2563EB', marginTop: 6,
+    width: 4, height: 4, borderRadius: 2, backgroundColor: '#4F46E5', marginTop: 6,
   },
   subBankName: { fontSize: 12, fontWeight: '700', color: '#334155' },
   ratesGridSmall: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 2 },
   subRateChip: {
-    backgroundColor: '#EFF6FF', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1,
+    backgroundColor: '#EEF2FF', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1,
     fontSize: 9, color: '#1D4ED8', fontWeight: '600',
   },
 
@@ -908,7 +908,7 @@ const styles = StyleSheet.create({
     flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 2,
     borderColor: '#E2E8F0', alignItems: 'center', backgroundColor: '#F8FAFC',
   },
-  typeOptionSelected: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
+  typeOptionSelected: { borderColor: '#4F46E5', backgroundColor: '#EEF2FF' },
   typeOptionText: { fontSize: 13, fontWeight: '600', color: '#475569' },
   typeOptionTextSelected: { color: '#1D4ED8' },
 
@@ -925,17 +925,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC', borderRadius: 12, padding: 12,
     marginBottom: 10, borderWidth: 1, borderColor: '#E2E8F0',
   },
-  subBankInputTitle: { fontSize: 12, fontWeight: '700', color: '#2563EB', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+  subBankInputTitle: { fontSize: 12, fontWeight: '700', color: '#4F46E5', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
 
   addSubBankBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5, borderColor: '#DBEAFE', borderStyle: 'dashed',
-    borderRadius: 10, paddingVertical: 10, backgroundColor: '#EFF6FF', marginTop: 4,
+    borderRadius: 10, paddingVertical: 10, backgroundColor: '#EEF2FF', marginTop: 4,
   },
-  addSubBankBtnText: { color: '#2563EB', fontSize: 13, fontWeight: '600' },
+  addSubBankBtnText: { color: '#4F46E5', fontSize: 13, fontWeight: '600' },
 
   saveBtn: {
-    backgroundColor: '#2563EB', borderRadius: 12,
+    backgroundColor: '#4F46E5', borderRadius: 12,
     paddingVertical: 14, alignItems: 'center', marginTop: 16,
   },
   saveBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },

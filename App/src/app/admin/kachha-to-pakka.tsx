@@ -444,7 +444,7 @@ export default function KachhaToPakkaScreen() {
   if (loading) {
     return (
       <ThemedView style={styles.center}>
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator size="large" color="#4F46E5" />
         <ThemedText style={styles.loadingText}>Loading vehicle details...</ThemedText>
       </ThemedView>
     );
@@ -472,7 +472,7 @@ export default function KachhaToPakkaScreen() {
                   style={styles.vehicleThumbnail} 
                 />
               ) : (
-                <Car size={28} color="#2563EB" />
+                <Car size={28} color="#4F46E5" />
               )}
             </View>
             <View style={styles.vehicleMeta}>
@@ -490,7 +490,7 @@ export default function KachhaToPakkaScreen() {
         {/* Date Selection Section */}
         <View style={styles.dateSectionCard}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <Calendar size={18} color="#2563EB" />
+            <Calendar size={18} color="#4F46E5" />
             <ThemedText style={styles.dateSectionTitle}>Transition Date (Pakka Date)</ThemedText>
           </View>
           <ThemedText style={styles.dateSectionSubtitle}>
@@ -512,14 +512,52 @@ export default function KachhaToPakkaScreen() {
             <ThemedText style={styles.changeDateLabel}>Change Date</ThemedText>
           </TouchableOpacity>
           
-          {showDatePicker && (
-            <DateTimePicker
-              value={pakkaDate}
-              mode="date"
-              display="default"
-              maximumDate={new Date()}
-              onChange={handleDateChange}
-            />
+          {Platform.OS === 'ios' ? (
+            <Modal
+              visible={showDatePicker}
+              transparent={true}
+              animationType="fade"
+              onRequestClose={() => setShowDatePicker(false)}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={[styles.modalContent, { paddingBottom: 30 }]}>
+                  <ThemedText style={[styles.modalHeader, { marginBottom: 15, textAlign: 'center' }]}>Select Transition Date</ThemedText>
+                  <DateTimePicker
+                    value={pakkaDate}
+                    mode="date"
+                    display="spinner"
+                    maximumDate={new Date()}
+                    onChange={(event, selectedDate) => {
+                      if (selectedDate) {
+                        setPakkaDate(selectedDate);
+                      }
+                    }}
+                  />
+                  <TouchableOpacity
+                    style={{
+                      backgroundColor: '#4F46E5',
+                      paddingVertical: 12,
+                      borderRadius: 10,
+                      alignItems: 'center',
+                      marginTop: 15,
+                    }}
+                    onPress={() => setShowDatePicker(false)}
+                  >
+                    <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Done</ThemedText>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Modal>
+          ) : (
+            showDatePicker && (
+              <DateTimePicker
+                value={pakkaDate}
+                mode="date"
+                display="default"
+                maximumDate={new Date()}
+                onChange={handleDateChange}
+              />
+            )
           )}
         </View>
 
@@ -570,7 +608,7 @@ export default function KachhaToPakkaScreen() {
 
             {uploading.combined_pdf ? (
               <View style={styles.uploadingRow}>
-                <ActivityIndicator size="small" color="#2563EB" />
+                <ActivityIndicator size="small" color="#4F46E5" />
                 <ThemedText style={styles.uploadingText}>Uploading PDF to cloud...</ThemedText>
               </View>
             ) : photos.combined_pdf ? (
@@ -593,7 +631,7 @@ export default function KachhaToPakkaScreen() {
                   onPress={() => pickPDF('combined_pdf')}
                   activeOpacity={0.8}
                 >
-                  <FileText size={16} color="#2563EB" style={{ marginRight: 6 }} />
+                  <FileText size={16} color="#4F46E5" style={{ marginRight: 6 }} />
                   <ThemedText style={styles.pdfPickerBtnText}>Choose Another PDF</ThemedText>
                 </TouchableOpacity>
               </View>
@@ -603,7 +641,7 @@ export default function KachhaToPakkaScreen() {
                 onPress={() => pickPDF('combined_pdf')}
                 activeOpacity={0.8}
               >
-                <FileText size={18} color="#2563EB" style={{ marginRight: 6 }} />
+                <FileText size={18} color="#4F46E5" style={{ marginRight: 6 }} />
                 <ThemedText style={styles.pdfPickerBtnText}>Select Combined PDF File</ThemedText>
               </TouchableOpacity>
             )}
@@ -663,7 +701,7 @@ export default function KachhaToPakkaScreen() {
 
               {isUploading ? (
                 <View style={styles.uploadingRow}>
-                  <ActivityIndicator size="small" color="#2563EB" />
+                  <ActivityIndicator size="small" color="#4F46E5" />
                   <ThemedText style={styles.uploadingText}>Uploading to cloud...</ThemedText>
                 </View>
               ) : hasPhoto ? (
@@ -692,18 +730,18 @@ export default function KachhaToPakkaScreen() {
                       onPress={() => pickPDF(doc.key)}
                       activeOpacity={0.8}
                     >
-                      <FileText size={16} color="#2563EB" style={{ marginRight: 6 }} />
+                      <FileText size={16} color="#4F46E5" style={{ marginRight: 6 }} />
                       <ThemedText style={styles.pdfPickerBtnText}>Choose Another PDF</ThemedText>
                     </TouchableOpacity>
                   ) : (
                     <View style={[styles.captureActionRow, { marginTop: 10 }]}>
                       <TouchableOpacity
-                        style={[styles.retakeActionBtn, { backgroundColor: '#EFF6FF', borderColor: '#DBEAFE' }]}
+                        style={[styles.retakeActionBtn, { backgroundColor: '#EEF2FF', borderColor: '#DBEAFE' }]}
                         onPress={() => capturePhoto(doc.key)}
                         activeOpacity={0.7}
                       >
-                        <Camera size={14} color="#2563EB" style={{ marginRight: 4 }} />
-                        <ThemedText style={[styles.retakeActionBtnText, { color: '#2563EB' }]}>Retake (Camera)</ThemedText>
+                        <Camera size={14} color="#4F46E5" style={{ marginRight: 4 }} />
+                        <ThemedText style={[styles.retakeActionBtnText, { color: '#4F46E5' }]}>Retake (Camera)</ThemedText>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[styles.retakeActionBtn, { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' }]}
@@ -723,18 +761,18 @@ export default function KachhaToPakkaScreen() {
                     onPress={() => pickPDF(doc.key)}
                     activeOpacity={0.8}
                   >
-                    <FileText size={18} color="#2563EB" style={{ marginRight: 6 }} />
+                    <FileText size={18} color="#4F46E5" style={{ marginRight: 6 }} />
                     <ThemedText style={styles.pdfPickerBtnText}>Select PDF Document</ThemedText>
                   </TouchableOpacity>
                 ) : (
                   <View style={styles.captureActionRow}>
                     <TouchableOpacity
-                      style={[styles.captureActionBtn, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}
+                      style={[styles.captureActionBtn, { backgroundColor: '#EEF2FF', borderColor: '#BFDBFE' }]}
                       onPress={() => capturePhoto(doc.key)}
                       activeOpacity={0.8}
                     >
-                      <Camera size={18} color="#2563EB" style={{ marginRight: 6 }} />
-                      <ThemedText style={[styles.captureActionBtnText, { color: '#2563EB' }]}>Camera</ThemedText>
+                      <Camera size={18} color="#4F46E5" style={{ marginRight: 6 }} />
+                      <ThemedText style={[styles.captureActionBtnText, { color: '#4F46E5' }]}>Camera</ThemedText>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.captureActionBtn, { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' }]}
@@ -809,7 +847,7 @@ export default function KachhaToPakkaScreen() {
           <View style={styles.methodOverlay}>
             <View style={styles.methodCard}>
               <View style={styles.methodHeader}>
-                <FileText size={28} color="#2563EB" />
+                <FileText size={28} color="#4F46E5" />
                 <ThemedText style={styles.methodTitle}>Repo Kit Upload Method</ThemedText>
               </View>
               <ThemedText style={styles.methodDesc}>
@@ -822,7 +860,7 @@ export default function KachhaToPakkaScreen() {
                 onPress={() => setUploadMethod('single_pdf')}
               >
                 <View style={styles.methodBtnIconCol}>
-                  <FileText size={22} color="#2563EB" />
+                  <FileText size={22} color="#4F46E5" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -1052,7 +1090,7 @@ const styles = StyleSheet.create({
   },
   changeDateLabel: {
     fontSize: 12,
-    color: '#2563EB',
+    color: '#4F46E5',
     fontWeight: '700',
   },
 
@@ -1078,7 +1116,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
@@ -1104,9 +1142,9 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderRadius: 12,
     paddingVertical: 16,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#EEF2FF',
   },
-  captureDocBtnText: { color: '#2563EB', fontSize: 14, fontWeight: '600' },
+  captureDocBtnText: { color: '#4F46E5', fontSize: 14, fontWeight: '600' },
 
   captureActionRow: {
     flexDirection: 'row',
@@ -1203,13 +1241,13 @@ const styles = StyleSheet.create({
     borderColor: '#BFDBFE',
     borderRadius: 12,
     paddingVertical: 14,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#EEF2FF',
     width: '100%',
   },
   pdfPickerBtnText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#2563EB',
+    color: '#4F46E5',
   },
 
   docPreview: { width: '100%', height: 160, borderRadius: 10, resizeMode: 'cover' },
@@ -1220,7 +1258,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginTop: 8,
   },
-  retakeBtnText: { color: '#2563EB', fontSize: 13, fontWeight: '600' },
+  retakeBtnText: { color: '#4F46E5', fontSize: 13, fontWeight: '600' },
 
   uploadingRow: {
     flexDirection: 'row',
@@ -1240,11 +1278,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     borderRadius: 14,
     height: 52,
     marginTop: 10,
-    shadowColor: '#2563EB',
+    shadowColor: '#4F46E5',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -1362,7 +1400,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   methodBtnRecommend: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#EEF2FF',
     borderColor: '#BFDBFE',
   },
   methodBtnIconCol: {
@@ -1386,7 +1424,7 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   recommendBadge: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     paddingHorizontal: 6,
     paddingVertical: 1.5,
     borderRadius: 4,
@@ -1415,7 +1453,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   switchMethodBtn: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#EEF2FF',
     borderWidth: 1,
     borderColor: '#BFDBFE',
     paddingHorizontal: 12,
@@ -1425,6 +1463,28 @@ const styles = StyleSheet.create({
   switchMethodText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#2563EB',
+    color: '#4F46E5',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  modalHeader: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 10,
   },
 });

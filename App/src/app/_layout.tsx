@@ -72,6 +72,7 @@ export default function RootLayout() {
           <Stack.Screen name="admin/reports" />
           <Stack.Screen name="admin/kachha-to-pakka" />
           <Stack.Screen name="admin/banks" />
+          <Stack.Screen name="admin/crew" />
           <Stack.Screen name="admin/notifications" />
         </Stack>
       </View>

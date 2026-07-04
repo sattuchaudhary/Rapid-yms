@@ -590,7 +590,7 @@ export default function CheckInScreen() {
           .header { text-align: center; margin-bottom: 15px; border-bottom: 3px double #1e3a8a; padding-bottom: 8px; }
           .header h1 { margin: 0; font-size: 24px; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.75px; font-weight: 800; }
           .header p { margin: 4px 0 0 0; font-size: 11px; color: #475569; font-weight: 600; }
-          .section-title { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #1e3a8a; background-color: #eff6ff; padding: 5px 10px; margin: 14px 0 6px 0; border-left: 5px solid #1e3a8a; border-radius: 0 4px 4px 0; page-break-inside: avoid; }
+          .section-title { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #1e3a8a; background-color: #EEF2FF; padding: 5px 10px; margin: 14px 0 6px 0; border-left: 5px solid #1e3a8a; border-radius: 0 4px 4px 0; page-break-inside: avoid; }
           table { width: 100%; border-collapse: collapse; margin-bottom: 10px; page-break-inside: avoid; }
           td { padding: 6px 8px; border: 1px solid #cbd5e1; font-size: 11px; color: #1e293b; }
           .info-table td { width: 50%; }
@@ -602,7 +602,7 @@ export default function CheckInScreen() {
         <div class="header">
           <h1>${tenantName}</h1>
           <p>${tenantAddress}</p>
-          <p style="font-size: 10px; margin-top: 5px; border: 1px solid #1e3a8a; display: inline-block; padding: 3px 10px; border-radius: 4px; color: #1e3a8a; background-color: #eff6ff; font-weight: bold; letter-spacing: 0.5px;">
+          <p style="font-size: 10px; margin-top: 5px; border: 1px solid #1e3a8a; display: inline-block; padding: 3px 10px; border-radius: 4px; color: #1e3a8a; background-color: #EEF2FF; font-weight: bold; letter-spacing: 0.5px;">
             YARD POSSESSION & VEHICLE CONDITION REPORT
           </p>
         </div>
@@ -1015,7 +1015,7 @@ export default function CheckInScreen() {
           onPress={addExtraPhotoSlot}
           activeOpacity={0.7}
         >
-          <Plus size={24} color="#2563EB" />
+          <Plus size={24} color="#4F46E5" />
           <ThemedText style={styles.addExtraPhotoSlotText}>Add More Photo</ThemedText>
         </TouchableOpacity>
       </View>
@@ -1510,7 +1510,7 @@ export default function CheckInScreen() {
 
             <View style={styles.receiptCard}>
               <View style={styles.receiptHeader}>
-                <Database size={16} color="#2563EB" />
+                <Database size={16} color="#4F46E5" />
                 <ThemedText style={styles.receiptTitle}>गुरुग्राम Parking Yard Copy</ThemedText>
               </View>
 
@@ -1613,7 +1613,7 @@ export default function CheckInScreen() {
         {/* Loading overlay if loading vehicle data */}
         {loadingVehicle && (
           <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
-            <ActivityIndicator size="large" color="#2563EB" />
+            <ActivityIndicator size="large" color="#4F46E5" />
             <ThemedText style={{ marginTop: 12, color: '#64748B', fontWeight: '600' }}>Loading vehicle specs...</ThemedText>
           </View>
         )}
@@ -1771,7 +1771,7 @@ export default function CheckInScreen() {
               }}
               activeOpacity={0.7}
             >
-              <Building size={16} color="#2563EB" style={{ marginRight: 10 }} />
+              <Building size={16} color="#4F46E5" style={{ marginRight: 10 }} />
               <ThemedText style={styles.bankOptionName}>Direct Bank</ThemedText>
             </TouchableOpacity>
 
@@ -1792,7 +1792,7 @@ export default function CheckInScreen() {
               }}
               activeOpacity={0.7}
             >
-              <Building size={16} color="#2563EB" style={{ marginRight: 10 }} />
+              <Building size={16} color="#4F46E5" style={{ marginRight: 10 }} />
               <ThemedText style={styles.bankOptionName}>Third Party</ThemedText>
             </TouchableOpacity>
 
@@ -1922,7 +1922,7 @@ export default function CheckInScreen() {
                     }}
                     activeOpacity={0.7}
                   >
-                    <Building size={16} color="#2563EB" style={{ marginRight: 10 }} />
+                    <Building size={16} color="#4F46E5" style={{ marginRight: 10 }} />
                     <View style={{ flex: 1 }}>
                       <ThemedText style={styles.bankOptionName}>{b.name}</ThemedText>
                       {b.parkingRates && b.parkingRates.length > 0 && (
@@ -1932,7 +1932,7 @@ export default function CheckInScreen() {
                       )}
                     </View>
                     {((pickerMode !== 'third_party' && bankId === b.id) || (pickerMode === 'third_party' && selectedThirdPartyId === b.id)) && (
-                      <Check size={16} color="#2563EB" />
+                      <Check size={16} color="#4F46E5" />
                     )}
                   </TouchableOpacity>
                 ));
@@ -1950,22 +1950,100 @@ export default function CheckInScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {showDatePicker && (
-        <DateTimePicker
-          value={entryDate}
-          mode="date"
-          display="default"
-          onChange={handleDateChange}
-        />
+      {Platform.OS === 'ios' ? (
+        <Modal
+          visible={showDatePicker}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowDatePicker(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { paddingBottom: 30 }]}>
+              <ThemedText style={[styles.modalHeader, { marginBottom: 15, textAlign: 'center' }]}>Select Entry Date</ThemedText>
+              <DateTimePicker
+                value={entryDate}
+                mode="date"
+                display="spinner"
+                onChange={(event, selectedDate) => {
+                  if (selectedDate) {
+                    const newDate = new Date(entryDate);
+                    newDate.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+                    setEntryDate(newDate);
+                  }
+                }}
+              />
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#4F46E5',
+                  paddingVertical: 12,
+                  borderRadius: 10,
+                  alignItems: 'center',
+                  marginTop: 15,
+                }}
+                onPress={() => setShowDatePicker(false)}
+              >
+                <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Done</ThemedText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      ) : (
+        showDatePicker && (
+          <DateTimePicker
+            value={entryDate}
+            mode="date"
+            display="default"
+            onChange={handleDateChange}
+          />
+        )
       )}
 
-      {showTimePicker && (
-        <DateTimePicker
-          value={entryDate}
-          mode="time"
-          display="default"
-          onChange={handleTimeChange}
-        />
+      {Platform.OS === 'ios' ? (
+        <Modal
+          visible={showTimePicker}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowTimePicker(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { paddingBottom: 30 }]}>
+              <ThemedText style={[styles.modalHeader, { marginBottom: 15, textAlign: 'center' }]}>Select Entry Time</ThemedText>
+              <DateTimePicker
+                value={entryDate}
+                mode="time"
+                display="spinner"
+                onChange={(event, selectedTime) => {
+                  if (selectedTime) {
+                    const newDate = new Date(entryDate);
+                    newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+                    setEntryDate(newDate);
+                  }
+                }}
+              />
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#4F46E5',
+                  paddingVertical: 12,
+                  borderRadius: 10,
+                  alignItems: 'center',
+                  marginTop: 15,
+                }}
+                onPress={() => setShowTimePicker(false)}
+              >
+                <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Done</ThemedText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      ) : (
+        showTimePicker && (
+          <DateTimePicker
+            value={entryDate}
+            mode="time"
+            display="default"
+            onChange={handleTimeChange}
+          />
+        )
       )}
     </ThemedView>
     </KeyboardAvoidingView>
@@ -2025,8 +2103,8 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   progressActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
+    backgroundColor: '#4F46E5',
+    borderColor: '#4F46E5',
   },
   progressLine: {
     height: 2,
@@ -2035,7 +2113,7 @@ const styles = StyleSheet.create({
     marginTop: -12,
   },
   lineActive: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
   },
   stepText: {
     fontSize: 10,
@@ -2043,7 +2121,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   stepTextActive: {
-    color: '#2563EB',
+    color: '#4F46E5',
     fontWeight: '700',
   },
   scrollContent: {
@@ -2092,7 +2170,7 @@ const styles = StyleSheet.create({
   scanBtn: {
     width: 42,
     height: 42,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     borderTopRightRadius: 8,
     borderBottomRightRadius: 8,
     justifyContent: 'center',
@@ -2115,8 +2193,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   classOptionSelected: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#2563EB',
+    backgroundColor: '#EEF2FF',
+    borderColor: '#4F46E5',
     borderWidth: 1.5,
   },
   classOptionText: {
@@ -2125,7 +2203,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   classOptionTextSelected: {
-    color: '#2563EB',
+    color: '#4F46E5',
     fontWeight: '700',
   },
   summarySectionCard: {
@@ -2350,7 +2428,7 @@ const styles = StyleSheet.create({
   receiptTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#2563EB',
+    color: '#4F46E5',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -2381,7 +2459,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   printActionBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
     borderRadius: 10,
     height: 48,
     alignSelf: 'stretch',
@@ -2389,7 +2467,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     marginBottom: 12,
-    shadowColor: '#2563EB',
+    shadowColor: '#4F46E5',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 6,
@@ -2429,7 +2507,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   primaryBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#4F46E5',
   },
   primaryBtnText: {
     color: '#FFFFFF',
@@ -2660,14 +2738,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: '#2563EB',
+    borderColor: '#4F46E5',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#EEF2FF',
   },
   addExtraPhotoSlotText: {
     fontSize: 12,
-    color: '#2563EB',
+    color: '#4F46E5',
     fontWeight: '700',
     marginTop: 6,
   },
@@ -2687,8 +2765,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   bodyConditionOptionSelected: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#2563EB',
+    backgroundColor: '#EEF2FF',
+    borderColor: '#4F46E5',
     borderWidth: 1.5,
   },
   bodyConditionOptionText: {
@@ -2697,7 +2775,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   bodyConditionOptionTextSelected: {
-    color: '#2563EB',
+    color: '#4F46E5',
     fontWeight: '700',
   },
 });
