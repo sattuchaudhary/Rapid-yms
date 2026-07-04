@@ -13,6 +13,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { apiRequest, getUserInfo, UserSession } from '@/services/api';
@@ -557,7 +558,8 @@ export default function VehicleDetailsScreen() {
   }
 
   const defaultPhoto = 'https://images.unsplash.com/photo-1542282088-fe8426682b8f?w=400';
-  const displayPhoto = vehicle.photos && vehicle.photos.length > 0 ? vehicle.photos[0].s3Url : defaultPhoto;
+  const imagePhotos = vehicle.photos?.filter((p: any) => !p.s3Url.toLowerCase().split('?')[0].endsWith('.pdf')) || [];
+  const displayPhoto = imagePhotos.length > 0 ? imagePhotos[0].s3Url : defaultPhoto;
   
   // Format dates
   const entryDateObj = vehicle.entryDate ? new Date(vehicle.entryDate) : new Date();
@@ -926,6 +928,7 @@ export default function VehicleDetailsScreen() {
               )}
               renderItem={({ item }) => {
                 const isSelected = selectedPhotos.includes(item.s3Url);
+                const isPdf = item.s3Url.toLowerCase().split('?')[0].endsWith('.pdf');
                 return (
                   <View style={styles.gridPhotoWrapper}>
                     <TouchableOpacity
@@ -933,7 +936,14 @@ export default function VehicleDetailsScreen() {
                       onPress={() => setActivePhotoUrl(item.s3Url)}
                       style={{ width: '100%', height: '100%' }}
                     >
-                      <Image source={{ uri: item.s3Url }} style={styles.gridPhoto} />
+                      {isPdf ? (
+                        <View style={[styles.gridPhoto, styles.pdfGridPlaceholder]}>
+                          <FileText size={32} color="#EF4444" />
+                          <ThemedText style={styles.pdfGridText}>PDF Document</ThemedText>
+                        </View>
+                      ) : (
+                        <Image source={{ uri: item.s3Url }} style={styles.gridPhoto} />
+                      )}
                     </TouchableOpacity>
 
                     {/* Selection Checkbox */}
@@ -1055,11 +1065,29 @@ export default function VehicleDetailsScreen() {
 
               {/* Main Photo */}
               <View style={styles.fullscreenImageContainer}>
-                <Image
-                  source={{ uri: activePhotoUrl }}
-                  style={styles.fullscreenImage}
-                  resizeMode="contain"
-                />
+                {activePhotoUrl.toLowerCase().split('?')[0].endsWith('.pdf') ? (
+                  <View style={styles.pdfFullscreenWrapper}>
+                    <FileText size={72} color="#EF4444" style={{ marginBottom: 16 }} />
+                    <ThemedText style={styles.pdfFullscreenTitle}>PDF Document File</ThemedText>
+                    <ThemedText style={styles.pdfFullscreenSubtitle}>
+                      This document cannot be previewed directly as an image.
+                    </ThemedText>
+                    
+                    <TouchableOpacity
+                      style={styles.openPdfBtn}
+                      onPress={() => Linking.openURL(activePhotoUrl)}
+                      activeOpacity={0.8}
+                    >
+                      <ThemedText style={styles.openPdfBtnText}>Open in PDF Viewer / Browser</ThemedText>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <Image
+                    source={{ uri: activePhotoUrl }}
+                    style={styles.fullscreenImage}
+                    resizeMode="contain"
+                  />
+                )}
               </View>
             </>
           )}
@@ -1807,11 +1835,60 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: 'rgba(37, 99, 235, 0.85)',
+    backgroundColor: 'rgba(79, 70, 229, 0.85)',
     borderWidth: 1.5,
     borderColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  pdfGridPlaceholder: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
+  },
+  pdfGridText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#EF4444',
+    marginTop: 4,
+  },
+  pdfFullscreenWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    width: '100%',
+  },
+  pdfFullscreenTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 6,
+  },
+  pdfFullscreenSubtitle: {
+    fontSize: 13,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  openPdfBtn: {
+    backgroundColor: '#4F46E5',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  openPdfBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
   },
   drawerActionsRow: {
     flexDirection: 'row',
