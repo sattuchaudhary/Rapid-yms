@@ -283,7 +283,7 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
     })
   ]);
 
-  const dailyRevenueToday = activeDailyRateAgg._sum.dailyRate || 0;
+  const dailyRevenueToday = revenueTodayPaidAgg._sum.paidAmount || 0;
   const dailyLossToday = dailyLossAgg._sum.dailyRate || 0;
 
   const dailyRevenueThisMonth = revenueThisMonthAgg._sum.paidAmount || 0;
@@ -350,7 +350,7 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
       },
       pendingReleases,
       dailyRevenue: {
-        today: { amount: dailyRevenueToday, count: totalVehicles },
+        today: { amount: dailyRevenueToday, count: revenueTodayPaidCount },
         thisMonth: { amount: dailyRevenueThisMonth, count: revenueThisMonthCount },
         thisYear: { amount: dailyRevenueThisYear, count: revenueThisYearCount },
       },
