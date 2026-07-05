@@ -17,7 +17,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { clearTokens, getUserInfo, apiRequest, UserSession, getProfileImage, setProfileImage } from '@/services/api';
 import { registerSyncListener, runSyncQueue, syncBanksOnline } from '@/services/sync';
 import { bluetoothService, BluetoothDevice } from '@/services/bluetooth';
-import { cacheVehicles, getOfflineStats, CachedVehicle } from '@/services/sqlite';
+import { cacheVehicles, getOfflineStats, getQueuedJobs, CachedVehicle } from '@/services/sqlite';
 import NetInfo from '@react-native-community/netinfo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
@@ -49,6 +49,8 @@ import {
   Shield,
   Building,
   TrendingUp,
+  Scan,
+  Copy,
 } from 'lucide-react-native';
 
 export default function GuardDashboard() {
@@ -190,6 +192,7 @@ export default function GuardDashboard() {
   const [finances, setFinances] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [offlineStats, setOfflineStats] = useState<any>({ totalVehicles: 0, inYard: 0, released: 0, todayEntry: 0 });
+  const [recentActivities, setRecentActivities] = useState<any[]>([]);
 
   const formatRole = (roleStr: string | undefined) => {
     if (!roleStr) return 'Yard Operator';
@@ -202,12 +205,35 @@ export default function GuardDashboard() {
     return roleStr.charAt(0) + roleStr.slice(1).toLowerCase().replace('_', ' ');
   };
 
+  const getActivityIconBg = (type: string) => {
+    switch (type) {
+      case 'CHECK_IN': return '#DCFCE7';
+      case 'PAKKA_UPGRADE': return '#EEF2FF';
+      case 'RELEASE_REQUEST': return '#FEF3C7';
+      case 'RELEASE_COMPLETE': return '#ECFDF5';
+      default: return '#F1F5F9';
+    }
+  };
+
+  const getActivityIcon = (type: string) => {
+    switch (type) {
+      case 'CHECK_IN': return <Car size={12} color="#10B981" />;
+      case 'PAKKA_UPGRADE': return <Shield size={12} color="#4F46E5" />;
+      case 'RELEASE_REQUEST': return <Clock size={12} color="#D97706" />;
+      case 'RELEASE_COMPLETE': return <Key size={12} color="#10B981" />;
+      default: return <FileText size={12} color="#64748B" />;
+    }
+  };
+
   const loadDashboardStats = async () => {
     setStatsLoading(true);
     // 1. Get offline fallback stats first
     try {
       const localStats = getOfflineStats();
       setOfflineStats(localStats);
+      
+      const queued = getQueuedJobs();
+      setPendingCount(queued.length);
     } catch (err) {
       console.warn('[GuardDashboard] Failed to load offline stats from SQLite:', err);
     }
@@ -220,6 +246,16 @@ export default function GuardDashboard() {
       }
     } catch (e: any) {
       console.error('[GuardDashboard] Failed to load dashboard counts:', e.message || e);
+    }
+
+    // Fetch live notifications/logs for recent activity feed
+    try {
+      const res = await apiRequest('/api/notifications');
+      if (res.success && Array.isArray(res.data)) {
+        setRecentActivities(res.data.slice(0, 3));
+      }
+    } catch (e: any) {
+      console.warn('[GuardDashboard] Failed to load recent notifications:', e.message || e);
     }
 
     try {
@@ -413,6 +449,52 @@ export default function GuardDashboard() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#4F46E5']} />
         }
       >
+        {/* Network Sync Status Banner */}
+        <View style={[
+          styles.syncBanner, 
+          !isConnected ? styles.syncBannerOffline : (pendingCount > 0 ? styles.syncBannerSyncing : styles.syncBannerOnline)
+        ]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+            <View style={[
+              styles.syncDot, 
+              !isConnected ? styles.syncDotOffline : (pendingCount > 0 ? styles.syncDotSyncing : styles.syncDotOnline)
+            ]} />
+            <ThemedText style={[
+              styles.syncBannerText,
+              !isConnected ? styles.syncBannerTextOffline : (pendingCount > 0 ? styles.syncBannerTextSyncing : styles.syncBannerTextOnline)
+            ]} numberOfLines={1}>
+              {!isConnected 
+                ? `Offline Mode — Saved locally (${pendingCount} pending)` 
+                : (pendingCount > 0 
+                    ? `Online — Syncing queue (${pendingCount} items remaining)...` 
+                    : 'Online — Cloud Auto-Sync Active')}
+            </ThemedText>
+          </View>
+          {isConnected && pendingCount > 0 && (
+            <TouchableOpacity onPress={() => runSyncQueue()} style={styles.syncBtn} activeOpacity={0.7}>
+              <RefreshCw size={11} color="#4F46E5" />
+              <ThemedText style={styles.syncBtnText}>Sync Now</ThemedText>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Quick Search Floating Bar */}
+        <View style={styles.quickSearchContainer}>
+          <TouchableOpacity 
+            style={styles.quickSearchBox}
+            activeOpacity={0.9}
+            onPress={() => router.push('/admin/vehicle-list')}
+          >
+            <Search size={16} color="#64748B" style={{ marginRight: 8 }} />
+            <ThemedText style={styles.quickSearchPlaceholder}>
+              Search License Plate, Brand, Financer...
+            </ThemedText>
+            <View style={styles.quickSearchScanBtn}>
+              <Scan size={14} color="#4F46E5" />
+            </View>
+          </TouchableOpacity>
+        </View>
+
         {/* Blue Card Banner (Today Overview) */}
         <View style={styles.overviewCard}>
           <View style={styles.overviewHeaderRow}>
@@ -446,6 +528,38 @@ export default function GuardDashboard() {
               </View>
             </View>
           </View>
+
+          {/* Proportion Visual Bar */}
+          {stats && (
+            <View style={styles.proportionBarContainer}>
+              <View style={styles.proportionBarRow}>
+                <ThemedText style={styles.proportionLabel}>Yard Stock Distribution</ThemedText>
+                <ThemedText style={styles.proportionVal}>
+                  {Math.round(((stats.pakkaVehicles?.total ?? 0) / (stats.totalVehicles || 1)) * 100)}% Pakka
+                </ThemedText>
+              </View>
+              <View style={styles.proportionTrack}>
+                <View style={[
+                  styles.proportionFillPakka, 
+                  { flex: stats.pakkaVehicles?.total || 1 }
+                ]} />
+                <View style={[
+                  styles.proportionFillKachha, 
+                  { flex: stats.kachhaVehicles?.total || 1 }
+                ]} />
+              </View>
+              <View style={styles.proportionLegendRow}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: '#10B981' }]} />
+                  <ThemedText style={styles.legendText}>Pakka ({stats.pakkaVehicles?.total ?? 0})</ThemedText>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: '#E2E8F0' }]} />
+                  <ThemedText style={styles.legendText}>Kachha ({stats.kachhaVehicles?.total ?? 0})</ThemedText>
+                </View>
+              </View>
+            </View>
+          )}
 
           <View style={[styles.quadrantsGrid, { marginTop: 10 }]}>
             {/* Bottom Left: Released */}
@@ -763,6 +877,40 @@ export default function GuardDashboard() {
           </View>
           <ChevronRight size={16} color="#94A3B8" />
         </TouchableOpacity>
+
+        {/* Recent Activity Feed */}
+        <View style={styles.sectionHeaderRow}>
+          <ThemedText style={styles.sectionTitle}>Recent Activities</ThemedText>
+          <TouchableOpacity onPress={() => router.push('/admin/notifications')} activeOpacity={0.7}>
+            <ThemedText style={styles.viewAllText}>View All Logs</ThemedText>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.activityFeedCard}>
+          {recentActivities && recentActivities.length > 0 ? (
+            recentActivities.map((act, index) => (
+              <View key={act.id || index} style={[styles.activityRow, index < recentActivities.length - 1 && styles.activityRowDivider]}>
+                <View style={[styles.activityIconBg, { backgroundColor: getActivityIconBg(act.type) }]}>
+                  {getActivityIcon(act.type)}
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <ThemedText style={styles.activityTitle}>{act.title}</ThemedText>
+                  <ThemedText style={styles.activityMessage}>{act.message}</ThemedText>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                    <Clock size={10} color="#94A3B8" style={{ marginRight: 4 }} />
+                    <ThemedText style={styles.activityTime}>
+                      {new Date(act.createdAt || act.time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+            ))
+          ) : (
+            <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+              <ThemedText style={{ color: '#94A3B8', fontSize: 13 }}>No recent activity logs available.</ThemedText>
+            </View>
+          )}
+        </View>
       </ScrollView>
 
       {/* Reports Slide-up Modal */}
@@ -2159,5 +2307,208 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '800',
+  },
+  syncBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  syncBannerOnline: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  syncBannerOffline: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FCA5A5',
+  },
+  syncBannerSyncing: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+  },
+  syncDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  syncDotOnline: {
+    backgroundColor: '#10B981',
+  },
+  syncDotOffline: {
+    backgroundColor: '#EF4444',
+  },
+  syncDotSyncing: {
+    backgroundColor: '#F59E0B',
+  },
+  syncBannerText: {
+    fontSize: 11,
+    fontWeight: '600',
+    flex: 1,
+  },
+  syncBannerTextOnline: {
+    color: '#047857',
+  },
+  syncBannerTextOffline: {
+    color: '#B91C1C',
+  },
+  syncBannerTextSyncing: {
+    color: '#B45309',
+  },
+  syncBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+    gap: 4,
+  },
+  syncBtnText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#4F46E5',
+  },
+  quickSearchContainer: {
+    paddingHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  quickSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  quickSearchPlaceholder: {
+    flex: 1,
+    color: '#94A3B8',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  quickSearchScanBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  proportionBarContainer: {
+    marginTop: 12,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    padding: 12,
+    borderRadius: 10,
+  },
+  proportionBarRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  proportionLabel: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  proportionVal: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  proportionTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    flexDirection: 'row',
+    overflow: 'hidden',
+  },
+  proportionFillPakka: {
+    height: '100%',
+    backgroundColor: '#10B981',
+  },
+  proportionFillKachha: {
+    height: '100%',
+    backgroundColor: 'rgba(255,255,255,0.25)',
+  },
+  proportionLegendRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 6,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  legendDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  legendText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 9,
+    fontWeight: '600',
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  activityFeedCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 16,
+    marginHorizontal: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.02,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  activityRow: {
+    flexDirection: 'row',
+    paddingVertical: 8,
+  },
+  activityRowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  activityIconBg: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  activityTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  activityMessage: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  activityTime: {
+    fontSize: 9,
+    color: '#94A3B8',
+    fontWeight: '600',
   },
 });

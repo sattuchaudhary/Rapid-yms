@@ -65,4 +65,8 @@ declare module 'lucide-react-native' {
   export const AlertTriangle: Icon;
   export const CheckCircle: Icon;
   export const Pencil: Icon;
+  export const Copy: Icon;
+  export const Square: Icon;
+  export const CheckSquare: Icon;
+  export const X: Icon;
 }
