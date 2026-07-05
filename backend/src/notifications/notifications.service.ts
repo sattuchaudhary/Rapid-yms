@@ -28,18 +28,38 @@ export const getNotificationsService = async (tenantId: string) => {
       if (log.action === 'created') {
         title = 'New Vehicle Checked-In';
         message = `Vehicle ${details.vehicleNumber || ''} has been checked in by ${userName}.`;
+      } else if (log.action === 'deleted') {
+        title = 'Vehicle Record Deleted';
+        message = `Vehicle ${details.vehicleNumber || ''} has been deleted from stock by ${userName}.`;
       } else if (log.action === 'updated') {
-        title = 'Vehicle Details Updated';
-        message = `Vehicle ${details.vehicleNumber || ''} details were updated by ${userName}.`;
+        if (details.changes?.yardStatus === 'PAKKA') {
+          title = 'Confirmed to Pakka';
+          message = `Vehicle ${details.vehicleNumber || ''} has been transitioned from Kachha to Pakka by ${userName}.`;
+        } else {
+          title = 'Vehicle Details Edited';
+          message = `Vehicle ${details.vehicleNumber || ''} details were modified by ${userName}.`;
+        }
       } else {
         title = 'Vehicle Log Modified';
         message = `Vehicle details action [${log.action}] was executed by ${userName}.`;
       }
     } else if (log.module === 'release') {
       type = 'ACTIVITY';
-      if (log.action === 'completed') {
+      if (log.action === 'requested') {
+        title = 'Release Requested';
+        message = `Release request submitted for vehicle ${details.vehicleNumber || 'ID ' + String(details.vehicleId).substring(0, 6)} by ${userName} (${details.releaseType || 'N/A'}).`;
+      } else if (log.action === 'approved') {
+        title = 'Release Approved';
+        message = `Release request approved for vehicle ${details.vehicleNumber || 'ID ' + String(details.vehicleId).substring(0, 6)} by ${userName}.`;
+      } else if (log.action === 'payment_verified') {
+        title = 'Payment Verified';
+        message = `Release payment verified for vehicle ${details.vehicleNumber || 'ID ' + String(details.vehicleId).substring(0, 6)} by ${userName}.`;
+      } else if (log.action === 'gate_pass_issued') {
+        title = 'Gate Pass Issued';
+        message = `Gate pass ${details.gatePassNumber || 'N/A'} issued for vehicle ${details.vehicleNumber || 'ID ' + String(details.vehicleId).substring(0, 6)} by ${userName}.`;
+      } else if (log.action === 'completed') {
         title = 'Vehicle Released (Gate Exit)';
-        message = `Vehicle ${details.vehicleNumber || 'ID ' + String(details.vehicleId).substring(0, 6)} released by ${userName}. Gate Pass: ${details.gatePass || 'N/A'}`;
+        message = `Vehicle ${details.vehicleNumber || 'ID ' + String(details.vehicleId).substring(0, 6)} released by ${userName}. Gate Pass: ${details.gatePass || 'N/A'}.`;
       } else {
         title = 'Release Action Logged';
         message = `Release action [${log.action}] executed by ${userName}.`;

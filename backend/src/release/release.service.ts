@@ -13,6 +13,7 @@ export const getReleaseStatusService = async (vehicleId: string, tenantId: strin
 export const requestReleaseService = async (
   vehicleId: string,
   tenantId: string,
+  userId: string,
   data: {
     releaseType: string;
     releaseLetter?: string;
@@ -31,16 +32,30 @@ export const requestReleaseService = async (
   });
   if (existing) throw new AppError('Release request already exists for this vehicle', 400);
 
-  return prisma.release.create({
-    data: {
-      tenantId,
-      vehicleId,
-      releaseStatus: 'REQUESTED',
-      releaseType: data.releaseType,
-      releaseLetter: data.releaseLetter,
-      customerIdProof: data.customerIdProof,
-      paymentReceipt: data.paymentReceipt,
-    },
+  return prisma.$transaction(async (tx) => {
+    const created = await tx.release.create({
+      data: {
+        tenantId,
+        vehicleId,
+        releaseStatus: 'REQUESTED',
+        releaseType: data.releaseType,
+        releaseLetter: data.releaseLetter,
+        customerIdProof: data.customerIdProof,
+        paymentReceipt: data.paymentReceipt,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        userId,
+        module: 'release',
+        action: 'requested',
+        details: { vehicleId, vehicleNumber: vehicle.vehicleNumber, releaseType: data.releaseType },
+      },
+    });
+
+    return created;
   });
 };
 
@@ -51,6 +66,7 @@ export const approveReleaseService = async (
 ) => {
   const release = await prisma.release.findFirst({
     where: { vehicleId, tenantId },
+    include: { vehicle: true },
   });
   if (!release) throw new AppError('Release request not found', 404);
 
@@ -70,7 +86,7 @@ export const approveReleaseService = async (
         userId,
         module: 'release',
         action: 'approved',
-        details: { vehicleId },
+        details: { vehicleId, vehicleNumber: release.vehicle.vehicleNumber },
       },
     });
 
@@ -85,6 +101,7 @@ export const verifyPaymentService = async (
 ) => {
   const release = await prisma.release.findFirst({
     where: { vehicleId, tenantId },
+    include: { vehicle: true },
   });
   if (!release) throw new AppError('Release request not found', 404);
 
@@ -92,11 +109,25 @@ export const verifyPaymentService = async (
     throw new AppError('Release must be approved before payment verification', 400);
   }
 
-  return prisma.release.update({
-    where: { id: release.id },
-    data: {
-      releaseStatus: 'PAYMENT_VERIFIED',
-    },
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.release.update({
+      where: { id: release.id },
+      data: {
+        releaseStatus: 'PAYMENT_VERIFIED',
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        userId,
+        module: 'release',
+        action: 'payment_verified',
+        details: { vehicleId, vehicleNumber: release.vehicle.vehicleNumber },
+      },
+    });
+
+    return updated;
   });
 };
 
@@ -107,6 +138,7 @@ export const issueGatePassService = async (
 ) => {
   const release = await prisma.release.findFirst({
     where: { vehicleId, tenantId },
+    include: { vehicle: true },
   });
   if (!release) throw new AppError('Release request not found', 404);
 
@@ -116,13 +148,27 @@ export const issueGatePassService = async (
 
   const gatePassNumber = `GP-${Date.now().toString().slice(-8)}`;
 
-  return prisma.release.update({
-    where: { id: release.id },
-    data: {
-      releaseStatus: 'GATE_PASS_ISSUED',
-      gatePassNumber,
-      gatePassUrl: `https://yms-uploads.s3.amazonaws.com/gatepasses/${gatePassNumber}.pdf`, // placeholder
-    },
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.release.update({
+      where: { id: release.id },
+      data: {
+        releaseStatus: 'GATE_PASS_ISSUED',
+        gatePassNumber,
+        gatePassUrl: `https://yms-uploads.s3.amazonaws.com/gatepasses/${gatePassNumber}.pdf`, // placeholder
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        userId,
+        module: 'release',
+        action: 'gate_pass_issued',
+        details: { vehicleId, vehicleNumber: release.vehicle.vehicleNumber, gatePassNumber },
+      },
+    });
+
+    return updated;
   });
 };
 
@@ -184,7 +230,7 @@ export const completeHandoverService = async (
         userId,
         module: 'release',
         action: 'completed',
-        details: { vehicleId, gatePass: release.gatePassNumber },
+        details: { vehicleId, vehicleNumber: release.vehicle.vehicleNumber, gatePass: release.gatePassNumber },
       },
     });
 
@@ -313,6 +359,7 @@ export const directReleaseVehicleService = async (
         action: 'completed',
         details: { 
           vehicleId, 
+          vehicleNumber: vehicle.vehicleNumber,
           gatePass: gatePassNumber, 
           directRelease: true, 
           calculatedFee: data.totalAmount, 

@@ -40,8 +40,9 @@ export const requestRelease = async (req: AuthRequest, res: Response, next: Next
   try {
     const { vehicleId } = req.params;
     const tenantId = req.user!.tenantId;
+    const userId = req.user!.id;
     const validatedData = requestReleaseSchema.parse(req.body);
-    const release = await requestReleaseService(vehicleId, tenantId, validatedData);
+    const release = await requestReleaseService(vehicleId, tenantId, userId, validatedData);
     res.status(201).json({ success: true, data: release });
   } catch (err) {
     next(err);
