@@ -6,6 +6,7 @@ import { initDatabase } from '@/services/sqlite';
 import { initializeSyncService } from '@/services/sync';
 import { checkMidnightExpiry } from '@/services/api';
 import NetInfo from '@react-native-community/netinfo';
+import { StatusBar } from 'expo-status-bar';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -54,6 +55,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <View style={{ flex: 1 }}>
+        <StatusBar style="dark" />
         {isOffline && (
           <View style={styles.offlineBanner}>
             <Text style={styles.offlineText}>⚠️ Working Offline (Check check-in/sync status on Dashboard)</Text>
