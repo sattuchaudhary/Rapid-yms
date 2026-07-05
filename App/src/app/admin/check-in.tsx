@@ -13,6 +13,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Clipboard,
 } from 'react-native';
 import { useRouter, useNavigation, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -45,6 +46,7 @@ import {
   Plus,
   Calendar,
   Clock,
+  Copy,
 } from 'lucide-react-native';
 
 const { width, height } = Dimensions.get('window');
@@ -157,9 +159,15 @@ export default function CheckInScreen() {
 
   // Step 3: Checklist / Review
   const [checklist, setChecklist] = useState(INITIAL_CHECKLIST);
-  const [bodyCondition, setBodyCondition] = useState<'Good' | 'Average' | 'Bad'>('Average');
+  const [bodyCondition, setBodyCondition] = useState<'Good' | 'Average' | 'Bad'>('Bad');
   const [yardRemarks, setYardRemarks] = useState('');
   const [customerRemarks, setCustomerRemarks] = useState('');
+
+  const copyPhoneToClipboard = (phone: string) => {
+    if (!phone) return;
+    Clipboard.setString(phone);
+    Alert.alert('Copied', 'Customer phone number copied to clipboard.');
+  };
 
   // Tenant Details for Dynamic Prints
   const [tenantName, setTenantName] = useState('SHREE PARKING YARD');
@@ -283,7 +291,7 @@ export default function CheckInScreen() {
             // Extract body condition, yard remarks, and customer remarks
             const bodyCondItem = vehicleData.inventory.find((inv: any) => inv.itemName === 'Body Condition');
             if (bodyCondItem) {
-              setBodyCondition(bodyCondItem.remarks || 'Average');
+              setBodyCondition(bodyCondItem.remarks || 'Bad');
             }
 
             const yardRemarksItem = vehicleData.inventory.find((inv: any) => inv.itemName === 'Yard Remarks');
@@ -1546,6 +1554,17 @@ export default function CheckInScreen() {
                   <ThemedText style={styles.receiptVal}>{customerName || 'N/A'}</ThemedText>
                 </View>
                 <View style={styles.receiptRow}>
+                  <ThemedText style={styles.receiptLabel}>CUSTOMER PHONE</ThemedText>
+                  <TouchableOpacity
+                    onPress={() => copyPhoneToClipboard(customerPhone)}
+                    activeOpacity={0.7}
+                    style={styles.receiptPhoneBtn}
+                  >
+                    <ThemedText style={styles.receiptPhoneVal}>{customerPhone || 'N/A'}</ThemedText>
+                    {customerPhone ? <Copy size={11} color="#4F46E5" style={{ marginLeft: 4 }} /> : null}
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.receiptRow}>
                   <ThemedText style={styles.receiptLabel}>POSSESSION PLACE</ThemedText>
                   <ThemedText style={styles.receiptVal}>{placeOfPossession || 'N/A'}</ThemedText>
                 </View>
@@ -2407,30 +2426,36 @@ const styles = StyleSheet.create({
   },
   receiptCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#C7D2FE',
+    borderTopWidth: 6,
+    borderTopColor: '#4F46E5',
+    padding: 18,
     width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
-    elevation: 1,
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
     marginBottom: 24,
   },
   receiptHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 14,
+    backgroundColor: '#F8FAFC',
+    paddingVertical: 6,
+    borderRadius: 8,
   },
   receiptTitle: {
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '900',
     color: '#4F46E5',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   receiptDashedLine: {
     height: 1,
@@ -2777,6 +2802,22 @@ const styles = StyleSheet.create({
   bodyConditionOptionTextSelected: {
     color: '#4F46E5',
     fontWeight: '700',
+  },
+  receiptPhoneBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  receiptPhoneVal: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4F46E5',
+    textAlign: 'right',
   },
 });
 
