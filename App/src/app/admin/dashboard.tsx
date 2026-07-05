@@ -486,7 +486,7 @@ export default function GuardDashboard() {
             onPress={() => router.push('/admin/vehicle-list')}
           >
             <Search size={16} color="#64748B" style={{ marginRight: 8 }} />
-            <ThemedText style={styles.quickSearchPlaceholder}>
+            <ThemedText style={styles.quickSearchPlaceholder} numberOfLines={1}>
               Search License Plate, Brand, Financer...
             </ThemedText>
             <View style={styles.quickSearchScanBtn}>
@@ -2312,11 +2312,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 12,
+    marginTop: 8,
+    borderRadius: 8,
     borderWidth: 1,
   },
   syncBannerOnline: {
@@ -2332,9 +2332,9 @@ const styles = StyleSheet.create({
     borderColor: '#FDE68A',
   },
   syncDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   syncDotOnline: {
     backgroundColor: '#10B981',
@@ -2346,8 +2346,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F59E0B',
   },
   syncBannerText: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 9,
+    fontWeight: '700',
     flex: 1,
   },
   syncBannerTextOnline: {
@@ -2363,44 +2363,42 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: '#C7D2FE',
-    gap: 4,
+    gap: 2,
   },
   syncBtnText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '700',
     color: '#4F46E5',
   },
   quickSearchContainer: {
     paddingHorizontal: 16,
-    marginTop: 12,
+    marginTop: 10,
     marginBottom: 4,
   },
   quickSearchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 44,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    height: 38,
   },
   quickSearchPlaceholder: {
     flex: 1,
-    color: '#94A3B8',
-    fontSize: 13,
+    color: '#64748B',
+    fontSize: 12,
     fontWeight: '500',
   },
   quickSearchScanBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    backgroundColor: '#EEF2FF',
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    backgroundColor: '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
   },
