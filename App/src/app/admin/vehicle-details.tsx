@@ -498,13 +498,8 @@ export default function VehicleDetailsScreen() {
     }
   };
 
-  // Delete vehicle (Admin only)
+  // Delete vehicle
   const handleDelete = () => {
-    if (currentUser?.role !== 'SUPER_ADMIN' && currentUser?.role !== 'TENANT_ADMIN') {
-      Alert.alert('Permission Denied', 'Only Tenant Admins can delete vehicle records.');
-      return;
-    }
-
     Alert.alert(
       'Delete Vehicle',
       `Are you sure you want to permanently delete vehicle ${vehicle?.vehicleNumber}? This action is irreversible.`,
@@ -1246,23 +1241,21 @@ export default function VehicleDetailsScreen() {
                 <ThemedText style={styles.actionsSheetText}>Share Details Text</ThemedText>
               </TouchableOpacity>
 
-              {(currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'TENANT_ADMIN') && (
-                <TouchableOpacity
-                  style={[styles.actionsSheetItem, styles.actionsSheetItemDelete]}
-                  onPress={() => {
-                    setActionsSheetVisible(false);
-                    setTimeout(() => {
-                      handleDelete();
-                    }, 150);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.actionsSheetIconBox, { backgroundColor: '#FEF2F2' }]}>
-                    <Trash2 size={18} color="#EF4444" />
-                  </View>
-                  <ThemedText style={[styles.actionsSheetText, { color: '#EF4444' }]}>Delete Vehicle Record</ThemedText>
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity
+                style={[styles.actionsSheetItem, styles.actionsSheetItemDelete]}
+                onPress={() => {
+                  setActionsSheetVisible(false);
+                  setTimeout(() => {
+                    handleDelete();
+                  }, 150);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.actionsSheetIconBox, { backgroundColor: '#FEF2F2' }]}>
+                  <Trash2 size={18} color="#EF4444" />
+                </View>
+                <ThemedText style={[styles.actionsSheetText, { color: '#EF4444' }]}>Delete Vehicle Record</ThemedText>
+              </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.actionsSheetCancel}
