@@ -27,6 +27,9 @@ import {
   FileText,
   Car,
   Key,
+  Square,
+  CheckSquare,
+  X,
 } from 'lucide-react-native';
 
 interface NotificationItem {
@@ -192,7 +195,97 @@ export default function NotificationsScreen() {
     ]);
   };
 
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  const handleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      let next;
+      if (prev.includes(id)) {
+        next = prev.filter((selectedId) => selectedId !== id);
+      } else {
+        next = [...prev, id];
+      }
+      if (next.length === 0) {
+        setSelectionMode(false);
+      }
+      return next;
+    });
+  };
+
+  const handleLongPress = (id: string) => {
+    if (!selectionMode) {
+      setSelectionMode(true);
+      setSelectedIds([id]);
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredData.length) {
+      setSelectedIds([]);
+      setSelectionMode(false);
+    } else {
+      const allFilteredIds = filteredData.map((n) => n.id);
+      setSelectedIds(allFilteredIds);
+      setSelectionMode(true);
+    }
+  };
+
+  const cancelSelection = () => {
+    setSelectionMode(false);
+    setSelectedIds([]);
+  };
+
+  const deleteSelected = () => {
+    if (selectedIds.length === 0) return;
+    Alert.alert(
+      'Delete Selected',
+      `Are you sure you want to delete the ${selectedIds.length} selected alert(s)?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setNotifications((prev) => prev.filter((n) => !selectedIds.includes(n.id)));
+            const itemsToDelete = [...selectedIds];
+            cancelSelection();
+            try {
+              const deletedIdsStr = await AsyncStorage.getItem('deleted_notifications');
+              const deletedIds = deletedIdsStr ? JSON.parse(deletedIdsStr) : [];
+              const newDeleted = Array.from(new Set([...deletedIds, ...itemsToDelete]));
+              await AsyncStorage.setItem('deleted_notifications', JSON.stringify(newDeleted));
+            } catch (e) {
+              console.warn('Failed to save deleted notifications status:', e);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const markSelectedAsRead = async () => {
+    if (selectedIds.length === 0) return;
+    setNotifications((prev) =>
+      prev.map((n) => (selectedIds.includes(n.id) ? { ...n, unread: false } : n))
+    );
+    const itemsToMarkRead = [...selectedIds];
+    cancelSelection();
+    try {
+      const readIdsStr = await AsyncStorage.getItem('read_notifications');
+      const readIds = readIdsStr ? JSON.parse(readIdsStr) : [];
+      const newRead = Array.from(new Set([...readIds, ...itemsToMarkRead]));
+      await AsyncStorage.setItem('read_notifications', JSON.stringify(newRead));
+    } catch (e) {
+      console.warn('Failed to save read notifications status:', e);
+    }
+  };
+
   const handleNotificationTap = async (id: string) => {
+    if (selectionMode) {
+      handleSelect(id);
+      return;
+    }
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, unread: false } : n))
     );
@@ -242,21 +335,45 @@ export default function NotificationsScreen() {
   return (
     <ThemedView style={styles.container}>
       {/* Header Bar */}
-      <View style={styles.headerBar}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconButton} activeOpacity={0.7}>
-          <ChevronLeft size={24} color="#0F172A" />
-        </TouchableOpacity>
-        <ThemedText style={styles.headerTitle}>Notifications</ThemedText>
+      <View style={[styles.headerBar, selectionMode && styles.headerBarSelection]}>
+        {selectionMode ? (
+          <TouchableOpacity onPress={cancelSelection} style={styles.iconButton} activeOpacity={0.7}>
+            <X size={24} color="#0F172A" />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity onPress={() => router.back()} style={styles.iconButton} activeOpacity={0.7}>
+            <ChevronLeft size={24} color="#0F172A" />
+          </TouchableOpacity>
+        )}
+        <ThemedText style={[styles.headerTitle, selectionMode && styles.headerTitleSelection]}>
+          {selectionMode ? `${selectedIds.length} Selected` : 'Notifications'}
+        </ThemedText>
         <View style={styles.headerActions}>
-          {notifications.length > 0 && (
+          {selectionMode ? (
             <>
-              <TouchableOpacity onPress={markAllAsRead} style={styles.actionBtn} activeOpacity={0.7}>
+              <TouchableOpacity onPress={toggleSelectAll} style={styles.actionBtn} activeOpacity={0.7}>
+                <ThemedText style={styles.selectAllText}>
+                  {selectedIds.length === filteredData.length ? 'None' : 'All'}
+                </ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={markSelectedAsRead} style={styles.actionBtn} activeOpacity={0.7}>
                 <Check size={20} color="#64748B" />
               </TouchableOpacity>
-              <TouchableOpacity onPress={clearAll} style={styles.actionBtn} activeOpacity={0.7}>
+              <TouchableOpacity onPress={deleteSelected} style={styles.actionBtn} activeOpacity={0.7}>
                 <Trash2 size={20} color="#EF4444" />
               </TouchableOpacity>
             </>
+          ) : (
+            notifications.length > 0 && (
+              <>
+                <TouchableOpacity onPress={markAllAsRead} style={styles.actionBtn} activeOpacity={0.7}>
+                  <Check size={20} color="#64748B" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={clearAll} style={styles.actionBtn} activeOpacity={0.7}>
+                  <Trash2 size={20} color="#EF4444" />
+                </TouchableOpacity>
+              </>
+            )
           )}
         </View>
       </View>
@@ -297,10 +414,26 @@ export default function NotificationsScreen() {
           )}
           renderItem={({ item }) => (
             <TouchableOpacity
-              style={[styles.notificationCard, item.unread && styles.notificationCardUnread]}
+              style={[
+                styles.notificationCard,
+                item.unread && styles.notificationCardUnread,
+                selectedIds.includes(item.id) && styles.notificationCardSelected
+              ]}
               onPress={() => handleNotificationTap(item.id)}
+              onLongPress={() => handleLongPress(item.id)}
+              delayLongPress={250}
               activeOpacity={0.75}
             >
+              {selectionMode && (
+                <View style={styles.checkboxContainer}>
+                  {selectedIds.includes(item.id) ? (
+                    <CheckSquare size={20} color="#4F46E5" />
+                  ) : (
+                    <Square size={20} color="#94A3B8" />
+                  )}
+                </View>
+              )}
+
               <View style={[styles.iconBg, { backgroundColor: getIconBg(item.type) }]}>
                 {getIcon(item.type)}
               </View>
@@ -310,7 +443,7 @@ export default function NotificationsScreen() {
                   <ThemedText style={[styles.cardTitle, item.unread && styles.cardTitleUnread]}>
                     {item.title}
                   </ThemedText>
-                  {item.unread && <View style={styles.unreadDot} />}
+                  {item.unread && !selectionMode && <View style={styles.unreadDot} />}
                 </View>
 
                 <ThemedText style={styles.cardMessage}>{item.message}</ThemedText>
@@ -496,5 +629,28 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: '#4F46E5',
+  },
+  headerBarSelection: {
+    backgroundColor: '#EEF2FF',
+    borderBottomColor: '#C7D2FE',
+  },
+  headerTitleSelection: {
+    color: '#4F46E5',
+  },
+  selectAllText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4F46E5',
+    marginHorizontal: 4,
+  },
+  checkboxContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingRight: 4,
+  },
+  notificationCardSelected: {
+    backgroundColor: '#EEF2FF',
+    borderColor: '#4F46E5',
+    borderWidth: 1.5,
   },
 });
