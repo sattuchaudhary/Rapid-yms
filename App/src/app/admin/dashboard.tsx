@@ -344,7 +344,7 @@ export default function GuardDashboard() {
   const displayTotal = isConnected && statsLoading && !stats ? '-' : (stats ? (stats.totalVehicles + (stats.releasedVehicles?.today ?? 0)) : (offlineStats.inYard + offlineStats.released));
   const displayInYard = isConnected && statsLoading && !stats ? '-' : (stats ? stats.totalVehicles : offlineStats.inYard);
   const displayReleased = isConnected && statsLoading && !stats ? '-' : (stats ? (stats.releasedVehicles?.today ?? 0) : offlineStats.released);
-  const displayTodayEntry = isConnected && statsLoading && !stats ? '-' : (stats ? ((stats.kachhaVehicles?.thisMonth ?? 0) + (stats.pakkaVehicles?.thisMonth ?? 0)) : offlineStats.todayEntry);
+  const displayTodayEntry = isConnected && statsLoading && !stats ? '-' : (stats ? (stats.todayEntry ?? 0) : offlineStats.todayEntry);
 
   const displayReportsCheckIn = stats ? `${displayTodayEntry} Units` : `${offlineStats.todayEntry} Units`;
   const displayReportsReleased = stats ? `${displayReleased} Units` : `${offlineStats.released} Units`;
@@ -681,6 +681,57 @@ export default function GuardDashboard() {
               </ThemedText>
               <ThemedText style={styles.financialColCount}>
                 {stats?.dailyLoss?.thisYear?.count ?? 0}
+              </ThemedText>
+            </View>
+          </View>
+        </View>
+
+        {/* PAKKA ACCRUED VALUE CARD */}
+        <View style={styles.financialCard}>
+          <View style={styles.financialCardHeader}>
+            <View style={{ flex: 1 }}>
+              <View style={[styles.financialBadge, { backgroundColor: '#EEF2FF' }]}>
+                <ThemedText style={[styles.financialBadgeText, { color: '#4F46E5' }]}>PAKKA LIABILITY</ThemedText>
+              </View>
+              <ThemedText style={styles.financialCardTitle}>PAKKA RUNNING CHARGES</ThemedText>
+              <ThemedText style={styles.financialCardSub}>Accrued Pakka billing in yard</ThemedText>
+            </View>
+            <View style={[styles.financialIconBg, { backgroundColor: '#10B981' }]}>
+              <TrendingUp size={20} color="#FFFFFF" />
+            </View>
+          </View>
+          
+          <View style={styles.financialColumnsRow}>
+            {/* Today */}
+            <View style={styles.financialColBox}>
+              <ThemedText style={styles.financialColLabel}>TODAY</ThemedText>
+              <ThemedText style={styles.financialColValue}>
+                ₹{stats?.pakkaAccrued?.today?.amount ?? 0}
+              </ThemedText>
+              <ThemedText style={styles.financialColCount}>
+                {stats?.pakkaAccrued?.today?.count ?? 0}
+              </ThemedText>
+            </View>
+            
+            {/* Month */}
+            <View style={styles.financialColBox}>
+              <ThemedText style={styles.financialColLabel}>MONTH</ThemedText>
+              <ThemedText style={styles.financialColValue}>
+                ₹{stats?.pakkaAccrued?.thisMonth?.amount ?? 0}
+              </ThemedText>
+              <ThemedText style={styles.financialColCount}>
+                {stats?.pakkaAccrued?.thisMonth?.count ?? 0}
+              </ThemedText>
+            </View>
+            
+            {/* Year */}
+            <View style={styles.financialColBox}>
+              <ThemedText style={styles.financialColLabel}>YEAR</ThemedText>
+              <ThemedText style={styles.financialColValue}>
+                ₹{stats?.pakkaAccrued?.thisYear?.amount ?? 0}
+              </ThemedText>
+              <ThemedText style={styles.financialColCount}>
+                {stats?.pakkaAccrued?.thisYear?.count ?? 0}
               </ThemedText>
             </View>
           </View>

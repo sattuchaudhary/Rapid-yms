@@ -41,7 +41,7 @@ interface ReportItem {
 export default function ReportsScreen() {
   const router = useRouter();
   const [loadingId, setLoadingId] = useState<string | null>(null);
-  
+
   // Modal states
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedReport, setSelectedReport] = useState<ReportItem | null>(null);

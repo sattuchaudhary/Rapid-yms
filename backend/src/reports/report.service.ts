@@ -15,6 +15,7 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
       revenuePeriodAgg,
       revenuePeriodCount,
       kachhaInPeriod,
+      pakkaInPeriod,
     ] = await Promise.all([
       // Active vehicles inside yard at any point (or entered in this period)
       prisma.vehicle.count({ where: { tenantId, entryDate: { lte: endDate }, OR: [{ yardStatus: { in: ['KACHHA', 'PAKKA'] } }, { yardStatus: 'RELEASED', release: { releasedAt: { gte: startDate } } }] } }),
@@ -66,6 +67,21 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
           ]
         },
         include: { billing: true, release: true }
+      }),
+      // Pakka in period
+      prisma.vehicle.findMany({
+        where: {
+          tenantId,
+          entryDate: { lte: endDate },
+          OR: [
+            { yardStatus: 'PAKKA' },
+            {
+              yardStatus: 'RELEASED',
+              release: { releasedAt: { gte: startDate } }
+            }
+          ]
+        },
+        include: { billing: true, release: true }
       })
     ]);
 
@@ -89,6 +105,28 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
         let diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
         if (diffDays < 1) diffDays = 1;
         lossPeriod += diffDays * dailyRate;
+      }
+    }
+
+    // Dynamic accrued Pakka billing during custom period
+    let pakkaAccruedPeriod = 0;
+    for (const v of pakkaInPeriod) {
+      const billingStart = v.billing?.billingStartDate || v.billingStart || v.entryDate;
+      if (!billingStart) continue;
+
+      const dailyRate = v.billing?.dailyRate || 100.0;
+      const exitDate = v.yardStatus === 'RELEASED' && v.release?.releasedAt 
+        ? new Date(v.release.releasedAt)
+        : now;
+
+      const accrualStart = billingStart > startDate ? billingStart : startDate;
+      const accrualEnd = exitDate < endDate ? exitDate : endDate;
+
+      if (accrualStart <= accrualEnd) {
+        const diffTime = accrualEnd.getTime() - accrualStart.getTime();
+        let diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        if (diffDays < 1) diffDays = 1;
+        pakkaAccruedPeriod += diffDays * dailyRate;
       }
     }
 
@@ -116,6 +154,7 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
     return {
       stats: {
         totalVehicles,
+        todayEntry: 0,
         kachhaVehicles: {
           thisMonth: kachhaCount,
           total: kachhaCount,
@@ -139,6 +178,11 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
           today: { amount: lossPeriod, count: kachhaCount },
           thisMonth: { amount: lossPeriod, count: kachhaCount },
           thisYear: { amount: lossPeriod, count: kachhaCount },
+        },
+        pakkaAccrued: {
+          today: { amount: pakkaAccruedPeriod, count: pakkaInPeriod.length },
+          thisMonth: { amount: pakkaAccruedPeriod, count: pakkaInPeriod.length },
+          thisYear: { amount: pakkaAccruedPeriod, count: pakkaInPeriod.length },
         },
         isCustomRange: true,
         startDate: startDate.toISOString().split('T')[0],
@@ -181,6 +225,8 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
     revenueThisMonthCount,
     revenueThisYearCount,
     activeKachha,
+    activePakka,
+    todayEntry,
   ] = await Promise.all([
     // Active vehicles inside yard
     prisma.vehicle.count({ where: { tenantId, yardStatus: { in: ['KACHHA', 'PAKKA'] } } }),
@@ -280,6 +326,18 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
     prisma.vehicle.findMany({
       where: { tenantId, yardStatus: 'KACHHA' },
       include: { billing: true }
+    }),
+    // Active PAKKA vehicles to compute accrued billing
+    prisma.vehicle.findMany({
+      where: { tenantId, yardStatus: 'PAKKA' },
+      include: { billing: true }
+    }),
+    // Vehicles entered today
+    prisma.vehicle.count({
+      where: {
+        tenantId,
+        entryDate: { gte: startOfToday }
+      }
     })
   ]);
 
@@ -311,6 +369,32 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
     dailyLossThisYear += diffDaysYear * dailyRate;
   }
 
+  // Calculate dynamic accrued Pakka billing value of active Pakka vehicles
+  let pakkaAccruedToday = 0;
+  let pakkaAccruedThisMonth = 0;
+  let pakkaAccruedThisYear = 0;
+
+  for (const v of activePakka) {
+    const dailyRate = v.billing?.dailyRate || 100.0;
+    pakkaAccruedToday += dailyRate;
+
+    const billingStart = v.billing?.billingStartDate || v.billingStart || v.entryDate || startOfToday;
+
+    // For This Month: accrued since billingStart OR start of month
+    const startOfAccrualMonth = billingStart > startOfMonth ? billingStart : startOfMonth;
+    const diffTimeMonth = now.getTime() - startOfAccrualMonth.getTime();
+    let diffDaysMonth = Math.floor(diffTimeMonth / (1000 * 60 * 60 * 24)) + 1;
+    if (diffDaysMonth < 1) diffDaysMonth = 1;
+    pakkaAccruedThisMonth += diffDaysMonth * dailyRate;
+
+    // For This Year: accrued since billingStart OR start of year
+    const startOfAccrualYear = billingStart > startOfYear ? billingStart : startOfYear;
+    const diffTimeYear = now.getTime() - startOfAccrualYear.getTime();
+    let diffDaysYear = Math.floor(diffTimeYear / (1000 * 60 * 60 * 24)) + 1;
+    if (diffDaysYear < 1) diffDaysYear = 1;
+    pakkaAccruedThisYear += diffDaysYear * dailyRate;
+  }
+
   const bankStats = bankStatsRaw.map(s => ({
     bank: s.bankName,
     count: s._count.bankName
@@ -335,6 +419,7 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
   return {
     stats: {
       totalVehicles,
+      todayEntry,
       kachhaVehicles: {
         thisMonth: kachhaThisMonth,
         total: kachhaCount,
@@ -358,6 +443,11 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
         today: { amount: dailyLossToday, count: kachhaCount },
         thisMonth: { amount: dailyLossThisMonth, count: kachhaCount },
         thisYear: { amount: dailyLossThisYear, count: kachhaCount },
+      },
+      pakkaAccrued: {
+        today: { amount: pakkaAccruedToday, count: activePakka.length },
+        thisMonth: { amount: pakkaAccruedThisMonth, count: activePakka.length },
+        thisYear: { amount: pakkaAccruedThisYear, count: activePakka.length },
       },
     },
     bankStats,
