@@ -8,7 +8,7 @@ async function main() {
   const tenant = await prisma.tenant.findFirst({
     where: { subdomain: 'mumbai' }
   });
-  
+
   if (!tenant) {
     console.error('Mumbai tenant not found. Run seed script first.');
     return;
@@ -40,8 +40,13 @@ async function main() {
     { photoType: 'right', s3Url: 'https://mock-s3.com/right.png' }
   ];
 
+
+
+
+
+
   await Promise.all(
-    photosToSave.map(p => 
+    photosToSave.map(p =>
       prisma.vehiclePhoto.create({
         data: {
           vehicleId: vehicle.id,
@@ -67,7 +72,7 @@ async function main() {
   console.log(`Yard Status: ${result.yardStatus}`);
   console.log(`Total Registered Photos in DB: ${result.photos.length}`);
   result.photos.forEach((ph, i) => {
-    console.log(`  [Photo ${i+1}] Type: ${ph.photoType}, URL: ${ph.s3Url}`);
+    console.log(`  [Photo ${i + 1}] Type: ${ph.photoType}, URL: ${ph.s3Url}`);
   });
 
   // Clean up verification data
