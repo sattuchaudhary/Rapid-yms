@@ -51,6 +51,14 @@ interface Bank {
   parent?: { id: string; name: string };
 }
 
+export interface PhaseRates {
+  kachha: string;
+  pakka: string;
+  releaseOrder: string;
+}
+
+export type VehiclePhaseRatesMap = Record<'TW' | 'THREE_W' | 'FW' | 'CV', PhaseRates>;
+
 export default function BanksScreen() {
   const router = useRouter();
   const [userRole, setUserRole] = useState('');
@@ -61,32 +69,35 @@ export default function BanksScreen() {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   // 3-Phase Bank Parking Config States
-  const [kachhaRate, setKachhaRate] = useState('100');
-  const [pakkaRate, setPakkaRate] = useState('150');
-  const [roRate, setRoRate] = useState('200');
   const [waiverDays, setWaiverDays] = useState('2');
   const [parkingPayer, setParkingPayer] = useState<'CUSTOMER' | 'BANK'>('CUSTOMER');
+
+  // Per-Vehicle Type (2W, 3W, 4W, CV) 3-Phase Rates State
+  const [vehiclePhaseRates, setVehiclePhaseRates] = useState<VehiclePhaseRatesMap>({
+    TW: { kachha: '50', pakka: '100', releaseOrder: '150' },
+    THREE_W: { kachha: '80', pakka: '120', releaseOrder: '180' },
+    FW: { kachha: '100', pakka: '150', releaseOrder: '200' },
+    CV: { kachha: '200', pakka: '300', releaseOrder: '400' },
+  });
 
   // Add bank modal state
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [addType, setAddType] = useState<'direct' | 'third_party'>('direct');
   const [newBankName, setNewBankName] = useState('');
-  const [newRates, setNewRates] = useState({ TW: '50', THREE_W: '100', FW: '150', CV: '400' });
   const [subBanks, setSubBanks] = useState([{ name: '', rates: { TW: '50', THREE_W: '100', FW: '150', CV: '400' } }]);
   const [saving, setSaving] = useState(false);
 
   // Edit rates modal state
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingBank, setEditingBank] = useState<Bank | null>(null);
-  const [editingRates, setEditingRates] = useState({ TW: '', THREE_W: '', FW: '', CV: '' });
   const [savingRates, setSavingRates] = useState(false);
 
   // Add sub-bank modal state
   const [addSubModalVisible, setAddSubModalVisible] = useState(false);
   const [targetThirdParty, setTargetThirdParty] = useState<Bank | null>(null);
   const [newSubName, setNewSubName] = useState('');
-  const [newSubRates, setNewSubRates] = useState({ TW: '50', THREE_W: '100', FW: '150', CV: '400' });
   const [savingNewSub, setSavingNewSub] = useState(false);
+
 
 
   const loadBanks = useCallback(async (silent = false) => {
@@ -158,7 +169,12 @@ export default function BanksScreen() {
   const resetAddModal = () => {
     setAddType('direct');
     setNewBankName('');
-    setNewRates({ TW: '50', THREE_W: '100', FW: '150', CV: '400' });
+    setVehiclePhaseRates({
+      TW: { kachha: '50', pakka: '100', releaseOrder: '150' },
+      THREE_W: { kachha: '80', pakka: '120', releaseOrder: '180' },
+      FW: { kachha: '100', pakka: '150', releaseOrder: '200' },
+      CV: { kachha: '200', pakka: '300', releaseOrder: '400' },
+    });
     setSubBanks([{ name: '', rates: { TW: '50', THREE_W: '100', FW: '150', CV: '400' } }]);
   };
 
@@ -168,32 +184,41 @@ export default function BanksScreen() {
       return;
     }
 
-    if (addType === 'direct') {
-      const ratesValid = VEHICLE_TYPES.every(t => Number(newRates[t]) >= 0);
-      if (!ratesValid) {
-        Alert.alert('Error', 'All parking rates must be valid numbers');
-        return;
-      }
-    }
-
     setSaving(true);
     try {
       const payload: any = {
         name: newBankName.trim(),
         isThirdParty: addType === 'third_party',
-        kachhaParkingRate: Number(kachhaRate || 0),
-        pakkaParkingRate: Number(pakkaRate || 0),
-        releaseOrderParkingRate: Number(roRate || 0),
         parkingWaiverDays: Number(waiverDays || 0),
         parkingPayer: parkingPayer,
       };
 
       if (addType === 'direct') {
         payload.rates = {
-          TW: Number(newRates.TW),
-          THREE_W: Number(newRates.THREE_W),
-          FW: Number(newRates.FW),
-          CV: Number(newRates.CV),
+          TW: {
+            kachhaRate: Number(vehiclePhaseRates.TW.kachha || 0),
+            pakkaRate: Number(vehiclePhaseRates.TW.pakka || 0),
+            releaseOrderRate: Number(vehiclePhaseRates.TW.releaseOrder || 0),
+            dailyRate: Number(vehiclePhaseRates.TW.pakka || vehiclePhaseRates.TW.kachha || 0),
+          },
+          THREE_W: {
+            kachhaRate: Number(vehiclePhaseRates.THREE_W.kachha || 0),
+            pakkaRate: Number(vehiclePhaseRates.THREE_W.pakka || 0),
+            releaseOrderRate: Number(vehiclePhaseRates.THREE_W.releaseOrder || 0),
+            dailyRate: Number(vehiclePhaseRates.THREE_W.pakka || vehiclePhaseRates.THREE_W.kachha || 0),
+          },
+          FW: {
+            kachhaRate: Number(vehiclePhaseRates.FW.kachha || 0),
+            pakkaRate: Number(vehiclePhaseRates.FW.pakka || 0),
+            releaseOrderRate: Number(vehiclePhaseRates.FW.releaseOrder || 0),
+            dailyRate: Number(vehiclePhaseRates.FW.pakka || vehiclePhaseRates.FW.kachha || 0),
+          },
+          CV: {
+            kachhaRate: Number(vehiclePhaseRates.CV.kachha || 0),
+            pakkaRate: Number(vehiclePhaseRates.CV.pakka || 0),
+            releaseOrderRate: Number(vehiclePhaseRates.CV.releaseOrder || 0),
+            dailyRate: Number(vehiclePhaseRates.CV.pakka || vehiclePhaseRates.CV.kachha || 0),
+          },
         };
       } else {
         // Third party with sub-banks
@@ -231,71 +256,73 @@ export default function BanksScreen() {
   // Edit Rates Handlers
   const handleOpenEditModal = (bank: Bank) => {
     setEditingBank(bank);
-    setKachhaRate(bank.kachhaParkingRate?.toString() || '100');
-    setPakkaRate(bank.pakkaParkingRate?.toString() || '150');
-    setRoRate(bank.releaseOrderParkingRate?.toString() || '200');
     setWaiverDays(bank.parkingWaiverDays?.toString() || '2');
     setParkingPayer(bank.parkingPayer || 'CUSTOMER');
 
-    const ratesMap = {
-      TW: '',
-      THREE_W: '',
-      FW: '',
-      CV: '',
+    const updatedRates: Record<'TW' | 'THREE_W' | 'FW' | 'CV', PhaseRates> = {
+      TW: { kachha: '50', pakka: '100', releaseOrder: '150' },
+      THREE_W: { kachha: '80', pakka: '120', releaseOrder: '180' },
+      FW: { kachha: '100', pakka: '150', releaseOrder: '200' },
+      CV: { kachha: '200', pakka: '300', releaseOrder: '400' },
     };
+
     VEHICLE_TYPES.forEach(type => {
-      const match = bank.parkingRates?.find(r => r.vehicleType === type);
-      ratesMap[type] = match ? String(match.dailyRate) : '';
+      const match: any = bank.parkingRates?.find(r => r.vehicleType === type);
+      if (match) {
+        updatedRates[type] = {
+          kachha: String(match.kachhaRate || match.dailyRate || 100),
+          pakka: String(match.pakkaRate || match.dailyRate || 150),
+          releaseOrder: String(match.releaseOrderRate || match.dailyRate || 200),
+        };
+      }
     });
-    setEditingRates(ratesMap);
+
+    setVehiclePhaseRates(updatedRates);
     setEditModalVisible(true);
   };
 
   const handleSaveEditedRates = async () => {
     if (!editingBank) return;
-    
-    const ratesValid = VEHICLE_TYPES.every(t => editingRates[t] !== '' && Number(editingRates[t]) >= 0);
-    if (!ratesValid) {
-      Alert.alert('Error', 'All parking rates must be valid positive numbers');
-      return;
-    }
 
     setSavingRates(true);
     try {
-      // Update Bank configuration
+      // 1. Update Bank waiver days and parking payer
       await apiRequest(`/api/banks/${editingBank.id}`, {
         method: 'PUT',
         body: JSON.stringify({
           name: editingBank.name,
-          kachhaParkingRate: Number(kachhaRate || 0),
-          pakkaParkingRate: Number(pakkaRate || 0),
-          releaseOrderParkingRate: Number(roRate || 0),
           parkingWaiverDays: Number(waiverDays || 0),
           parkingPayer: parkingPayer,
         }),
       });
 
+      // 2. Save 3-phase rates per vehicle category
       const promises = VEHICLE_TYPES.map(type => {
+        const r = vehiclePhaseRates[type];
         return apiRequest('/api/rates', {
           method: 'POST',
           body: JSON.stringify({
             bankId: editingBank.id,
             vehicleType: type,
-            dailyRate: Number(editingRates[type]),
+            dailyRate: Number(r.pakka || r.kachha || 0),
+            kachhaRate: Number(r.kachha || 0),
+            pakkaRate: Number(r.pakka || 0),
+            releaseOrderRate: Number(r.releaseOrder || 0),
           }),
         });
       });
+
       await Promise.all(promises);
-      
       setEditModalVisible(false);
       loadBanks(true);
-      Alert.alert('Success', `Bank parking configuration updated for "${editingBank.name}"`);
+      Alert.alert('Success', `Bank parking rates updated for "${editingBank.name}"`);
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to update rates');
     } finally {
       setSavingRates(false);
     }
   };
+
 
 
   // Add Sub-Bank to Network Handlers
@@ -730,63 +757,57 @@ export default function BanksScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Primary Vehicle Category Rates (2W, 3W, 4W, CV) */}
-              <ThemedText style={styles.modalLabel}>Vehicle Daily Rates (2W / 3W / 4W / CV)</ThemedText>
-              <View style={styles.ratesInputGrid}>
-                {VEHICLE_TYPES.map(t => (
-                  <View key={t} style={styles.rateInputItem}>
-                    <ThemedText style={styles.rateInputLabel}>{TYPE_LABELS[t]}</ThemedText>
-                    <TextInput
-                      style={styles.rateInput}
-                      value={editingRates[t]}
-                      onChangeText={val => setEditingRates(prev => ({ ...prev, [t]: val }))}
-                      keyboardType="numeric"
-                      placeholder="0"
-                      placeholderTextColor="#94A3B8"
-                    />
+              <ThemedText style={styles.modalLabel}>Vehicle-Wise 3-Phase Rates (2W / 3W / 4W / CV)</ThemedText>
+              
+              {VEHICLE_TYPES.map(t => (
+                <View key={t} style={{ backgroundColor: '#F8FAFC', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 12 }}>
+                  <ThemedText style={{ fontSize: 13, fontWeight: '800', color: '#1E293B', marginBottom: 8 }}>
+                    {TYPE_LABELS[t]} ({t})
+                  </ThemedText>
+                  
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <View style={{ flex: 1 }}>
+                      <ThemedText style={{ fontSize: 10, fontWeight: '700', color: '#B45309', marginBottom: 2 }}>Kachha (₹)</ThemedText>
+                      <TextInput
+                        style={[styles.rateInput, { textAlign: 'center' }]}
+                        value={vehiclePhaseRates[t].kachha}
+                        onChangeText={val => setVehiclePhaseRates(prev => ({ ...prev, [t]: { ...prev[t], kachha: val } }))}
+                        keyboardType="numeric"
+                        placeholder="50"
+                        placeholderTextColor="#94A3B8"
+                      />
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <ThemedText style={{ fontSize: 10, fontWeight: '700', color: '#047857', marginBottom: 2 }}>Pakka (₹)</ThemedText>
+                      <TextInput
+                        style={[styles.rateInput, { textAlign: 'center' }]}
+                        value={vehiclePhaseRates[t].pakka}
+                        onChangeText={val => setVehiclePhaseRates(prev => ({ ...prev, [t]: { ...prev[t], pakka: val } }))}
+                        keyboardType="numeric"
+                        placeholder="100"
+                        placeholderTextColor="#94A3B8"
+                      />
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <ThemedText style={{ fontSize: 10, fontWeight: '700', color: '#4338CA', marginBottom: 2 }}>After RO (₹)</ThemedText>
+                      <TextInput
+                        style={[styles.rateInput, { textAlign: 'center' }]}
+                        value={vehiclePhaseRates[t].releaseOrder}
+                        onChangeText={val => setVehiclePhaseRates(prev => ({ ...prev, [t]: { ...prev[t], releaseOrder: val } }))}
+                        keyboardType="numeric"
+                        placeholder="150"
+                        placeholderTextColor="#94A3B8"
+                      />
+                    </View>
                   </View>
-                ))}
-              </View>
+                </View>
+              ))}
 
-              {/* 3-Phase Lifecycle & Waiver Settings */}
-              <ThemedText style={[styles.modalLabel, { marginTop: 15 }]}>3-Phase Charging & Waiver Settings</ThemedText>
+              {/* Waiver Days & Payer Config */}
+              <ThemedText style={[styles.modalLabel, { marginTop: 8 }]}>Waiver Days & Payer Rules</ThemedText>
               <View style={{ gap: 10, marginBottom: 15 }}>
-                <View>
-                  <ThemedText style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 4 }}>Kachha Phase Rate (₹/day)</ThemedText>
-                  <TextInput
-                    style={styles.modalInput}
-                    value={kachhaRate}
-                    onChangeText={setKachhaRate}
-                    keyboardType="numeric"
-                    placeholder="100"
-                    placeholderTextColor="#94A3B8"
-                  />
-                </View>
-
-                <View>
-                  <ThemedText style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 4 }}>Pakka Phase Rate (₹/day)</ThemedText>
-                  <TextInput
-                    style={styles.modalInput}
-                    value={pakkaRate}
-                    onChangeText={setPakkaRate}
-                    keyboardType="numeric"
-                    placeholder="150"
-                    placeholderTextColor="#94A3B8"
-                  />
-                </View>
-
-                <View>
-                  <ThemedText style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 4 }}>Release Order Phase Rate (₹/day)</ThemedText>
-                  <TextInput
-                    style={styles.modalInput}
-                    value={roRate}
-                    onChangeText={setRoRate}
-                    keyboardType="numeric"
-                    placeholder="200"
-                    placeholderTextColor="#94A3B8"
-                  />
-                </View>
-
                 <View>
                   <ThemedText style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 4 }}>Free Waiver Days (after RO Date)</ThemedText>
                   <TextInput
@@ -820,6 +841,7 @@ export default function BanksScreen() {
                 </View>
               </View>
             </ScrollView>
+
 
 
 
