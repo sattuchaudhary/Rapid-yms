@@ -485,215 +485,171 @@ export default function GuardDashboard() {
             activeOpacity={0.9}
             onPress={() => router.push('/admin/vehicle-list')}
           >
-            <Search size={16} color="#64748B" style={{ marginRight: 8 }} />
+            <Search size={18} color="#64748B" style={{ marginRight: 10 }} />
             <ThemedText style={styles.quickSearchPlaceholder} numberOfLines={1}>
-              Search License Plate, Brand, Financer...
+              Search Vehicle Reg No, Brand, Financer...
             </ThemedText>
-            <View style={styles.quickSearchScanBtn}>
-              <Scan size={14} color="#4F46E5" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Hero Main Action Cards Grid (4 Primary Actions) */}
+        <View style={styles.heroActionGrid}>
+          <TouchableOpacity
+            style={[styles.heroCard, styles.heroCardPrimary]}
+            onPress={() => router.push('/admin/check-in')}
+            activeOpacity={0.85}
+          >
+            <View style={styles.heroIconBgPrimary}>
+              <Plus size={22} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <ThemedText style={styles.heroCardTitlePrimary}>New Entry</ThemedText>
+              <ThemedText style={styles.heroCardSubPrimary}>Check in vehicle</ThemedText>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.heroCard}
+            onPress={() => router.push('/admin/vehicle-list')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.heroIconBg, { backgroundColor: '#EEF2FF' }]}>
+              <Car size={20} color="#4F46E5" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <ThemedText style={styles.heroCardTitle}>Vehicle List</ThemedText>
+              <ThemedText style={styles.heroCardSub}>{displayTotal} Total Stock</ThemedText>
             </View>
           </TouchableOpacity>
         </View>
 
-        {/* Blue Card Banner (Today Overview) */}
-        <View style={styles.overviewCard}>
-          <View style={styles.overviewHeaderRow}>
-            <ThemedText style={styles.overviewTitle}>Today Overview</ThemedText>
-            <TouchableOpacity onPress={() => router.push('/admin/vehicle-list')} activeOpacity={0.7}>
-              <ThemedText style={styles.viewAllText}>View All</ThemedText>
-            </TouchableOpacity>
-          </View>
-          
-          {/* Quadrants Grid */}
-          <View style={styles.quadrantsGrid}>
-            {/* Top Left: Total Vehicles */}
-            <View style={styles.quadrantCol}>
-              <View style={styles.quadrantIconWrapper}>
-                <Car size={14} color="#FFFFFF" />
-              </View>
-              <View style={styles.quadrantMeta}>
-                <ThemedText style={styles.quadrantLabel}>Total Vehicles</ThemedText>
-                <ThemedText style={styles.quadrantValue}>{displayTotal}</ThemedText>
-              </View>
+        <View style={[styles.heroActionGrid, { marginTop: 10 }]}>
+          <TouchableOpacity
+            style={styles.heroCard}
+            onPress={() => router.push('/admin/check-out')}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.heroIconBg, { backgroundColor: '#FEF3C7' }]}>
+              <Key size={20} color="#D97706" />
             </View>
+            <View style={{ flex: 1 }}>
+              <ThemedText style={styles.heroCardTitle}>Release Vehicle</ThemedText>
+              <ThemedText style={styles.heroCardSub}>Check out vehicle</ThemedText>
+            </View>
+          </TouchableOpacity>
 
-            {/* Top Right: In Yard */}
-            <View style={styles.quadrantCol}>
-              <View style={styles.quadrantIconWrapper}>
-                <LayoutGrid size={14} color="#FFFFFF" />
-              </View>
-              <View style={styles.quadrantMeta}>
-                <ThemedText style={styles.quadrantLabel}>In Yard</ThemedText>
-                <ThemedText style={styles.quadrantValue}>{displayInYard}</ThemedText>
-              </View>
+          <TouchableOpacity
+            style={styles.heroCard}
+            onPress={() => router.push('/admin/print-setup' as any)}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.heroIconBg, { backgroundColor: '#ECFDF5' }]}>
+              <Printer size={20} color="#059669" />
             </View>
-          </View>
-
-          {/* Proportion Visual Bar */}
-          {stats && (
-            <View style={styles.proportionBarContainer}>
-              <View style={styles.proportionBarRow}>
-                <ThemedText style={styles.proportionLabel}>Yard Stock Distribution</ThemedText>
-                <ThemedText style={styles.proportionVal}>
-                  {Math.round(((stats.pakkaVehicles?.total ?? 0) / (stats.totalVehicles || 1)) * 100)}% Pakka
-                </ThemedText>
-              </View>
-              <View style={styles.proportionTrack}>
-                <View style={[
-                  styles.proportionFillPakka, 
-                  { flex: stats.pakkaVehicles?.total || 1 }
-                ]} />
-                <View style={[
-                  styles.proportionFillKachha, 
-                  { flex: stats.kachhaVehicles?.total || 1 }
-                ]} />
-              </View>
-              <View style={styles.proportionLegendRow}>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: '#10B981' }]} />
-                  <ThemedText style={styles.legendText}>Pakka ({stats.pakkaVehicles?.total ?? 0})</ThemedText>
-                </View>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: '#E2E8F0' }]} />
-                  <ThemedText style={styles.legendText}>Kachha ({stats.kachhaVehicles?.total ?? 0})</ThemedText>
-                </View>
-              </View>
+            <View style={{ flex: 1 }}>
+              <ThemedText style={styles.heroCardTitle}>Print & Setup</ThemedText>
+              <ThemedText style={styles.heroCardSub}>Custom layout</ThemedText>
             </View>
-          )}
-
-          <View style={[styles.quadrantsGrid, { marginTop: 10 }]}>
-            {/* Bottom Left: Released */}
-            <View style={styles.quadrantCol}>
-              <View style={styles.quadrantIconWrapper}>
-                <Key size={14} color="#FFFFFF" />
-              </View>
-              <View style={styles.quadrantMeta}>
-                <ThemedText style={styles.quadrantLabel}>Released</ThemedText>
-                <ThemedText style={styles.quadrantValue}>{displayReleased}</ThemedText>
-              </View>
-            </View>
-
-            {/* Bottom Right: Today Entry */}
-            <View style={styles.quadrantCol}>
-              <View style={styles.quadrantIconWrapper}>
-                <Clock size={14} color="#FFFFFF" />
-              </View>
-              <View style={styles.quadrantMeta}>
-                <ThemedText style={styles.quadrantLabel}>Today Entry</ThemedText>
-                <ThemedText style={styles.quadrantValue}>{displayTodayEntry}</ThemedText>
-              </View>
-            </View>
-          </View>
-
-          {/* KACHHA / PAKKA Breakdown Strip */}
-          {stats && (
-            <View style={styles.kachhaPakkaStrip}>
-              <TouchableOpacity
-                style={[styles.kachhaPakkaItem, { borderRightWidth: 1, borderRightColor: 'rgba(255,255,255,0.2)' }]}
-                onPress={() => router.push({ pathname: '/admin/vehicle-list', params: { filter: 'KACHHA' } })}
-                activeOpacity={0.7}
-              >
-                <View style={styles.kachhaDot2} />
-                <View>
-                  <ThemedText style={styles.kachhaPakkaValue}>{stats.kachhaVehicles?.total ?? 0}</ThemedText>
-                  <ThemedText style={styles.kachhaPakkaLabel}>KACHHA{'\n'}(No Billing)</ThemedText>
-                </View>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.kachhaPakkaItem}
-                onPress={() => router.push({ pathname: '/admin/vehicle-list', params: { filter: 'PAKKA' } })}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.kachhaDot2, { backgroundColor: '#10B981' }]} />
-                <View>
-                  <ThemedText style={styles.kachhaPakkaValue}>{stats.pakkaVehicles?.total ?? 0}</ThemedText>
-                  <ThemedText style={styles.kachhaPakkaLabel}>PAKKA{'\n'}(Billing Active)</ThemedText>
-                </View>
-              </TouchableOpacity>
-            </View>
-          )}
+          </TouchableOpacity>
         </View>
 
-        {/* 6-Grid Operations Cards */}
-        <View style={styles.mockupGridContainer}>
-          {/* Row 1 */}
-          <View style={styles.mockupGridRow}>
-            {/* Card 1: New Entry */}
-            <TouchableOpacity
-              style={styles.mockupGridCard}
-              onPress={() => router.push('/admin/check-in')}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.mockupIconBg, { backgroundColor: '#DCFCE7' }]}>
-                <Plus size={20} color="#10B981" />
+        {/* 4 Clean Metric Cards Grid */}
+        <ThemedText style={styles.sectionTitle}>Yard Operations Summary</ThemedText>
+        <View style={styles.metricsGrid}>
+          {/* Card 1: In Yard */}
+          <TouchableOpacity
+            style={styles.metricCard}
+            onPress={() => router.push('/admin/vehicle-list')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.metricHeader}>
+              <ThemedText style={styles.metricLabel}>In Yard</ThemedText>
+              <View style={[styles.metricIconBox, { backgroundColor: '#EEF2FF' }]}>
+                <LayoutGrid size={16} color="#4F46E5" />
               </View>
-              <ThemedText style={styles.mockupCardLabel}>New Entry</ThemedText>
-            </TouchableOpacity>
+            </View>
+            <ThemedText style={styles.metricVal}>{displayInYard}</ThemedText>
+            {stats && (
+              <View style={styles.pillsRow}>
+                <View style={styles.pakkaPill}>
+                  <ThemedText style={styles.pakkaPillText}>Pakka: {stats.pakkaVehicles?.total ?? 0}</ThemedText>
+                </View>
+                <View style={styles.kachhaPill}>
+                  <ThemedText style={styles.kachhaPillText}>Kachha: {stats.kachhaVehicles?.total ?? 0}</ThemedText>
+                </View>
+              </View>
+            )}
+          </TouchableOpacity>
 
-            {/* Card 2: Vehicle List */}
-            <TouchableOpacity
-              style={styles.mockupGridCard}
-              onPress={() => router.push('/admin/vehicle-list')}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.mockupIconBg, { backgroundColor: '#DBEAFE' }]}>
-                <Car size={20} color="#4F46E5" />
+          {/* Card 2: Today Entries */}
+          <View style={styles.metricCard}>
+            <View style={styles.metricHeader}>
+              <ThemedText style={styles.metricLabel}>Today Entry</ThemedText>
+              <View style={[styles.metricIconBox, { backgroundColor: '#DCFCE7' }]}>
+                <Clock size={16} color="#16A34A" />
               </View>
-              <ThemedText style={styles.mockupCardLabel}>Vehicle List</ThemedText>
-            </TouchableOpacity>
-
-            {/* Card 3: Release Vehicle */}
-            <TouchableOpacity
-              style={styles.mockupGridCard}
-              onPress={() => router.push('/admin/check-out')}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.mockupIconBg, { backgroundColor: '#FFEDD5' }]}>
-                <Key size={20} color="#F59E0B" />
-              </View>
-              <ThemedText style={styles.mockupCardLabel} numberOfLines={2}>Release Vehicle</ThemedText>
-            </TouchableOpacity>
-          </View>
-
-          {/* Row 2 */}
-          <View style={[styles.mockupGridRow, { marginTop: 12 }]}>
-            {/* Card 4: Reports */}
-            <TouchableOpacity
-              style={styles.mockupGridCard}
-              onPress={() => router.push('/admin/reports')}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.mockupIconBg, { backgroundColor: '#F3E8FF' }]}>
-                <FileText size={20} color="#8B5CF6" />
-              </View>
-              <ThemedText style={styles.mockupCardLabel}>Reports</ThemedText>
-            </TouchableOpacity>
-
-            {/* Card 5: Charges Calculator */}
-            <TouchableOpacity
-              style={styles.mockupGridCard}
-              onPress={() => router.push('/admin/calculate-charges')}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.mockupIconBg, { backgroundColor: '#E2FDF8' }]}>
-                <DollarSign size={20} color="#14B8A6" />
-              </View>
-              <ThemedText style={styles.mockupCardLabel} numberOfLines={2}>Charges Calculator</ThemedText>
-            </TouchableOpacity>
-
-            {/* Card 6: Search Vehicle */}
-            <TouchableOpacity
-              style={styles.mockupGridCard}
-              onPress={() => router.push('/admin/vehicle-list')}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.mockupIconBg, { backgroundColor: '#FCE7F3' }]}>
-                <Search size={20} color="#EC4899" />
-              </View>
-              <ThemedText style={styles.mockupCardLabel}>Search Vehicle</ThemedText>
-            </TouchableOpacity>
+            </View>
+            <ThemedText style={styles.metricVal}>{displayTodayEntry}</ThemedText>
+            <ThemedText style={styles.metricSubText}>New check-ins today</ThemedText>
           </View>
         </View>
+
+        <View style={[styles.metricsGrid, { marginTop: 10 }]}>
+          {/* Card 3: Released */}
+          <View style={styles.metricCard}>
+            <View style={styles.metricHeader}>
+              <ThemedText style={styles.metricLabel}>Released</ThemedText>
+              <View style={[styles.metricIconBox, { backgroundColor: '#FEF3C7' }]}>
+                <Key size={16} color="#D97706" />
+              </View>
+            </View>
+            <ThemedText style={styles.metricVal}>{displayReleased}</ThemedText>
+            <ThemedText style={styles.metricSubText}>Total released vehicles</ThemedText>
+          </View>
+
+          {/* Card 4: Today Revenue */}
+          <View style={styles.metricCard}>
+            <View style={styles.metricHeader}>
+              <ThemedText style={styles.metricLabel}>Today Revenue</ThemedText>
+              <View style={[styles.metricIconBox, { backgroundColor: '#E0F2FE' }]}>
+                <DollarSign size={16} color="#0284C7" />
+              </View>
+            </View>
+            <ThemedText style={styles.metricVal}>₹{stats?.dailyRevenue?.today?.amount ?? 0}</ThemedText>
+            <ThemedText style={styles.metricSubText}>{stats?.dailyRevenue?.today?.count ?? 0} collections</ThemedText>
+          </View>
+        </View>
+
+        {/* Secondary Tools Horizontal Bar */}
+        <ThemedText style={styles.sectionTitle}>Quick Tools</ThemedText>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickToolsRow}>
+          <TouchableOpacity
+            style={styles.toolChip}
+            onPress={() => router.push('/admin/reports')}
+            activeOpacity={0.8}
+          >
+            <FileText size={16} color="#8B5CF6" />
+            <ThemedText style={styles.toolChipText}>Reports</ThemedText>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.toolChip}
+            onPress={() => router.push('/admin/calculate-charges')}
+            activeOpacity={0.8}
+          >
+            <DollarSign size={16} color="#0D9488" />
+            <ThemedText style={styles.toolChipText}>Charges Calculator</ThemedText>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.toolChip}
+            onPress={() => router.push('/admin/banks')}
+            activeOpacity={0.8}
+          >
+            <Building size={16} color="#3B82F6" />
+            <ThemedText style={styles.toolChipText}>Bank Master</ThemedText>
+          </TouchableOpacity>
+        </ScrollView>
 
         {/* Financial Performance Section */}
         <ThemedText style={styles.sectionTitle}>Financial Performance</ThemedText>
@@ -2508,5 +2464,154 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: '#94A3B8',
     fontWeight: '600',
+  },
+  heroActionGrid: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+  },
+  heroCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  heroCardPrimary: {
+    backgroundColor: '#4F46E5',
+    borderColor: '#4F46E5',
+  },
+  heroIconBgPrimary: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroCardTitlePrimary: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  heroCardSubPrimary: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#E0E7FF',
+  },
+  heroCardTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  heroCardSub: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  metricsGrid: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 6,
+  },
+  metricCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  metricHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  metricLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  metricIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  metricVal: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  metricSubText: {
+    fontSize: 10,
+    color: '#94A3B8',
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  pillsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 6,
+  },
+  pakkaPill: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  pakkaPillText: {
+    color: '#15803D',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  kachhaPill: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  kachhaPillText: {
+    color: '#B45309',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  quickToolsRow: {
+    gap: 10,
+    paddingVertical: 4,
+  },
+  toolChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  toolChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
   },
 });
