@@ -730,11 +730,29 @@ export default function BanksScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              <ThemedText style={styles.modalLabel}>3-Phase Bank Parking Config</ThemedText>
-              
+              {/* Primary Vehicle Category Rates (2W, 3W, 4W, CV) */}
+              <ThemedText style={styles.modalLabel}>Vehicle Daily Rates (2W / 3W / 4W / CV)</ThemedText>
+              <View style={styles.ratesInputGrid}>
+                {VEHICLE_TYPES.map(t => (
+                  <View key={t} style={styles.rateInputItem}>
+                    <ThemedText style={styles.rateInputLabel}>{TYPE_LABELS[t]}</ThemedText>
+                    <TextInput
+                      style={styles.rateInput}
+                      value={editingRates[t]}
+                      onChangeText={val => setEditingRates(prev => ({ ...prev, [t]: val }))}
+                      keyboardType="numeric"
+                      placeholder="0"
+                      placeholderTextColor="#94A3B8"
+                    />
+                  </View>
+                ))}
+              </View>
+
+              {/* 3-Phase Lifecycle & Waiver Settings */}
+              <ThemedText style={[styles.modalLabel, { marginTop: 15 }]}>3-Phase Charging & Waiver Settings</ThemedText>
               <View style={{ gap: 10, marginBottom: 15 }}>
                 <View>
-                  <ThemedText style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 4 }}>Kachha Rate (₹/day)</ThemedText>
+                  <ThemedText style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 4 }}>Kachha Phase Rate (₹/day)</ThemedText>
                   <TextInput
                     style={styles.modalInput}
                     value={kachhaRate}
@@ -746,7 +764,7 @@ export default function BanksScreen() {
                 </View>
 
                 <View>
-                  <ThemedText style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 4 }}>Pakka Rate (₹/day)</ThemedText>
+                  <ThemedText style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 4 }}>Pakka Phase Rate (₹/day)</ThemedText>
                   <TextInput
                     style={styles.modalInput}
                     value={pakkaRate}
@@ -758,7 +776,7 @@ export default function BanksScreen() {
                 </View>
 
                 <View>
-                  <ThemedText style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 4 }}>Release Order Rate (₹/day)</ThemedText>
+                  <ThemedText style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 4 }}>Release Order Phase Rate (₹/day)</ThemedText>
                   <TextInput
                     style={styles.modalInput}
                     value={roRate}
@@ -801,24 +819,8 @@ export default function BanksScreen() {
                   </View>
                 </View>
               </View>
-
-              <ThemedText style={styles.modalLabel}>Vehicle Daily Parking Rates (₹/day)</ThemedText>
-              <View style={styles.ratesInputGrid}>
-                {VEHICLE_TYPES.map(t => (
-                  <View key={t} style={styles.rateInputItem}>
-                    <ThemedText style={styles.rateInputLabel}>{TYPE_LABELS[t]}</ThemedText>
-                    <TextInput
-                      style={styles.rateInput}
-                      value={editingRates[t]}
-                      onChangeText={val => setEditingRates(prev => ({ ...prev, [t]: val }))}
-                      keyboardType="numeric"
-                      placeholder="0"
-                      placeholderTextColor="#94A3B8"
-                    />
-                  </View>
-                ))}
-              </View>
             </ScrollView>
+
 
 
             <TouchableOpacity
