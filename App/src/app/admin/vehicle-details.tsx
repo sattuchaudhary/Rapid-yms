@@ -690,13 +690,84 @@ export default function VehicleDetailsScreen() {
             <ThemedText style={styles.modelName}>
               {vehicle.brand || 'No brand'} {vehicle.model || ''}
             </ThemedText>
-            <View style={styles.statusBadge}>
-              <ThemedText style={styles.statusBadgeText}>
-                {vehicle.yardStatus === 'KACHHA' ? 'In Yard (Kachha)' : vehicle.yardStatus === 'PAKKA' ? 'In Yard' : vehicle.yardStatus}
+            
+            {/* 3-Phase Status Pill */}
+            <View style={[
+              styles.lifecycleBadgePill,
+              vehicle.yardStatus === 'KACHHA' ? styles.bgKachhaPill :
+              (vehicle.yardStatus === 'RELEASED' || vehicle.status === 'RELEASED' || vehicle.status === 'CHECKED_OUT') ? styles.bgReleasedPill : styles.bgPakkaPill
+            ]}>
+              <ThemedText style={[
+                styles.lifecycleBadgePillText,
+                vehicle.yardStatus === 'KACHHA' ? styles.textKachhaPill :
+                (vehicle.yardStatus === 'RELEASED' || vehicle.status === 'RELEASED' || vehicle.status === 'CHECKED_OUT') ? styles.textReleasedPill : styles.textPakkaPill
+              ]}>
+                {vehicle.yardStatus === 'KACHHA' ? '🟠 KACHHA (Repo Kit Pending)' :
+                 (vehicle.yardStatus === 'RELEASED' || vehicle.status === 'RELEASED' || vehicle.status === 'CHECKED_OUT') ? '🔵 RELEASED (Vehicle Exited)' : '🟢 PAKKA (Billing Active)'}
               </ThemedText>
             </View>
           </View>
         </View>
+
+        {/* Phase-Specific Action Banners */}
+        {vehicle.yardStatus === 'KACHHA' && (
+          <TouchableOpacity
+            style={styles.bannerKachha}
+            onPress={() => router.push({ pathname: '/admin/kachha-to-pakka', params: { id: vehicle.id } })}
+            activeOpacity={0.85}
+          >
+            <View style={styles.bannerLeftRow}>
+              <View style={styles.badgeKachhaDot} />
+              <View style={{ flex: 1 }}>
+                <ThemedText style={styles.bannerKachhaTitle}>⚠️ Billing Inactive — Repo Kit Pending</ThemedText>
+                <ThemedText style={styles.bannerKachhaSub}>Tap to submit Repo Kit & convert to PAKKA</ThemedText>
+              </View>
+            </View>
+            <ThemedText style={styles.bannerKachhaBtn}>Submit →</ThemedText>
+          </TouchableOpacity>
+        )}
+
+        {vehicle.yardStatus === 'PAKKA' && (
+          <View style={styles.bannerPakka}>
+            <View style={styles.bannerLeftRow}>
+              <View style={styles.badgePakkaDot} />
+              <View style={{ flex: 1 }}>
+                <ThemedText style={styles.bannerPakkaTitle}>🟢 PAKKA — Active Billing ({getDurationDays()} Days)</ThemedText>
+                <ThemedText style={styles.bannerPakkaSub}>Accrued Dues: ₹{getTotalCharges()} (₹{getDailyRate()}/Day)</ThemedText>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.bannerPakkaReleaseBtn}
+              onPress={() => router.push({ pathname: '/admin/check-out', params: { plate: vehicle.vehicleNumber } })}
+              activeOpacity={0.85}
+            >
+              <Key size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+              <ThemedText style={styles.bannerPakkaReleaseBtnText}>Release</ThemedText>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {(vehicle.yardStatus === 'RELEASED' || vehicle.status === 'RELEASED' || vehicle.status === 'CHECKED_OUT') && (
+          <View style={styles.bannerReleased}>
+            <View style={styles.bannerLeftRow}>
+              <View style={styles.badgeReleasedDot} />
+              <View style={{ flex: 1 }}>
+                <ThemedText style={styles.bannerReleasedTitle}>✅ RELEASED — Vehicle Exited Yard</ThemedText>
+                <ThemedText style={styles.bannerReleasedSub}>
+                  Paid: ₹{billing?.paidAmount || billing?.totalAmount || getTotalCharges()} • Gate Pass Issued
+                </ThemedText>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.bannerReleasedPrintBtn}
+              onPress={downloadAndSharePDF}
+              activeOpacity={0.85}
+            >
+              <Printer size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+              <ThemedText style={styles.bannerReleasedPrintBtnText}>Print</ThemedText>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Card 1: Specifications & Yard Info */}
         <View style={styles.sectionCard}>
@@ -746,7 +817,14 @@ export default function VehicleDetailsScreen() {
           </View>
           <View style={styles.detailRow}>
             <ThemedText style={styles.detailLabel}>Customer Mob No.</ThemedText>
-            <ThemedText style={styles.detailValue}>{vehicle.customerPhone || 'N/A'}</ThemedText>
+            <TouchableOpacity 
+              onPress={() => vehicle.customerPhone && Linking.openURL(`tel:${vehicle.customerPhone}`)}
+              disabled={!vehicle.customerPhone}
+            >
+              <ThemedText style={[styles.detailValue, vehicle.customerPhone ? { color: '#4F46E5', textDecorationLine: 'underline' } : null]}>
+                {vehicle.customerPhone || 'N/A'}
+              </ThemedText>
+            </TouchableOpacity>
           </View>
           <View style={styles.detailRow}>
             <ThemedText style={styles.detailLabel}>Bank Name</ThemedText>
@@ -2077,6 +2155,154 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#0F172A',
     fontWeight: '600',
+  },
+  lifecycleBadgePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  lifecycleBadgePillText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  bgKachhaPill: { backgroundColor: '#FEF3C7' },
+  textKachhaPill: { color: '#B45309' },
+  bgPakkaPill: { backgroundColor: '#DCFCE7' },
+  textPakkaPill: { color: '#15803D' },
+  bgReleasedPill: { backgroundColor: '#E0F2FE' },
+  textReleasedPill: { color: '#0369A1' },
+
+  bannerLeftRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  bannerKachha: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+    marginHorizontal: 16,
+    justifyContent: 'space-between',
+  },
+  badgeKachhaDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#F59E0B',
+  },
+  bannerKachhaTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#92400E',
+  },
+  bannerKachhaSub: {
+    fontSize: 11,
+    color: '#B45309',
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  bannerKachhaBtn: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#D97706',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+
+  bannerPakka: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+    marginHorizontal: 16,
+    justifyContent: 'space-between',
+  },
+  badgePakkaDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#10B981',
+  },
+  bannerPakkaTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#166534',
+  },
+  bannerPakkaSub: {
+    fontSize: 11,
+    color: '#15803D',
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  bannerPakkaReleaseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#16A34A',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  bannerPakkaReleaseBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  bannerReleased: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+    marginHorizontal: 16,
+    justifyContent: 'space-between',
+  },
+  badgeReleasedDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#0EA5E9',
+  },
+  bannerReleasedTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#075985',
+  },
+  bannerReleasedSub: {
+    fontSize: 11,
+    color: '#0369A1',
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  bannerReleasedPrintBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  bannerReleasedPrintBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });
 
