@@ -8,7 +8,10 @@ import {
   addVehiclePhotoService,
   deleteVehicleService,
   deleteVehiclePhotoService,
+  getVehicleParkingCalculationService,
+  getVehicleParkingTransactionsService,
 } from './vehicle.service';
+
 import prisma from '../common/prisma';
 import { z } from 'zod';
 
@@ -39,8 +42,12 @@ const createVehicleSchema = z.object({
 const updateVehicleSchema = createVehicleSchema.partial().extend({
   yardStatus: z.enum(['KACHHA', 'PAKKA', 'RELEASED']).optional(),
   repoKitDate: z.string().optional(),
+  kachhaStartDate: z.string().optional(),
   pakkaDate: z.string().optional(),
+  releaseOrderDate: z.string().optional(),
+  releasePersonType: z.enum(['CUSTOMER', 'BUYER']).optional(),
 });
+
 
 export const getVehicles = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -193,3 +200,48 @@ export const createYardLocation = async (req: AuthRequest, res: Response, next: 
     next(err);
   }
 };
+
+export const getVehicleParkingCalculation = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user!.tenantId;
+    const releasePersonType = req.query.releasePersonType as 'CUSTOMER' | 'BUYER' | undefined;
+    const todayDate = req.query.todayDate as string | undefined;
+
+    const calculation = await getVehicleParkingCalculationService(id, tenantId, {
+      releasePersonType,
+      todayDate,
+    });
+    res.json({ success: true, data: calculation });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const recalculateVehicleParking = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user!.tenantId;
+    const { releasePersonType, todayDate } = req.body || {};
+
+    const calculation = await getVehicleParkingCalculationService(id, tenantId, {
+      releasePersonType,
+      todayDate,
+    });
+    res.json({ success: true, data: calculation });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getVehicleParkingTransactions = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user!.tenantId;
+    const transactions = await getVehicleParkingTransactionsService(id, tenantId);
+    res.json({ success: true, data: transactions });
+  } catch (err) {
+    next(err);
+  }
+};
+

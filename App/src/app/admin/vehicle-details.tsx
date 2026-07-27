@@ -146,6 +146,8 @@ export default function VehicleDetailsScreen() {
     );
   };
 
+  const [parkingCalculation, setParkingCalculation] = useState<any | null>(null);
+
   const fetchVehicleDetails = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -160,6 +162,16 @@ export default function VehicleDetailsScreen() {
         if (res.success && res.data) {
           setVehicle(res.data);
           
+          // Fetch dynamic 3-phase parking calculation
+          try {
+            const calcRes = await apiRequest(`/api/vehicles/${id}/parking-calculation`);
+            if (calcRes.success && calcRes.data) {
+              setParkingCalculation(calcRes.data);
+            }
+          } catch (calcErr) {
+            console.warn('[VehicleDetails] Failed to fetch parking calculation:', calcErr);
+          }
+
           // Try fetching calculated billing
           try {
             const billRes = await apiRequest(`/api/billing/${id}`);
@@ -172,6 +184,7 @@ export default function VehicleDetailsScreen() {
         } else {
           setError('Could not retrieve vehicle information.');
         }
+
       } else {
         // Offline: try loading from SQLite cache
         const cached = getCachedVehicleById(id as string);

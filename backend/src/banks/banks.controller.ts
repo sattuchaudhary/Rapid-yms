@@ -14,6 +14,15 @@ const ratesSchema = z.object({
   CV: z.number().nonnegative('CV rate must be positive or zero'),
 });
 
+const parkingConfigSchema = z.object({
+  parkingEnabled: z.boolean().default(true),
+  kachhaParkingRate: z.number().nonnegative('Kachha rate must be non-negative').default(0),
+  pakkaParkingRate: z.number().nonnegative('Pakka rate must be non-negative').default(0),
+  releaseOrderParkingRate: z.number().nonnegative('Release order rate must be non-negative').default(0),
+  parkingPayer: z.enum(['CUSTOMER', 'BANK']).default('CUSTOMER'),
+  parkingWaiverDays: z.number().int().nonnegative('Waiver days must be non-negative integer').default(0),
+});
+
 const createBankSchema = z.object({
   name: z.string().min(1, 'Bank or Partner Name is required'),
   isThirdParty: z.boolean().default(false),
@@ -25,12 +34,24 @@ const createBankSchema = z.object({
       rates: ratesSchema,
     })
   ).optional(),
+  parkingEnabled: z.boolean().optional(),
+  kachhaParkingRate: z.number().nonnegative().optional(),
+  pakkaParkingRate: z.number().nonnegative().optional(),
+  releaseOrderParkingRate: z.number().nonnegative().optional(),
+  parkingPayer: z.enum(['CUSTOMER', 'BANK']).optional(),
+  parkingWaiverDays: z.number().int().nonnegative().optional(),
 });
 
 const updateBankSchema = z.object({
   name: z.string().min(1, 'Bank Name is required'),
   parentId: z.string().nullable().optional(),
   isThirdParty: z.boolean().optional(),
+  parkingEnabled: z.boolean().optional(),
+  kachhaParkingRate: z.number().nonnegative().optional(),
+  pakkaParkingRate: z.number().nonnegative().optional(),
+  releaseOrderParkingRate: z.number().nonnegative().optional(),
+  parkingPayer: z.enum(['CUSTOMER', 'BANK']).optional(),
+  parkingWaiverDays: z.number().int().nonnegative().optional(),
 });
 
 export const getBanks = async (req: Request, res: Response, next: NextFunction) => {
@@ -53,7 +74,15 @@ export const createBank = async (req: Request, res: Response, next: NextFunction
       parsed.isThirdParty,
       parsed.parentId,
       parsed.rates,
-      parsed.subBanks
+      parsed.subBanks,
+      {
+        parkingEnabled: parsed.parkingEnabled,
+        kachhaParkingRate: parsed.kachhaParkingRate,
+        pakkaParkingRate: parsed.pakkaParkingRate,
+        releaseOrderParkingRate: parsed.releaseOrderParkingRate,
+        parkingPayer: parsed.parkingPayer,
+        parkingWaiverDays: parsed.parkingWaiverDays,
+      }
     );
     res.status(201).json({ success: true, data: bank });
   } catch (err) {
@@ -71,13 +100,22 @@ export const updateBank = async (req: Request, res: Response, next: NextFunction
       tenantId,
       parsed.name,
       parsed.parentId,
-      parsed.isThirdParty
+      parsed.isThirdParty,
+      {
+        parkingEnabled: parsed.parkingEnabled,
+        kachhaParkingRate: parsed.kachhaParkingRate,
+        pakkaParkingRate: parsed.pakkaParkingRate,
+        releaseOrderParkingRate: parsed.releaseOrderParkingRate,
+        parkingPayer: parsed.parkingPayer,
+        parkingWaiverDays: parsed.parkingWaiverDays,
+      }
     );
     res.json({ success: true, data: bank });
   } catch (err) {
     next(err);
   }
 };
+
 
 export const deleteBank = async (req: Request, res: Response, next: NextFunction) => {
   try {

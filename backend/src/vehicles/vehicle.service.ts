@@ -1,6 +1,8 @@
 import prisma from '../common/prisma';
 import { VehicleType, YardStatus } from '@prisma/client';
 import { AppError } from '../common/error.handler';
+import { calculateParkingCharges } from '../billing/parkingChargeEngine';
+
 import { getS3ClientForTenant } from '../common/s3Manager';
 import { GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -321,6 +323,7 @@ export const createVehicleEntryService = async (
   // Use transaction to create vehicle, setup checklist, assign slot, and create billing engine stub
   return prisma.$transaction(async (tx) => {
     // 1. Create the vehicle
+    const entryDate = data.entryDate ? new Date(data.entryDate) : new Date();
     const vehicle = await tx.vehicle.create({
       data: {
         tenantId,
@@ -336,7 +339,8 @@ export const createVehicleEntryService = async (
         bankId,
         repoAgency: data.repoAgency,
         repoDate: data.repoDate ? new Date(data.repoDate) : new Date(),
-        entryDate: data.entryDate ? new Date(data.entryDate) : new Date(),
+        entryDate,
+        kachhaStartDate: entryDate,
         customerName: data.customerName,
         customerPhone: data.customerPhone,
         customerSign: data.customerSign,
@@ -344,6 +348,19 @@ export const createVehicleEntryService = async (
         yardStatus: 'KACHHA', // Default enters as Kachha
       },
     });
+
+    // 1b. Create initial Status History
+    await tx.vehicleStatusHistory.create({
+      data: {
+        tenantId,
+        vehicleId: vehicle.id,
+        fromStatus: null,
+        toStatus: 'KACHHA',
+        changedById: userId,
+        reason: 'Initial Vehicle Check-In (Kachha)',
+      },
+    });
+
 
     // 2. Initialize the Inventory Checklist if provided, else use defaults
     const items = data.inventory || [
@@ -434,7 +451,10 @@ export const updateVehicleService = async (
     yardLocationId?: string;
     yardStatus?: YardStatus;
     repoKitDate?: string;
+    kachhaStartDate?: string;
     pakkaDate?: string;
+    releaseOrderDate?: string;
+    releasePersonType?: 'CUSTOMER' | 'BUYER';
     entryDate?: string;
     inventory?: { itemName: string; isPresent: boolean; remarks?: string }[];
   }
@@ -462,16 +482,32 @@ export const updateVehicleService = async (
   }
 
   if (data.repoKitDate) updateData.repoKitDate = new Date(data.repoKitDate);
+  if (data.kachhaStartDate) updateData.kachhaStartDate = new Date(data.kachhaStartDate);
   if (data.pakkaDate) updateData.pakkaDate = new Date(data.pakkaDate);
+  if (data.releaseOrderDate) updateData.releaseOrderDate = new Date(data.releaseOrderDate);
   if (data.entryDate) updateData.entryDate = new Date(data.entryDate);
 
   // If status is transitioning to PAKKA
   if (data.yardStatus === 'PAKKA' && vehicle.yardStatus === 'KACHHA') {
-    updateData.pakkaDate = new Date();
-    updateData.billingStart = new Date();
+    if (!updateData.pakkaDate) updateData.pakkaDate = new Date();
+    updateData.billingStart = updateData.pakkaDate;
   }
 
   return prisma.$transaction(async (tx) => {
+    // Record status history if yardStatus changes
+    if (data.yardStatus && data.yardStatus !== vehicle.yardStatus) {
+      await tx.vehicleStatusHistory.create({
+        data: {
+          tenantId,
+          vehicleId: id,
+          fromStatus: vehicle.yardStatus,
+          toStatus: data.yardStatus,
+          changedById: userId,
+          reason: `Yard status updated to ${data.yardStatus}`,
+        },
+      });
+    }
+
     // Location slot change logic
     if (data.yardLocationId && data.yardLocationId !== oldLocationId) {
       if (oldLocationId) {
@@ -690,3 +726,117 @@ export const deleteVehiclePhotoService = async (tenantId: string, vehicleId: str
     where: { id: photoId },
   });
 };
+
+export const getVehicleParkingCalculationService = async (
+  vehicleId: string,
+  tenantId: string,
+  options?: {
+    todayDate?: string;
+    releasePersonType?: 'CUSTOMER' | 'BUYER';
+  }
+) => {
+  const vehicle = await prisma.vehicle.findFirst({
+    where: { id: vehicleId, tenantId },
+    include: {
+      bank: true,
+      release: true,
+      parkingTransactions: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
+    },
+  });
+
+  if (!vehicle) throw new AppError('Vehicle not found', 404);
+
+  // If vehicle is released and has a snapshot, return frozen calculation snapshot
+  if (vehicle.yardStatus === 'RELEASED' && vehicle.parkingTransactions.length > 0) {
+    const snap = vehicle.parkingTransactions[0];
+    return {
+      kachha: {
+        startDate: snap.kachhaStartDate ? snap.kachhaStartDate.toISOString().split('T')[0] : null,
+        endDate: snap.kachhaEndDate ? snap.kachhaEndDate.toISOString().split('T')[0] : null,
+        days: snap.kachhaDays,
+        rate: snap.kachhaRate,
+        amount: snap.kachhaAmount,
+      },
+      pakka: {
+        startDate: snap.pakkaStartDate ? snap.pakkaStartDate.toISOString().split('T')[0] : null,
+        endDate: snap.pakkaEndDate ? snap.pakkaEndDate.toISOString().split('T')[0] : null,
+        days: snap.pakkaDays,
+        rate: snap.pakkaRate,
+        amount: snap.pakkaAmount,
+      },
+      releaseOrder: {
+        startDate: snap.releaseOrderDate ? snap.releaseOrderDate.toISOString().split('T')[0] : null,
+        endDate: snap.actualReleaseDate ? snap.actualReleaseDate.toISOString().split('T')[0] : null,
+        days: snap.chargeableRoDays,
+        grossDays: snap.roDays,
+        waiverDays: snap.waiverDays,
+        chargeableDays: snap.chargeableRoDays,
+        rate: snap.roRate,
+        grossAmount: snap.roGrossAmount,
+        waiverAmount: snap.waiverAmount,
+        netAmount: snap.roNetAmount,
+        amount: snap.roNetAmount,
+      },
+      totals: {
+        totalDays: snap.kachhaDays + snap.pakkaDays + snap.roDays,
+        grossAmount: snap.grossAmount,
+        waiverAmount: snap.waiverAmount,
+        netAmount: snap.netAmount,
+        customerPayable: snap.customerPayable,
+        bankAbsorbed: snap.bankAbsorbed,
+      },
+      payer: snap.parkingPayer,
+      releasePerson: snap.releasePersonType,
+      isFinalSnapshot: true,
+      snapshotId: snap.id,
+      releasedAt: snap.releasedAt,
+    };
+  }
+
+  // Live dynamic calculation for unreleased vehicle
+  let bankConfig = vehicle.bank;
+  if (!bankConfig && vehicle.bankName) {
+    bankConfig = await prisma.bank.findFirst({
+      where: { tenantId, name: { equals: vehicle.bankName, mode: 'insensitive' } },
+    });
+  }
+
+  const kachhaParkingRate = bankConfig?.kachhaParkingRate ?? 0;
+  const pakkaParkingRate = bankConfig?.pakkaParkingRate ?? 0;
+  const releaseOrderParkingRate = bankConfig?.releaseOrderParkingRate ?? 0;
+  const parkingWaiverDays = bankConfig?.parkingWaiverDays ?? 0;
+  const parkingPayer = bankConfig?.parkingPayer ?? 'CUSTOMER';
+
+  return calculateParkingCharges({
+    kachhaStartDate: vehicle.kachhaStartDate || vehicle.entryDate,
+    pakkaDate: vehicle.pakkaDate,
+    releaseOrderDate: vehicle.releaseOrderDate,
+    actualReleaseDate: vehicle.actualReleaseDate,
+    kachhaParkingRate,
+    pakkaParkingRate,
+    releaseOrderParkingRate,
+    parkingWaiverDays,
+    parkingPayer,
+    releasePersonType: options?.releasePersonType || vehicle.releasePersonType || 'CUSTOMER',
+    todayDate: options?.todayDate,
+  });
+};
+
+export const getVehicleParkingTransactionsService = async (
+  vehicleId: string,
+  tenantId: string
+) => {
+  const vehicle = await prisma.vehicle.findFirst({
+    where: { id: vehicleId, tenantId },
+  });
+  if (!vehicle) throw new AppError('Vehicle not found', 404);
+
+  return prisma.parkingTransaction.findMany({
+    where: { vehicleId, tenantId },
+    orderBy: { createdAt: 'desc' },
+  });
+};
+

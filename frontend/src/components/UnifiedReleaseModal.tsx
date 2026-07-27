@@ -35,10 +35,35 @@ export const UnifiedReleaseModal: React.FC<UnifiedReleaseModalProps> = ({
 
   // Form States
   const [relCategory, setRelCategory] = useState<'PAKKA' | 'KACHHA' | 'SPECIAL'>('PAKKA');
+  const [releasePersonType, setReleasePersonType] = useState<'CUSTOMER' | 'BUYER'>('CUSTOMER');
+  const [calcEngineResult, setCalcEngineResult] = useState<any | null>(null);
+  const [loadingCalculation, setLoadingCalculation] = useState(false);
   const [relDate, setRelDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [relLetterDate, setRelLetterDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [relGracePeriod, setRelGracePeriod] = useState<number>(0);
   const [relParkingRate, setRelParkingRate] = useState<number>(150);
+
+  // Fetch 3-Phase Parking Engine calculation when selected vehicle or release person changes
+  useEffect(() => {
+    if (!selectedRelVehicle?.id) return;
+    const fetchCalc = async () => {
+      try {
+        setLoadingCalculation(true);
+        const res = await api.get(`/vehicles/${selectedRelVehicle.id}/parking-calculation`, {
+          params: { releasePersonType }
+        });
+        if (res.data?.success) {
+          setCalcEngineResult(res.data.data);
+        }
+      } catch (err) {
+        console.error('Failed to load 3-phase parking calculation', err);
+      } finally {
+        setLoadingCalculation(false);
+      }
+    };
+    fetchCalc();
+  }, [selectedRelVehicle?.id, releasePersonType]);
+
 
   // Special/Dispute States
   const [disputeCondition, setDisputeCondition] = useState<'FREE' | 'PAID'>('FREE');
@@ -122,6 +147,9 @@ export const UnifiedReleaseModal: React.FC<UnifiedReleaseModalProps> = ({
 
   const calculateReleaseFees = () => {
     if (!selectedRelVehicle) return 0;
+    if (calcEngineResult) {
+      return calcEngineResult.totals.customerPayable;
+    }
 
     const end = new Date(relDate);
 
@@ -214,6 +242,7 @@ export const UnifiedReleaseModal: React.FC<UnifiedReleaseModalProps> = ({
     try {
       const payload = {
         releaseType: relCategory,
+        releasePersonType,
         releaseLetter: relDocs.releaseLetter,
         customerIdProof: relDocs.ownerIdProof,
         thirdPartyIdProof: relDocs.thirdPartyIdProof,
@@ -223,6 +252,7 @@ export const UnifiedReleaseModal: React.FC<UnifiedReleaseModalProps> = ({
         totalAmount: fees,
         approvedTillDate: relCategory === 'PAKKA' ? relDate : undefined,
       };
+
 
       const res = await api.post(`/releases/${selectedRelVehicle.id}/direct`, payload);
       if (res.data?.success) {

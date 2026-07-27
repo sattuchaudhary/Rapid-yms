@@ -108,6 +108,7 @@ export const completeHandover = async (req: AuthRequest, res: Response, next: Ne
 
 const directReleaseSchema = z.object({
   releaseType: z.enum(['PAKKA', 'KACHHA', 'SPECIAL']),
+  releasePersonType: z.enum(['CUSTOMER', 'BUYER']).optional(),
   releaseLetter: z.string().optional(),
   customerIdProof: z.string().min(5, 'Owner ID proof required'),
   thirdPartyIdProof: z.string().optional(),
@@ -120,6 +121,7 @@ const directReleaseSchema = z.object({
   approvedTillDate: z.string().optional(),
   paymentMode: z.string().optional(),
 });
+
 
 export const directRelease = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {

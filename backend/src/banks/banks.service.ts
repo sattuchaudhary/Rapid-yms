@@ -18,13 +18,23 @@ export const getBanksService = async (tenantId: string) => {
   });
 };
 
+export interface BankParkingConfig {
+  parkingEnabled?: boolean;
+  kachhaParkingRate?: number;
+  pakkaParkingRate?: number;
+  releaseOrderParkingRate?: number;
+  parkingPayer?: 'CUSTOMER' | 'BANK';
+  parkingWaiverDays?: number;
+}
+
 export const createBankService = async (
   tenantId: string,
   name: string,
   isThirdParty: boolean = false,
   parentId?: string | null,
   rates?: { TW: number; THREE_W: number; FW: number; CV: number },
-  subBanks?: Array<{ name: string; rates: { TW: number; THREE_W: number; FW: number; CV: number } }>
+  subBanks?: Array<{ name: string; rates: { TW: number; THREE_W: number; FW: number; CV: number } }>,
+  parkingConfig?: BankParkingConfig
 ) => {
   return prisma.$transaction(async (tx) => {
     // A. Verify case-insensitive duplicate naming under this level
@@ -60,6 +70,12 @@ export const createBankService = async (
         name: name.trim(),
         isThirdParty,
         parentId: parentId || null,
+        parkingEnabled: parkingConfig?.parkingEnabled ?? true,
+        kachhaParkingRate: parkingConfig?.kachhaParkingRate ?? 0,
+        pakkaParkingRate: parkingConfig?.pakkaParkingRate ?? 0,
+        releaseOrderParkingRate: parkingConfig?.releaseOrderParkingRate ?? 0,
+        parkingPayer: parkingConfig?.parkingPayer === 'BANK' ? 'BANK' : 'CUSTOMER',
+        parkingWaiverDays: parkingConfig?.parkingWaiverDays ?? 0,
       },
     });
 
@@ -101,6 +117,12 @@ export const createBankService = async (
             name: sb.name.trim(),
             isThirdParty: false,
             parentId: bank.id,
+            parkingEnabled: parkingConfig?.parkingEnabled ?? true,
+            kachhaParkingRate: parkingConfig?.kachhaParkingRate ?? 0,
+            pakkaParkingRate: parkingConfig?.pakkaParkingRate ?? 0,
+            releaseOrderParkingRate: parkingConfig?.releaseOrderParkingRate ?? 0,
+            parkingPayer: parkingConfig?.parkingPayer === 'BANK' ? 'BANK' : 'CUSTOMER',
+            parkingWaiverDays: parkingConfig?.parkingWaiverDays ?? 0,
           },
         });
 
@@ -129,7 +151,8 @@ export const updateBankService = async (
   tenantId: string,
   name: string,
   parentId?: string | null,
-  isThirdParty?: boolean
+  isThirdParty?: boolean,
+  parkingConfig?: BankParkingConfig
 ) => {
   // Check if another bank at this level already has this name
   const existing = await prisma.bank.findFirst({
@@ -144,13 +167,24 @@ export const updateBankService = async (
     throw new AppError(`A bank or sub-bank named "${name}" already exists.`, 400);
   }
 
+  const updateData: any = {
+    name: name.trim(),
+    parentId: parentId || null,
+    ...(isThirdParty !== undefined && { isThirdParty }),
+  };
+
+  if (parkingConfig) {
+    if (parkingConfig.parkingEnabled !== undefined) updateData.parkingEnabled = parkingConfig.parkingEnabled;
+    if (parkingConfig.kachhaParkingRate !== undefined) updateData.kachhaParkingRate = parkingConfig.kachhaParkingRate;
+    if (parkingConfig.pakkaParkingRate !== undefined) updateData.pakkaParkingRate = parkingConfig.pakkaParkingRate;
+    if (parkingConfig.releaseOrderParkingRate !== undefined) updateData.releaseOrderParkingRate = parkingConfig.releaseOrderParkingRate;
+    if (parkingConfig.parkingPayer !== undefined) updateData.parkingPayer = parkingConfig.parkingPayer;
+    if (parkingConfig.parkingWaiverDays !== undefined) updateData.parkingWaiverDays = parkingConfig.parkingWaiverDays;
+  }
+
   return prisma.bank.update({
     where: { id, tenantId },
-    data: {
-      name: name.trim(),
-      parentId: parentId || null,
-      ...(isThirdParty !== undefined && { isThirdParty }),
-    },
+    data: updateData,
   });
 };
 
@@ -159,3 +193,4 @@ export const deleteBankService = async (id: string, tenantId: string) => {
     where: { id, tenantId },
   });
 };
+

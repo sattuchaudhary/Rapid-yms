@@ -1,6 +1,8 @@
 import prisma from '../common/prisma';
 import { ReleaseStatus, YardStatus } from '@prisma/client';
 import { AppError } from '../common/error.handler';
+import { calculateParkingCharges } from '../billing/parkingChargeEngine';
+
 
 export const getReleaseStatusService = async (vehicleId: string, tenantId: string) => {
   const release = await prisma.release.findFirst({
@@ -244,6 +246,7 @@ export const directReleaseVehicleService = async (
   userId: string,
   data: {
     releaseType: string;
+    releasePersonType?: 'CUSTOMER' | 'BUYER';
     releaseLetter?: string;
     customerIdProof: string;
     thirdPartyIdProof?: string;
@@ -259,10 +262,9 @@ export const directReleaseVehicleService = async (
 ) => {
   const vehicle = await prisma.vehicle.findFirst({
     where: { id: vehicleId, tenantId },
+    include: { bank: true },
   });
   if (!vehicle) throw new AppError('Vehicle not found', 404);
-  // Allow multiple releases of a vehicle (e.g. for generating new passes or testing)
-  // if (vehicle.yardStatus === 'RELEASED') throw new AppError('Vehicle already released', 400);
 
   const existingRelease = await prisma.release.findUnique({
     where: { vehicleId },
@@ -270,6 +272,28 @@ export const directReleaseVehicleService = async (
 
   const gatePassNumber = `GP-${Date.now().toString().slice(-8)}`;
   const gatePassUrl = `https://yms-uploads.s3.amazonaws.com/gatepasses/${gatePassNumber}.pdf`;
+  const now = new Date();
+  const releasePerson: 'CUSTOMER' | 'BUYER' = data.releasePersonType || vehicle.releasePersonType || 'CUSTOMER';
+
+  let bankConfig = vehicle.bank;
+  if (!bankConfig && vehicle.bankName) {
+    bankConfig = await prisma.bank.findFirst({
+      where: { tenantId, name: { equals: vehicle.bankName, mode: 'insensitive' } },
+    });
+  }
+
+  const calcResult = calculateParkingCharges({
+    kachhaStartDate: vehicle.kachhaStartDate || vehicle.entryDate,
+    pakkaDate: vehicle.pakkaDate,
+    releaseOrderDate: vehicle.releaseOrderDate,
+    actualReleaseDate: now,
+    kachhaParkingRate: bankConfig?.kachhaParkingRate ?? 0,
+    pakkaParkingRate: bankConfig?.pakkaParkingRate ?? 0,
+    releaseOrderParkingRate: bankConfig?.releaseOrderParkingRate ?? 0,
+    parkingWaiverDays: bankConfig?.parkingWaiverDays ?? 0,
+    parkingPayer: bankConfig?.parkingPayer ?? 'CUSTOMER',
+    releasePersonType: releasePerson,
+  });
 
   return prisma.$transaction(async (tx) => {
     // 1. Create or update the Release record in RELEASED status
@@ -289,8 +313,8 @@ export const directReleaseVehicleService = async (
           gatePassNumber,
           gatePassUrl,
           approvedById: userId,
-          approvedAt: new Date(),
-          releasedAt: new Date(),
+          approvedAt: now,
+          releasedAt: now,
         },
       });
     } else {
@@ -309,38 +333,94 @@ export const directReleaseVehicleService = async (
           gatePassNumber,
           gatePassUrl,
           approvedById: userId,
-          approvedAt: new Date(),
-          releasedAt: new Date(),
+          approvedAt: now,
+          releasedAt: now,
         },
       });
     }
 
-    // 2. Settle the billing record
+    // 2. Freeze calculation into immutable ParkingTransaction Snapshot
+    await tx.parkingTransaction.create({
+      data: {
+        tenantId,
+        vehicleId,
+        bankId: vehicle.bankId,
+        kachhaStartDate: calcResult.kachha.startDate ? new Date(calcResult.kachha.startDate) : null,
+        kachhaEndDate: calcResult.kachha.endDate ? new Date(calcResult.kachha.endDate) : null,
+        kachhaDays: calcResult.kachha.days,
+        kachhaRate: calcResult.kachha.rate,
+        kachhaAmount: calcResult.kachha.amount,
+
+        pakkaStartDate: calcResult.pakka.startDate ? new Date(calcResult.pakka.startDate) : null,
+        pakkaEndDate: calcResult.pakka.endDate ? new Date(calcResult.pakka.endDate) : null,
+        pakkaDays: calcResult.pakka.days,
+        pakkaRate: calcResult.pakka.rate,
+        pakkaAmount: calcResult.pakka.amount,
+
+        releaseOrderDate: calcResult.releaseOrder.startDate ? new Date(calcResult.releaseOrder.startDate) : null,
+        actualReleaseDate: now,
+        roDays: calcResult.releaseOrder.grossDays,
+        waiverDays: calcResult.releaseOrder.waiverDays,
+        chargeableRoDays: calcResult.releaseOrder.chargeableDays,
+        roRate: calcResult.releaseOrder.rate,
+        roGrossAmount: calcResult.releaseOrder.grossAmount,
+        waiverAmount: calcResult.releaseOrder.waiverAmount,
+        roNetAmount: calcResult.releaseOrder.netAmount,
+
+        grossAmount: calcResult.totals.grossAmount,
+        netAmount: calcResult.totals.netAmount,
+        customerPayable: calcResult.totals.customerPayable,
+        bankAbsorbed: calcResult.totals.bankAbsorbed,
+
+        parkingPayer: calcResult.payer,
+        releasePersonType: calcResult.releasePerson,
+
+        createdById: userId,
+        releasedAt: now,
+      },
+    });
+
+    // 3. Settle the billing record
     const billing = await tx.parkingBilling.findFirst({
       where: { vehicleId, tenantId },
     });
+    const finalFee = calcResult.totals.customerPayable;
     if (billing) {
       await tx.parkingBilling.update({
         where: { id: billing.id },
         data: {
-          totalAmount: data.totalAmount,
+          totalAmount: data.totalAmount || finalFee,
           paidAmount: data.paidAmount,
-          paymentStatus: data.paidAmount >= data.totalAmount ? 'PAID' : 'PARTIAL',
+          paymentStatus: data.paidAmount >= (data.totalAmount || finalFee) ? 'PAID' : 'PARTIAL',
           paymentMode: data.paymentMode || 'Cash',
           approvedTillDate: data.approvedTillDate ? new Date(data.approvedTillDate) : undefined,
         },
       });
     }
 
-    // 3. Mark the vehicle as released
+    // 4. Mark the vehicle as released with dates and release person
     await tx.vehicle.update({
       where: { id: vehicleId },
       data: {
         yardStatus: 'RELEASED',
+        actualReleaseDate: now,
+        releasePersonType: releasePerson,
       },
     });
 
-    // 4. Free up the slot allocation
+    // 4b. Status History entry
+    await tx.vehicleStatusHistory.create({
+      data: {
+        tenantId,
+        vehicleId,
+        fromStatus: vehicle.yardStatus,
+        toStatus: 'RELEASED',
+        changedById: userId,
+        reason: `Vehicle Released to ${releasePerson}`,
+      },
+    });
+
+    // 5. Free up the slot allocation
     if (vehicle.yardLocationId) {
       await tx.yardLocation.update({
         where: { id: vehicle.yardLocationId },
@@ -350,7 +430,7 @@ export const directReleaseVehicleService = async (
       });
     }
 
-    // 5. Audit Log
+    // 6. Audit Log
     await tx.auditLog.create({
       data: {
         tenantId,
@@ -362,7 +442,9 @@ export const directReleaseVehicleService = async (
           vehicleNumber: vehicle.vehicleNumber,
           gatePass: gatePassNumber, 
           directRelease: true, 
-          calculatedFee: data.totalAmount, 
+          calculatedFee: calcResult.totals.netAmount, 
+          customerPayable: calcResult.totals.customerPayable,
+          bankAbsorbed: calcResult.totals.bankAbsorbed,
           paid: data.paidAmount 
         },
       },
@@ -371,4 +453,5 @@ export const directReleaseVehicleService = async (
     return release;
   });
 };
+
 

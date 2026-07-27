@@ -64,6 +64,16 @@ enum ReleaseStatus {
   RELEASED
 }
 
+enum ParkingPayer {
+  CUSTOMER
+  BANK
+}
+
+enum ReleasePersonType {
+  CUSTOMER
+  BUYER
+}
+
 // ============================================
 // TENANTS (Yards / Organizations)
 // ============================================
@@ -107,14 +117,16 @@ model Tenant {
   updatedAt     DateTime     @updatedAt
 
   // Relations
-  users         User[]
-  vehicles      Vehicle[]
-  billings      ParkingBilling[]
-  releases      Release[]
-  auditLogs     AuditLog[]
-  yardLocations YardLocation[]
-  parkingRates  ParkingRate[]
-  banks         Bank[]
+  users                  User[]
+  vehicles               Vehicle[]
+  billings               ParkingBilling[]
+  releases               Release[]
+  auditLogs              AuditLog[]
+  yardLocations          YardLocation[]
+  parkingRates           ParkingRate[]
+  banks                  Bank[]
+  vehicleStatusHistories VehicleStatusHistory[]
+  parkingTransactions    ParkingTransaction[]
 
   @@map("tenants")
 }
@@ -138,10 +150,11 @@ model User {
   updatedAt  DateTime   @updatedAt
 
   // Relations
-  tenant     Tenant     @relation(fields: [tenantId], references: [id])
-  vehicles   Vehicle[]  @relation("EnteredBy")
-  releases   Release[]  @relation("ApprovedBy")
-  auditLogs  AuditLog[]
+  tenant        Tenant                 @relation(fields: [tenantId], references: [id])
+  vehicles      Vehicle[]              @relation("EnteredBy")
+  releases      Release[]              @relation("ApprovedBy")
+  auditLogs     AuditLog[]
+  statusChanges VehicleStatusHistory[] @relation("StatusChangedBy")
 
   @@unique([email, tenantId])
   @@map("users")
@@ -176,11 +189,15 @@ model Vehicle {
   customerPhone String?
   customerSign  String?     // S3 URL (signature image)
   
-  // Yard Workflow
-  yardStatus    YardStatus  @default(KACHHA)
-  repoKitDate   DateTime?   // When repo kit submitted → goes Pakka
-  pakkaDate     DateTime?
-  billingStart  DateTime?
+  // Yard Workflow & Parking Engine Dates
+  yardStatus        YardStatus         @default(KACHHA)
+  repoKitDate       DateTime?          // When repo kit submitted → goes Pakka
+  kachhaStartDate   DateTime?
+  pakkaDate         DateTime?
+  releaseOrderDate  DateTime?
+  actualReleaseDate DateTime?
+  releasePersonType ReleasePersonType?
+  billingStart      DateTime?
   
   // Location in yard
   yardLocationId String?
@@ -192,14 +209,16 @@ model Vehicle {
   updatedAt     DateTime    @updatedAt
 
   // Relations
-  tenant        Tenant          @relation(fields: [tenantId], references: [id])
-  enteredBy     User?           @relation("EnteredBy", fields: [enteredById], references: [id])
-  photos        VehiclePhoto[]
-  inventory     VehicleInventory[]
-  billing       ParkingBilling?
-  release       Release?
-  yardLocation  YardLocation?   @relation(fields: [yardLocationId], references: [id])
-  bank          Bank?           @relation("VehicleBank", fields: [bankId], references: [id])
+  tenant              Tenant                 @relation(fields: [tenantId], references: [id])
+  enteredBy           User?                  @relation("EnteredBy", fields: [enteredById], references: [id])
+  photos              VehiclePhoto[]
+  inventory           VehicleInventory[]
+  billing             ParkingBilling?
+  release             Release?
+  yardLocation        YardLocation?          @relation(fields: [yardLocationId], references: [id])
+  bank                Bank?                  @relation("VehicleBank", fields: [bankId], references: [id])
+  statusHistory       VehicleStatusHistory[]
+  parkingTransactions ParkingTransaction[]
 
   @@unique([vehicleNumber, tenantId])
   @@index([tenantId, yardStatus])
@@ -385,20 +404,30 @@ model AuditLog {
 // ============================================
 
 model Bank {
-  id          String        @id @default(uuid())
-  tenantId    String
-  name        String
-  parentId    String?       // Self-relation
-  isThirdParty Boolean      @default(false)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-
-  tenant      Tenant        @relation(fields: [tenantId], references: [id])
-  parent      Bank?         @relation("SubBanks", fields: [parentId], references: [id], onDelete: Cascade)
-  subBanks    Bank[]        @relation("SubBanks")
+  id                      String        @id @default(uuid())
+  tenantId                String
+  name                    String
+  parentId                String?       // Self-relation
+  isThirdParty            Boolean       @default(false)
   
-  parkingRates ParkingRate[]
-  vehicles     Vehicle[]     @relation("VehicleBank")
+  // Parking Configuration
+  parkingEnabled          Boolean       @default(true)
+  kachhaParkingRate       Float         @default(0)
+  pakkaParkingRate        Float         @default(0)
+  releaseOrderParkingRate Float         @default(0)
+  parkingPayer            ParkingPayer  @default(CUSTOMER)
+  parkingWaiverDays       Int           @default(0)
+
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+
+  tenant              Tenant               @relation(fields: [tenantId], references: [id])
+  parent              Bank?                @relation("SubBanks", fields: [parentId], references: [id], onDelete: Cascade)
+  subBanks            Bank[]               @relation("SubBanks")
+  
+  parkingRates        ParkingRate[]
+  vehicles            Vehicle[]            @relation("VehicleBank")
+  parkingTransactions ParkingTransaction[]
 
   @@unique([tenantId, name, parentId])
   @@map("banks")
@@ -425,6 +454,86 @@ model ParkingRate {
 }
 
 // ============================================
+// VEHICLE STATUS HISTORY
+// ============================================
+
+model VehicleStatusHistory {
+  id          String      @id @default(uuid())
+  vehicleId   String
+  tenantId    String
+  fromStatus  YardStatus?
+  toStatus    YardStatus
+  changedAt   DateTime    @default(now())
+  changedById String?
+  reason      String?
+  metadata    Json?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  vehicle     Vehicle     @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
+  changedBy   User?       @relation("StatusChangedBy", fields: [changedById], references: [id])
+
+  @@map("vehicle_status_histories")
+}
+
+// ============================================
+// PARKING TRANSACTION SNAPSHOTS
+// ============================================
+
+model ParkingTransaction {
+  id                 String            @id @default(uuid())
+  vehicleId          String
+  bankId             String?
+  tenantId           String
+
+  kachhaStartDate    DateTime?
+  kachhaEndDate      DateTime?
+  kachhaDays         Int               @default(0)
+  kachhaRate         Float             @default(0)
+  kachhaAmount       Float             @default(0)
+
+  pakkaStartDate     DateTime?
+  pakkaEndDate       DateTime?
+  pakkaDays          Int               @default(0)
+  pakkaRate          Float             @default(0)
+  pakkaAmount        Float             @default(0)
+
+  releaseOrderDate   DateTime?
+  actualReleaseDate  DateTime?
+  roDays             Int               @default(0)
+  waiverDays         Int               @default(0)
+  chargeableRoDays   Int               @default(0)
+  roRate             Float             @default(0)
+  roGrossAmount      Float             @default(0)
+  waiverAmount       Float             @default(0)
+  roNetAmount        Float             @default(0)
+
+  grossAmount        Float             @default(0)
+  netAmount          Float             @default(0)
+  customerPayable    Float             @default(0)
+  bankAbsorbed       Float             @default(0)
+
+  parkingPayer       ParkingPayer      @default(CUSTOMER)
+  releasePersonType  ReleasePersonType @default(CUSTOMER)
+
+  calculationVersion String            @default("1.0")
+  calculatedAt       DateTime          @default(now())
+  releasedAt         DateTime          @default(now())
+
+  createdById        String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  vehicle            Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  bank               Bank?             @relation(fields: [bankId], references: [id])
+  tenant             Tenant            @relation(fields: [tenantId], references: [id])
+
+  @@map("parking_transactions")
+}
+
+
+// ============================================
 // STORAGE ACCOUNTS
 // ============================================
 
@@ -444,4 +553,5 @@ model StorageAccount {
 
   @@map("storage_accounts")
 }
+
 
