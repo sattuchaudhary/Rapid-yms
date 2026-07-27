@@ -85,7 +85,9 @@ export default function BanksScreen() {
   const [addType, setAddType] = useState<'direct' | 'third_party'>('direct');
   const [newBankName, setNewBankName] = useState('');
   const [subBanks, setSubBanks] = useState([{ name: '', rates: { TW: '50', THREE_W: '100', FW: '150', CV: '400' } }]);
+  const [newSubRates, setNewSubRates] = useState({ TW: '50', THREE_W: '100', FW: '150', CV: '400' });
   const [saving, setSaving] = useState(false);
+
 
   // Edit rates modal state
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -642,24 +644,55 @@ export default function BanksScreen() {
                 {/* Rates for Direct Bank */}
                 {addType === 'direct' && (
                   <>
-                    <ThemedText style={styles.modalLabel}>Daily Parking Rates (₹/day)</ThemedText>
-                    <View style={styles.ratesInputGrid}>
-                      {VEHICLE_TYPES.map(t => (
-                        <View key={t} style={styles.rateInputItem}>
-                          <ThemedText style={styles.rateInputLabel}>{TYPE_LABELS[t]}</ThemedText>
-                          <TextInput
-                            style={styles.rateInput}
-                            value={newRates[t]}
-                            onChangeText={val => setNewRates(prev => ({ ...prev, [t]: val }))}
-                            keyboardType="numeric"
-                            placeholder="0"
-                            placeholderTextColor="#94A3B8"
-                          />
+                    <ThemedText style={styles.modalLabel}>Vehicle-Wise 3-Phase Rates (2W / 3W / 4W / CV)</ThemedText>
+                    {VEHICLE_TYPES.map(t => (
+                      <View key={t} style={{ backgroundColor: '#F8FAFC', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 12 }}>
+                        <ThemedText style={{ fontSize: 13, fontWeight: '800', color: '#1E293B', marginBottom: 8 }}>
+                          {TYPE_LABELS[t]} ({t})
+                        </ThemedText>
+                        
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                          <View style={{ flex: 1 }}>
+                            <ThemedText style={{ fontSize: 10, fontWeight: '700', color: '#B45309', marginBottom: 2 }}>Kachha (₹)</ThemedText>
+                            <TextInput
+                              style={[styles.rateInput, { textAlign: 'center' }]}
+                              value={vehiclePhaseRates[t].kachha}
+                              onChangeText={val => setVehiclePhaseRates(prev => ({ ...prev, [t]: { ...prev[t], kachha: val } }))}
+                              keyboardType="numeric"
+                              placeholder="50"
+                              placeholderTextColor="#94A3B8"
+                            />
+                          </View>
+
+                          <View style={{ flex: 1 }}>
+                            <ThemedText style={{ fontSize: 10, fontWeight: '700', color: '#047857', marginBottom: 2 }}>Pakka (₹)</ThemedText>
+                            <TextInput
+                              style={[styles.rateInput, { textAlign: 'center' }]}
+                              value={vehiclePhaseRates[t].pakka}
+                              onChangeText={val => setVehiclePhaseRates(prev => ({ ...prev, [t]: { ...prev[t], pakka: val } }))}
+                              keyboardType="numeric"
+                              placeholder="100"
+                              placeholderTextColor="#94A3B8"
+                            />
+                          </View>
+
+                          <View style={{ flex: 1 }}>
+                            <ThemedText style={{ fontSize: 10, fontWeight: '700', color: '#4338CA', marginBottom: 2 }}>After RO (₹)</ThemedText>
+                            <TextInput
+                              style={[styles.rateInput, { textAlign: 'center' }]}
+                              value={vehiclePhaseRates[t].releaseOrder}
+                              onChangeText={val => setVehiclePhaseRates(prev => ({ ...prev, [t]: { ...prev[t], releaseOrder: val } }))}
+                              keyboardType="numeric"
+                              placeholder="150"
+                              placeholderTextColor="#94A3B8"
+                            />
+                          </View>
                         </View>
-                      ))}
-                    </View>
+                      </View>
+                    ))}
                   </>
                 )}
+
 
                 {/* Sub-banks for Third Party */}
                 {addType === 'third_party' && (
