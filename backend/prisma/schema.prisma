@@ -438,13 +438,16 @@ model Bank {
 // ============================================
 
 model ParkingRate {
-  id          String      @id @default(uuid())
-  tenantId    String
-  bankId      String      // Foreign Key to Bank
-  vehicleType VehicleType
-  dailyRate   Float       // per day rate (e.g. 100, 250, 400)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id               String      @id @default(uuid())
+  tenantId         String
+  bankId           String      // Foreign Key to Bank
+  vehicleType      VehicleType
+  dailyRate        Float       @default(0) // per day fallback rate
+  kachhaRate       Float       @default(0) // per day kachha rate for this vehicle type
+  pakkaRate        Float       @default(0) // per day pakka rate for this vehicle type
+  releaseOrderRate Float       @default(0) // per day release order rate for this vehicle type
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 
   tenant      Tenant      @relation(fields: [tenantId], references: [id])
   bank        Bank        @relation(fields: [bankId], references: [id], onDelete: Cascade)

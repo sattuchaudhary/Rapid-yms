@@ -7,12 +7,23 @@ import {
 } from './banks.service';
 import { z } from 'zod';
 
+const phaseRateDetailSchema = z.union([
+  z.number().nonnegative(),
+  z.object({
+    dailyRate: z.number().nonnegative().optional(),
+    kachhaRate: z.number().nonnegative().optional(),
+    pakkaRate: z.number().nonnegative().optional(),
+    releaseOrderRate: z.number().nonnegative().optional(),
+  })
+]);
+
 const ratesSchema = z.object({
-  TW: z.number().nonnegative('2W rate must be positive or zero'),
-  THREE_W: z.number().nonnegative('3W rate must be positive or zero'),
-  FW: z.number().nonnegative('4W rate must be positive or zero'),
-  CV: z.number().nonnegative('CV rate must be positive or zero'),
+  TW: phaseRateDetailSchema.optional(),
+  THREE_W: phaseRateDetailSchema.optional(),
+  FW: phaseRateDetailSchema.optional(),
+  CV: phaseRateDetailSchema.optional(),
 });
+
 
 const parkingConfigSchema = z.object({
   parkingEnabled: z.boolean().default(true),

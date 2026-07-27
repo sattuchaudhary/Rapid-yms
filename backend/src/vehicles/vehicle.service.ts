@@ -804,9 +804,30 @@ export const getVehicleParkingCalculationService = async (
     });
   }
 
-  const kachhaParkingRate = bankConfig?.kachhaParkingRate ?? 0;
-  const pakkaParkingRate = bankConfig?.pakkaParkingRate ?? 0;
-  const releaseOrderParkingRate = bankConfig?.releaseOrderParkingRate ?? 0;
+  // Look up vehicle-type specific rates from ParkingRate model
+  let vehicleRate = null;
+  if (bankConfig?.id && vehicle.vehicleType) {
+    vehicleRate = await prisma.parkingRate.findFirst({
+      where: {
+        tenantId,
+        bankId: bankConfig.id,
+        vehicleType: vehicle.vehicleType,
+      },
+    });
+  }
+
+  const kachhaParkingRate = (vehicleRate?.kachhaRate && vehicleRate.kachhaRate > 0)
+    ? vehicleRate.kachhaRate
+    : (bankConfig?.kachhaParkingRate || vehicleRate?.dailyRate || 100);
+
+  const pakkaParkingRate = (vehicleRate?.pakkaRate && vehicleRate.pakkaRate > 0)
+    ? vehicleRate.pakkaRate
+    : (bankConfig?.pakkaParkingRate || vehicleRate?.dailyRate || 150);
+
+  const releaseOrderParkingRate = (vehicleRate?.releaseOrderRate && vehicleRate.releaseOrderRate > 0)
+    ? vehicleRate.releaseOrderRate
+    : (bankConfig?.releaseOrderParkingRate || vehicleRate?.dailyRate || 200);
+
   const parkingWaiverDays = bankConfig?.parkingWaiverDays ?? 0;
   const parkingPayer = bankConfig?.parkingPayer ?? 'CUSTOMER';
 
@@ -823,6 +844,7 @@ export const getVehicleParkingCalculationService = async (
     releasePersonType: options?.releasePersonType || vehicle.releasePersonType || 'CUSTOMER',
     todayDate: options?.todayDate,
   });
+
 };
 
 export const getVehicleParkingTransactionsService = async (

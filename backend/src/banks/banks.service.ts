@@ -27,13 +27,22 @@ export interface BankParkingConfig {
   parkingWaiverDays?: number;
 }
 
+export type RateVal = number | { dailyRate?: number; kachhaRate?: number; pakkaRate?: number; releaseOrderRate?: number };
+
+export interface VehicleRatesInput {
+  TW?: RateVal;
+  THREE_W?: RateVal;
+  FW?: RateVal;
+  CV?: RateVal;
+}
+
 export const createBankService = async (
   tenantId: string,
   name: string,
   isThirdParty: boolean = false,
   parentId?: string | null,
-  rates?: { TW: number; THREE_W: number; FW: number; CV: number },
-  subBanks?: Array<{ name: string; rates: { TW: number; THREE_W: number; FW: number; CV: number } }>,
+  rates?: VehicleRatesInput,
+  subBanks?: Array<{ name: string; rates: VehicleRatesInput }>,
   parkingConfig?: BankParkingConfig
 ) => {
   return prisma.$transaction(async (tx) => {
@@ -83,18 +92,40 @@ export const createBankService = async (
     if (rates) {
       const types = ['TW', 'THREE_W', 'FW', 'CV'] as const;
       await Promise.all(
-        types.map((type) =>
-          tx.parkingRate.create({
+        types.map((type) => {
+          const val: any = rates[type];
+          let dailyRate = 0;
+          let kachhaRate = 0;
+          let pakkaRate = 0;
+          let releaseOrderRate = 0;
+
+          if (typeof val === 'number') {
+            dailyRate = val;
+            kachhaRate = val;
+            pakkaRate = val;
+            releaseOrderRate = val;
+          } else if (typeof val === 'object' && val !== null) {
+            dailyRate = val.dailyRate ?? 0;
+            kachhaRate = val.kachhaRate ?? dailyRate;
+            pakkaRate = val.pakkaRate ?? dailyRate;
+            releaseOrderRate = val.releaseOrderRate ?? dailyRate;
+          }
+
+          return tx.parkingRate.create({
             data: {
               tenantId,
               bankId: bank.id,
               vehicleType: type,
-              dailyRate: Number(rates[type]),
+              dailyRate,
+              kachhaRate,
+              pakkaRate,
+              releaseOrderRate,
             },
-          })
-        )
+          });
+        })
       );
     }
+
 
     // 3. If it is a Third Party and has sub-banks, create each sub-bank and its rates
     if (isThirdParty && subBanks && subBanks.length > 0) {
