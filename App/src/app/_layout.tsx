@@ -76,6 +76,7 @@ export default function RootLayout() {
           <Stack.Screen name="admin/banks" />
           <Stack.Screen name="admin/crew" />
           <Stack.Screen name="admin/notifications" />
+          <Stack.Screen name="admin/print-setup" />
         </Stack>
       </View>
     </ThemeProvider>

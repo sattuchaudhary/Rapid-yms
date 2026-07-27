@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   StyleSheet,
   View,
@@ -128,6 +129,59 @@ export default function CheckInScreen() {
   const [entryDate, setEntryDate] = useState(() => new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+
+  const fetchCurrentCity = useCallback(async () => {
+    try {
+      const res = await fetch('https://ipapi.co/json/', { method: 'GET' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.city) {
+          setPlaceOfPossession(prev => prev ? prev : data.city);
+          return;
+        }
+      }
+      const fallbackRes = await fetch('http://ip-api.com/json/', { method: 'GET' });
+      if (fallbackRes.ok) {
+        const fallbackData = await fallbackRes.json();
+        if (fallbackData && fallbackData.city) {
+          setPlaceOfPossession(prev => prev ? prev : fallbackData.city);
+        }
+      }
+    } catch (e) {
+      console.warn('[CheckIn] Could not auto-fetch city:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!editVehicleId) {
+      fetchCurrentCity();
+    }
+  }, [editVehicleId, fetchCurrentCity]);
+
+  useEffect(() => {
+    const loadMasterChecklist = async () => {
+      try {
+        const saved = await AsyncStorage.getItem('yms_master_checklist');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          const activeItems = parsed
+            .filter((item: any) => item.enabled !== false)
+            .map((item: any) => ({
+              itemName: item.itemName,
+              isPresent: false,
+              remarks: '',
+              printEnabled: item.printEnabled !== false,
+            }));
+          if (activeItems.length > 0 && !editVehicleId) {
+            setChecklist(activeItems);
+          }
+        }
+      } catch (e) {
+        console.warn('[CheckIn] Master checklist load failed:', e);
+      }
+    };
+    loadMasterChecklist();
+  }, [editVehicleId]);
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(false);
@@ -541,24 +595,64 @@ export default function CheckInScreen() {
   };
 
   const generateHTMLReport = async () => {
-    // Convert all photos to base64 and display in a clean 3-column layout (fit containment)
-    const photoElements = await Promise.all(
-      photos.map(async (p) => {
-        const base64 = await uriToBase64(p.uri);
-        return `
-          <div style="width: 31.3%; margin: 1%; text-align: center; border: 1px solid #cbd5e1; padding: 4px; border-radius: 6px; box-sizing: border-box; background-color: #f1f5f9; page-break-inside: avoid;">
-            <p style="margin: 0 0 4px 0; font-size: 8px; font-weight: bold; text-transform: uppercase; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${p.type.replace('_', ' ')}</p>
-            <img src="${base64}" style="width: 100%; height: 100px; object-fit: contain; background-color: #e2e8f0; border-radius: 4px;" />
-          </div>
-        `;
-      })
-    );
+    let printConfig: any = {
+      headerTitle: tenantName || 'SHREE PARKING YARD',
+      headerAddress: tenantAddress || 'GURUGRAM VILLAGE, HARYANA',
+      showSpecs: true,
+      showFinancer: true,
+      showChecklist: true,
+      showRemarks: true,
+      showPhotos: true,
+      photoSize: 'medium',
+      showFooter: true,
+      footerDisclaimer: '*** THIS IS A COMPUTER SYSTEM GENERATED DOCUMENT. PHYSICAL SIGNATURE NOT REQUIRED. ***',
+    };
 
-    // Group the checklist items in a 2-column layout to save vertical space
+    try {
+      const savedConfig = await AsyncStorage.getItem('yms_print_config');
+      if (savedConfig) {
+        printConfig = { ...printConfig, ...JSON.parse(savedConfig) };
+      }
+    } catch (e) {
+      console.warn('[CheckIn] Could not load print config:', e);
+    }
+
+    // Photo size grid calculation based on printConfig.photoSize
+    let photoWidthStyle = '31.3%'; // default medium (3 per row)
+    let photoHeightStyle = '100px';
+    if (printConfig.photoSize === 'small') {
+      photoWidthStyle = '23%'; // 4 per row
+      photoHeightStyle = '80px';
+    } else if (printConfig.photoSize === 'large') {
+      photoWidthStyle = '48%'; // 2 per row
+      photoHeightStyle = '150px';
+    } else if (printConfig.photoSize === 'full') {
+      photoWidthStyle = '98%'; // 1 per row
+      photoHeightStyle = '220px';
+    }
+
+    let photoElements: string[] = [];
+    if (printConfig.showPhotos !== false) {
+      photoElements = await Promise.all(
+        photos.map(async (p) => {
+          const base64 = await uriToBase64(p.uri);
+          return `
+            <div style="width: ${photoWidthStyle}; margin: 1%; text-align: center; border: 1px solid #cbd5e1; padding: 4px; border-radius: 6px; box-sizing: border-box; background-color: #f1f5f9; page-break-inside: avoid;">
+              <p style="margin: 0 0 4px 0; font-size: 8px; font-weight: bold; text-transform: uppercase; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${p.type.replace('_', ' ')}</p>
+              <img src="${base64}" style="width: 100%; height: ${photoHeightStyle}; object-fit: contain; background-color: #e2e8f0; border-radius: 4px;" />
+            </div>
+          `;
+        })
+      );
+    }
+
+    // Filter checklist to print only items that have printEnabled !== false
+    const printableChecklist = checklist.filter((item: any) => item.printEnabled !== false);
+
     let checklistRows = '';
-    for (let i = 0; i < checklist.length; i += 2) {
-      const item1 = checklist[i];
-      const item2 = checklist[i + 1];
+    for (let i = 0; i < printableChecklist.length; i += 2) {
+      const item1 = printableChecklist[i];
+      const item2 = printableChecklist[i + 1];
 
       const renderCell = (item: any) => {
         if (!item) return '<td style="border: 1px solid #cbd5e1; width: 50%;"></td>';
@@ -591,7 +685,7 @@ export default function CheckInScreen() {
       <html>
       <head>
         <meta charset="utf-8">
-        <title>Gate Pass Receipt - ${tenantName}</title>
+        <title>Gate Pass Receipt - ${printConfig.headerTitle}</title>
         <style>
           @page { size: A4; margin: 8mm; }
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 0; margin: 0; color: #0f172a; font-size: 12px; line-height: 1.4; }
@@ -608,17 +702,18 @@ export default function CheckInScreen() {
       </head>
       <body>
         <div class="header">
-          <h1>${tenantName}</h1>
-          <p>${tenantAddress}</p>
+          <h1>${printConfig.headerTitle}</h1>
+          <p>${printConfig.headerAddress}</p>
           <p style="font-size: 10px; margin-top: 5px; border: 1px solid #1e3a8a; display: inline-block; padding: 3px 10px; border-radius: 4px; color: #1e3a8a; background-color: #EEF2FF; font-weight: bold; letter-spacing: 0.5px;">
             YARD POSSESSION & VEHICLE CONDITION REPORT
           </p>
         </div>
 
+        ${printConfig.showSpecs !== false ? `
         <div class="section-title">Vehicle Specifications</div>
         <table class="info-table">
           <tr>
-            <td><strong>License Plate:</strong> ${vehicleNumber.toUpperCase()}</td>
+            <td><strong>Vehicle Reg No:</strong> ${vehicleNumber.toUpperCase()}</td>
             <td><strong>Vehicle Category:</strong> ${
               vehicleType === 'TW'
                 ? '2 Wheeler (TW)'
@@ -644,7 +739,9 @@ export default function CheckInScreen() {
             <td><strong>Possession Place:</strong> ${placeOfPossession || '-'}</td>
           </tr>
         </table>
+        ` : ''}
 
+        ${printConfig.showFinancer !== false ? `
         <div class="section-title">Financer & Repossession Info</div>
         <table class="info-table">
           <tr>
@@ -660,14 +757,18 @@ export default function CheckInScreen() {
             <td><strong>Customer Mobile:</strong> ${customerPhone || '-'}</td>
           </tr>
         </table>
+        ` : ''}
 
+        ${printConfig.showChecklist !== false && printableChecklist.length > 0 ? `
         <div class="section-title">Accessories Checklist</div>
         <table>
           <tbody>
             ${checklistRows}
           </tbody>
         </table>
+        ` : ''}
 
+        ${printConfig.showRemarks !== false ? `
         <div class="section-title">Yard Remarks & General Condition</div>
         <table class="info-table">
           <tr>
@@ -678,9 +779,10 @@ export default function CheckInScreen() {
             <td colspan="2"><strong>Customer Remarks:</strong> ${customerRemarks || 'N/A'}</td>
           </tr>
         </table>
+        ` : ''}
 
         ${
-          photoElements.length > 0
+          printConfig.showPhotos !== false && photoElements.length > 0
             ? `
           <div class="section-title">Possession Photographs</div>
           <div class="photos-grid">
@@ -690,9 +792,11 @@ export default function CheckInScreen() {
             : ''
         }
 
+        ${printConfig.showFooter !== false ? `
         <div style="margin-top: 30px; border-top: 1px solid #cbd5e1; padding-top: 8px; text-align: center; font-size: 10px; font-weight: bold; color: #64748b; letter-spacing: 0.5px;">
-          *** THIS IS A COMPUTER SYSTEM GENERATED DOCUMENT. PHYSICAL SIGNATURE NOT REQUIRED. ***
+          ${printConfig.footerDisclaimer}
         </div>
+        ` : ''}
       </body>
       </html>
     `;
@@ -1088,6 +1192,20 @@ export default function CheckInScreen() {
           <View style={styles.stepContainer}>
             <ThemedText style={styles.stepTitle}>Vehicle Information</ThemedText>
             
+            {/* Vehicle Reg No at the very top */}
+            <View style={styles.fieldGroup}>
+              <ThemedText style={styles.fieldLabel}>Vehicle Reg No *</ThemedText>
+              <TextInput
+                style={styles.textInput}
+                placeholder="e.g. MH-12-PQ-1234"
+                placeholderTextColor="#94A3B8"
+                value={vehicleNumber}
+                onChangeText={setVehicleNumber}
+                autoCapitalize="characters"
+                autoCorrect={false}
+              />
+            </View>
+
             {/* Bank Category & Bank Select Side-by-Side */}
             <View style={styles.sideBySideRow}>
               {/* Category Dropdown */}
@@ -1150,29 +1268,6 @@ export default function CheckInScreen() {
                 </TouchableOpacity>
               </View>
             )}
-
-            {/* License Plate */}
-            <View style={styles.fieldGroup}>
-              <ThemedText style={styles.fieldLabel}>License Plate *</ThemedText>
-              <View style={styles.inputSearchWrapper}>
-                <TextInput
-                  style={[styles.textInput, { flex: 1, borderTopRightRadius: 0, borderBottomRightRadius: 0 }]}
-                  placeholder="e.g. MH-12-PQ-1234"
-                  placeholderTextColor="#94A3B8"
-                  value={vehicleNumber}
-                  onChangeText={setVehicleNumber}
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                />
-                <TouchableOpacity
-                  style={styles.scanBtn}
-                  onPress={handleBarcodeScan}
-                  activeOpacity={0.8}
-                >
-                  <Scan size={18} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
-            </View>
 
             {/* Vehicle Category Dropdown */}
             <View style={styles.fieldGroup}>

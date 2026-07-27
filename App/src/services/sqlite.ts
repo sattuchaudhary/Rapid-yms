@@ -119,12 +119,23 @@ export const cacheVehicles = (vehicles: CachedVehicle[]) => {
 
 export const searchCachedVehicles = (query: string): CachedVehicle[] => {
   try {
-    const searchQuery = `%${query}%`;
+    if (!query || !query.trim()) {
+      return db.getAllSync<CachedVehicle>('SELECT * FROM vehicle_cache LIMIT 1000');
+    }
+    const cleanQuery = query.trim();
+    const strippedQuery = cleanQuery.replace(/[\s\-]/g, '');
+    const searchQuery = `%${cleanQuery}%`;
+    const strippedSearchQuery = `%${strippedQuery}%`;
+
     return db.getAllSync<CachedVehicle>(
       `SELECT * FROM vehicle_cache 
-       WHERE vehicleNumber LIKE ? OR brand LIKE ? OR model LIKE ? OR bankName LIKE ? 
-       LIMIT 50`,
-      [searchQuery, searchQuery, searchQuery, searchQuery]
+       WHERE vehicleNumber LIKE ? 
+          OR REPLACE(REPLACE(vehicleNumber, ' ', ''), '-', '') LIKE ? 
+          OR brand LIKE ? 
+          OR model LIKE ? 
+          OR bankName LIKE ? 
+       LIMIT 1000`,
+      [searchQuery, strippedSearchQuery, searchQuery, searchQuery, searchQuery]
     );
   } catch (error) {
     console.error('[SQLite] Error searching cached vehicles:', error);

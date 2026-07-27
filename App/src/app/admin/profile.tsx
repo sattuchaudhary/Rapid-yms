@@ -19,7 +19,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import NetInfo from '@react-native-community/netinfo';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Camera, ChevronLeft, ChevronRight, Lock, LogOut, Settings, Check, WifiOff, ImageIcon } from 'lucide-react-native';
+import { Camera, ChevronLeft, ChevronRight, Lock, LogOut, Settings, Check, WifiOff, ImageIcon, Printer } from 'lucide-react-native';
 import { getUserInfo, saveUserInfo, UserSession, apiRequest, clearTokens, getProfileImage, setProfileImage } from '@/services/api';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -348,6 +348,20 @@ export default function ProfileScreen() {
             <View style={styles.actionLabelContainer}>
               <Settings size={18} color="#64748B" style={{ marginRight: 12 }} />
               <ThemedText style={styles.actionText}>App Settings</ThemedText>
+            </View>
+            <ChevronRight size={18} color="#94A3B8" />
+          </TouchableOpacity>
+
+          <View style={styles.infoRowDivider} />
+
+          <TouchableOpacity 
+            style={styles.actionRow} 
+            activeOpacity={0.7}
+            onPress={() => router.push('/admin/print-setup' as any)}
+          >
+            <View style={styles.actionLabelContainer}>
+              <Printer size={18} color="#4F46E5" style={{ marginRight: 12 }} />
+              <ThemedText style={styles.actionText}>Print & Inventory Setup</ThemedText>
             </View>
             <ChevronRight size={18} color="#94A3B8" />
           </TouchableOpacity>

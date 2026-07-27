@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -46,6 +46,9 @@ export default function VehicleListScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'KACHHA' | 'PAKKA' | 'RELEASED'>('ALL');
 
+  const searchReqIdRef = useRef(0);
+  const searchTimeoutRef = useRef<any>(null);
+
   const loadData = useCallback(async (showIndicator = true) => {
     if (showIndicator) setLoading(true);
     try {
@@ -80,22 +83,31 @@ export default function VehicleListScreen() {
           cacheVehicles(formatted);
         }
       } else {
-        // Fallback offline
-        const cached = searchCachedVehicles(searchQuery);
-        setVehicles(cached);
+        const cached = searchCachedVehicles('');
+        setVehicles(cached as ListVehicle[]);
       }
     } catch (e: any) {
       console.warn('[VehicleList] Failed to fetch vehicles:', e.message);
-      const cached = searchCachedVehicles(searchQuery);
-      setVehicles(cached);
+      const cached = searchCachedVehicles('');
+      setVehicles(cached as ListVehicle[]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [searchQuery]);
+  }, []);
 
+  // Load local SQLite cache immediately for 0ms initial load time
   useEffect(() => {
-    loadData(true);
+    try {
+      const cached = searchCachedVehicles('');
+      if (cached && cached.length > 0) {
+        setVehicles(cached as ListVehicle[]);
+        setLoading(false);
+      }
+    } catch (e) {
+      console.warn('[VehicleList] Initial cache read error:', e);
+    }
+    loadData(false);
   }, []);
 
   const onRefresh = () => {
@@ -103,36 +115,50 @@ export default function VehicleListScreen() {
     loadData(false);
   };
 
-  const handleSearch = async (text: string) => {
-    setSearchQuery(text);
+  // Debounced online search with race-condition prevention
+  const performOnlineSearch = useCallback(async (queryText: string, reqId: number) => {
     try {
       const netInfo = await NetInfo.fetch();
-      const isOnline = !!netInfo.isConnected;
-
-      if (isOnline) {
-        if (!text.trim()) {
-          loadData(false);
-        } else {
-          setLoading(true);
-          const res = await apiRequest(`/api/vehicles?limit=1000&search=${encodeURIComponent(text)}`);
-          if (res.success && res.data) {
-            setVehicles(res.data);
-          }
+      if (!netInfo.isConnected) {
+        const results = searchCachedVehicles(queryText);
+        if (reqId === searchReqIdRef.current) {
+          setVehicles(results as ListVehicle[]);
         }
-      } else {
-        const results = searchCachedVehicles(text);
-        setVehicles(results);
+        return;
+      }
+
+      const res = await apiRequest(`/api/vehicles?limit=1000&search=${encodeURIComponent(queryText)}`);
+      // Only apply if this request is still the newest search request
+      if (reqId === searchReqIdRef.current && res.success && res.data) {
+        setVehicles(res.data);
       }
     } catch (e) {
-      console.warn('[VehicleList] Online search failed, trying cached search:', e);
-      const results = searchCachedVehicles(text);
-      setVehicles(results);
-    } finally {
-      setLoading(false);
+      console.warn('[VehicleList] Online search failed:', e);
     }
+  }, []);
+
+  const handleSearch = (text: string) => {
+    setSearchQuery(text);
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    const nextReqId = searchReqIdRef.current + 1;
+    searchReqIdRef.current = nextReqId;
+
+    if (!text.trim()) {
+      loadData(false);
+      return;
+    }
+
+    // Schedule debounced online search (300ms)
+    searchTimeoutRef.current = setTimeout(() => {
+      performOnlineSearch(text, nextReqId);
+    }, 300);
   };
 
-  // Dynamic stats calculated from currently loaded search list
+  // Dynamic stats calculated from all vehicles in memory
   const stats = useMemo(() => {
     const kachha = vehicles.filter(v => v.yardStatus === 'KACHHA').length;
     const pakka = vehicles.filter(v => v.yardStatus === 'PAKKA').length;
@@ -141,18 +167,44 @@ export default function VehicleListScreen() {
     return { kachha, pakka, released, all };
   }, [vehicles]);
 
+  // Normalized instant search + tab status filtering
   const filteredVehicles = useMemo(() => {
-    if (statusFilter === 'RELEASED') {
-      return vehicles.filter(v => v.yardStatus === 'RELEASED');
-    }
-    if (statusFilter === 'PAKKA') {
-      return vehicles.filter(v => v.yardStatus === 'PAKKA');
-    }
-    if (statusFilter === 'KACHHA') {
-      return vehicles.filter(v => v.yardStatus === 'KACHHA');
-    }
-    return vehicles;
-  }, [vehicles, statusFilter]);
+    const cleanQ = searchQuery.trim().toLowerCase();
+    const strippedQ = cleanQ.replace(/[\s\-]/g, '');
+
+    return vehicles.filter(v => {
+      // Tab filter
+      if (statusFilter === 'RELEASED' && v.yardStatus !== 'RELEASED') return false;
+      if (statusFilter === 'PAKKA' && v.yardStatus !== 'PAKKA') return false;
+      if (statusFilter === 'KACHHA' && v.yardStatus !== 'KACHHA') return false;
+
+      if (!cleanQ) return true;
+
+      const vNum = (v.vehicleNumber || '').toLowerCase();
+      const strippedVNum = vNum.replace(/[\s\-]/g, '');
+      const brand = (v.brand || '').toLowerCase();
+      const model = (v.model || '').toLowerCase();
+      const bankName = (v.bankName || '').toLowerCase();
+      const chassis = (v.chassisNumber || '').toLowerCase();
+      const engine = (v.engineNumber || '').toLowerCase();
+      const customer = (v.customerName || '').toLowerCase();
+      const repoAgency = (v.repoAgency || '').toLowerCase();
+      const serial = String(v.serialNumber || '');
+
+      return (
+        vNum.includes(cleanQ) ||
+        (strippedQ.length > 0 && strippedVNum.includes(strippedQ)) ||
+        brand.includes(cleanQ) ||
+        model.includes(cleanQ) ||
+        bankName.includes(cleanQ) ||
+        chassis.includes(cleanQ) ||
+        engine.includes(cleanQ) ||
+        customer.includes(cleanQ) ||
+        repoAgency.includes(cleanQ) ||
+        serial === cleanQ
+      );
+    });
+  }, [vehicles, statusFilter, searchQuery]);
 
   // Billing helpers
   const getDailyRate = (type: string) => {

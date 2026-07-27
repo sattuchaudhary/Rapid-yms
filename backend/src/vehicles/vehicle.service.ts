@@ -54,13 +54,29 @@ export const getTenantVehiclesService = async (tenantId: string, filters: Vehicl
 
   // Global search
   if (filters.search) {
-    whereClause.OR = [
-      { vehicleNumber: { contains: filters.search, mode: 'insensitive' } },
-      { chassisNumber: { contains: filters.search, mode: 'insensitive' } },
-      { engineNumber: { contains: filters.search, mode: 'insensitive' } },
-      { customerName: { contains: filters.search, mode: 'insensitive' } },
-      { repoAgency: { contains: filters.search, mode: 'insensitive' } },
+    const rawSearch = filters.search.trim();
+    const strippedSearch = rawSearch.replace(/[\s\-]/g, '');
+
+    const searchConditions: any[] = [
+      { vehicleNumber: { contains: rawSearch, mode: 'insensitive' } },
+      { chassisNumber: { contains: rawSearch, mode: 'insensitive' } },
+      { engineNumber: { contains: rawSearch, mode: 'insensitive' } },
+      { customerName: { contains: rawSearch, mode: 'insensitive' } },
+      { repoAgency: { contains: rawSearch, mode: 'insensitive' } },
+      { brand: { contains: rawSearch, mode: 'insensitive' } },
+      { model: { contains: rawSearch, mode: 'insensitive' } },
+      { bankName: { contains: rawSearch, mode: 'insensitive' } },
     ];
+
+    if (strippedSearch && strippedSearch !== rawSearch) {
+      searchConditions.push(
+        { vehicleNumber: { contains: strippedSearch, mode: 'insensitive' } },
+        { chassisNumber: { contains: strippedSearch, mode: 'insensitive' } },
+        { engineNumber: { contains: strippedSearch, mode: 'insensitive' } }
+      );
+    }
+
+    whereClause.OR = searchConditions;
   }
 
   // Exact filters
@@ -80,7 +96,7 @@ export const getTenantVehiclesService = async (tenantId: string, filters: Vehicl
   const limit = filters.limit || 50;
   const skip = (page - 1) * limit;
 
-  const [total, vehicles] = await Promise.all([
+  const [total, vehicles, allVehicleIds] = await Promise.all([
     prisma.vehicle.count({ where: whereClause }),
     prisma.vehicle.findMany({
       where: whereClause,
@@ -101,7 +117,14 @@ export const getTenantVehiclesService = async (tenantId: string, filters: Vehicl
       skip,
       take: limit,
     }),
+    prisma.vehicle.findMany({
+      where: { tenantId },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+    }),
   ]);
+
+  const serialMap = new Map(allVehicleIds.map((v, idx) => [v.id, idx + 1]));
 
   // Fetch tenant storage settings to apply R2 rewrite
   const tenant = await prisma.tenant.findUnique({
@@ -122,15 +145,13 @@ export const getTenantVehiclesService = async (tenantId: string, filters: Vehicl
   }
   const pathPrefix = endpointSuffix ? `${endpointSuffix}/` : '';
 
-  const mappedVehicles = await Promise.all(vehicles.map(async (vehicle) => {
-    const count = await prisma.vehicle.count({
-      where: { tenantId, createdAt: { lte: vehicle.createdAt } },
-    });
+  const mappedVehicles = vehicles.map((vehicle) => {
+    const serialNumber = serialMap.get(vehicle.id) || 1;
 
-    let photoMapped = { ...vehicle, serialNumber: count };
+    let photoMapped: any = { ...vehicle, serialNumber };
 
     if (hasR2Rewrite && photoMapped.photos) {
-      photoMapped.photos = photoMapped.photos.map(photo => {
+      photoMapped.photos = photoMapped.photos.map((photo: any) => {
         if (photo.s3Url && !photo.s3Url.startsWith('blob:') && !photo.s3Url.startsWith('data:')) {
           const uuidIndex = photo.s3Url.indexOf(tenantId);
           if (uuidIndex !== -1) {
@@ -142,7 +163,9 @@ export const getTenantVehiclesService = async (tenantId: string, filters: Vehicl
       });
     }
     return photoMapped;
-  }));
+  });
+
+  return { data: mappedVehicles, total, page, limit, totalPages: Math.ceil(total / limit) };
 
   return { data: mappedVehicles, total, page, limit, totalPages: Math.ceil(total / limit) };
 };
