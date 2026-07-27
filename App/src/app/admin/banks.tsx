@@ -41,6 +41,12 @@ interface Bank {
   name: string;
   isThirdParty: boolean;
   parentId: string | null;
+  parkingEnabled?: boolean;
+  kachhaParkingRate?: number;
+  pakkaParkingRate?: number;
+  releaseOrderParkingRate?: number;
+  parkingPayer?: 'CUSTOMER' | 'BANK';
+  parkingWaiverDays?: number;
   parkingRates: { vehicleType: string; dailyRate: number }[];
   parent?: { id: string; name: string };
 }
@@ -53,6 +59,13 @@ export default function BanksScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  // 3-Phase Bank Parking Config States
+  const [kachhaRate, setKachhaRate] = useState('100');
+  const [pakkaRate, setPakkaRate] = useState('150');
+  const [roRate, setRoRate] = useState('200');
+  const [waiverDays, setWaiverDays] = useState('2');
+  const [parkingPayer, setParkingPayer] = useState<'CUSTOMER' | 'BANK'>('CUSTOMER');
 
   // Add bank modal state
   const [addModalVisible, setAddModalVisible] = useState(false);
@@ -74,6 +87,7 @@ export default function BanksScreen() {
   const [newSubName, setNewSubName] = useState('');
   const [newSubRates, setNewSubRates] = useState({ TW: '50', THREE_W: '100', FW: '150', CV: '400' });
   const [savingNewSub, setSavingNewSub] = useState(false);
+
 
   const loadBanks = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -167,6 +181,11 @@ export default function BanksScreen() {
       const payload: any = {
         name: newBankName.trim(),
         isThirdParty: addType === 'third_party',
+        kachhaParkingRate: Number(kachhaRate || 0),
+        pakkaParkingRate: Number(pakkaRate || 0),
+        releaseOrderParkingRate: Number(roRate || 0),
+        parkingWaiverDays: Number(waiverDays || 0),
+        parkingPayer: parkingPayer,
       };
 
       if (addType === 'direct') {
@@ -212,6 +231,12 @@ export default function BanksScreen() {
   // Edit Rates Handlers
   const handleOpenEditModal = (bank: Bank) => {
     setEditingBank(bank);
+    setKachhaRate(bank.kachhaParkingRate?.toString() || '100');
+    setPakkaRate(bank.pakkaParkingRate?.toString() || '150');
+    setRoRate(bank.releaseOrderParkingRate?.toString() || '200');
+    setWaiverDays(bank.parkingWaiverDays?.toString() || '2');
+    setParkingPayer(bank.parkingPayer || 'CUSTOMER');
+
     const ratesMap = {
       TW: '',
       THREE_W: '',
@@ -237,6 +262,19 @@ export default function BanksScreen() {
 
     setSavingRates(true);
     try {
+      // Update Bank configuration
+      await apiRequest(`/api/banks/${editingBank.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: editingBank.name,
+          kachhaParkingRate: Number(kachhaRate || 0),
+          pakkaParkingRate: Number(pakkaRate || 0),
+          releaseOrderParkingRate: Number(roRate || 0),
+          parkingWaiverDays: Number(waiverDays || 0),
+          parkingPayer: parkingPayer,
+        }),
+      });
+
       const promises = VEHICLE_TYPES.map(type => {
         return apiRequest('/api/rates', {
           method: 'POST',
@@ -251,13 +289,14 @@ export default function BanksScreen() {
       
       setEditModalVisible(false);
       loadBanks(true);
-      Alert.alert('Success', `Rates updated successfully for "${editingBank.name}"`);
+      Alert.alert('Success', `Bank parking configuration updated for "${editingBank.name}"`);
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to update rates');
     } finally {
       setSavingRates(false);
     }
   };
+
 
   // Add Sub-Bank to Network Handlers
   const handleOpenAddSubModal = (thirdParty: Bank) => {
@@ -691,7 +730,79 @@ export default function BanksScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              <ThemedText style={styles.modalLabel}>Daily Parking Rates (₹/day)</ThemedText>
+              <ThemedText style={styles.modalLabel}>3-Phase Bank Parking Config</ThemedText>
+              
+              <View style={{ gap: 10, marginBottom: 15 }}>
+                <View>
+                  <ThemedText style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 4 }}>Kachha Rate (₹/day)</ThemedText>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={kachhaRate}
+                    onChangeText={setKachhaRate}
+                    keyboardType="numeric"
+                    placeholder="100"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+
+                <View>
+                  <ThemedText style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 4 }}>Pakka Rate (₹/day)</ThemedText>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={pakkaRate}
+                    onChangeText={setPakkaRate}
+                    keyboardType="numeric"
+                    placeholder="150"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+
+                <View>
+                  <ThemedText style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 4 }}>Release Order Rate (₹/day)</ThemedText>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={roRate}
+                    onChangeText={setRoRate}
+                    keyboardType="numeric"
+                    placeholder="200"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+
+                <View>
+                  <ThemedText style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 4 }}>Free Waiver Days (after RO Date)</ThemedText>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={waiverDays}
+                    onChangeText={setWaiverDays}
+                    keyboardType="numeric"
+                    placeholder="2"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+
+                <View>
+                  <ThemedText style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 4 }}>Parking Paid By</ThemedText>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity
+                      style={[styles.typeOption, parkingPayer === 'CUSTOMER' && styles.typeOptionSelected, { flex: 1 }]}
+                      onPress={() => setParkingPayer('CUSTOMER')}
+                      activeOpacity={0.7}
+                    >
+                      <ThemedText style={[styles.typeOptionText, parkingPayer === 'CUSTOMER' && styles.typeOptionTextSelected]}>Customer</ThemedText>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.typeOption, parkingPayer === 'BANK' && styles.typeOptionSelected, { flex: 1 }]}
+                      onPress={() => setParkingPayer('BANK')}
+                      activeOpacity={0.7}
+                    >
+                      <ThemedText style={[styles.typeOptionText, parkingPayer === 'BANK' && styles.typeOptionTextSelected]}>Bank</ThemedText>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+
+              <ThemedText style={styles.modalLabel}>Vehicle Daily Parking Rates (₹/day)</ThemedText>
               <View style={styles.ratesInputGrid}>
                 {VEHICLE_TYPES.map(t => (
                   <View key={t} style={styles.rateInputItem}>
@@ -708,6 +819,7 @@ export default function BanksScreen() {
                 ))}
               </View>
             </ScrollView>
+
 
             <TouchableOpacity
               style={[styles.saveBtn, savingRates && { opacity: 0.7 }]}
