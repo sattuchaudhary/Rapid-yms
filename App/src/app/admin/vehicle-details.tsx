@@ -22,6 +22,7 @@ import { getCachedVehicleByNumber, getCachedVehicleById, queueOfflineJob, cacheV
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import NetInfo from '@react-native-community/netinfo';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { documentDirectory, downloadAsync } from 'expo-file-system/legacy';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -51,6 +52,7 @@ const { width } = Dimensions.get('window');
 
 export default function VehicleDetailsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams();
   
   const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
@@ -675,7 +677,8 @@ export default function VehicleDetailsScreen() {
   };
 
   return (
-    <ThemedView style={styles.container}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }} edges={['top', 'bottom', 'left', 'right']}>
+      <ThemedView style={styles.container}>
       {/* Top Header Navigation */}
       <View style={styles.headerBar}>
         <TouchableOpacity onPress={() => router.back()} style={styles.iconButton} activeOpacity={0.7}>
@@ -687,38 +690,77 @@ export default function VehicleDetailsScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Blue Profile Card Banner */}
-        <View style={styles.profileCard}>
-          <Image source={{ uri: displayPhoto }} style={styles.vehicleThumbnail} />
-          <View style={styles.profileInfo}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-              <ThemedText style={styles.plateNumber}>{vehicle.vehicleNumber.toUpperCase()}</ThemedText>
-              {vehicle.serialNumber !== undefined && vehicle.serialNumber !== null && (
-                <View style={styles.serialBadge}>
-                  <ThemedText style={styles.serialBadgeText}>#{vehicle.serialNumber}</ThemedText>
-                </View>
-              )}
-            </View>
-            <ThemedText style={styles.modelName}>
-              {vehicle.brand || 'No brand'} {vehicle.model || ''}
-            </ThemedText>
-            
-            {/* 3-Phase Status Pill */}
-            <View style={[
-              styles.lifecycleBadgePill,
-              vehicle.yardStatus === 'KACHHA' ? styles.bgKachhaPill :
-              (vehicle.yardStatus === 'RELEASED' || vehicle.status === 'RELEASED' || vehicle.status === 'CHECKED_OUT') ? styles.bgReleasedPill : styles.bgPakkaPill
-            ]}>
-              <ThemedText style={[
-                styles.lifecycleBadgePillText,
-                vehicle.yardStatus === 'KACHHA' ? styles.textKachhaPill :
-                (vehicle.yardStatus === 'RELEASED' || vehicle.status === 'RELEASED' || vehicle.status === 'CHECKED_OUT') ? styles.textReleasedPill : styles.textPakkaPill
-              ]}>
-                {vehicle.yardStatus === 'KACHHA' ? '🟠 KACHHA (Repo Kit Pending)' :
-                 (vehicle.yardStatus === 'RELEASED' || vehicle.status === 'RELEASED' || vehicle.status === 'CHECKED_OUT') ? '🔵 RELEASED (Vehicle Exited)' : '🟢 PAKKA (Billing Active)'}
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: 90 + Math.max(insets.bottom, 16) },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Official Executive Corporate Asset Dossier Card */}
+        <View style={styles.corporateDossierCard}>
+          <View style={styles.dossierTopHeader}>
+            <View style={styles.dossierStampBadge}>
+              <ThemedText style={styles.dossierStampText}>
+                OFFICIAL ASSET DOSSIER {vehicle.serialNumber ? `#${vehicle.serialNumber}` : `INV-${new Date(vehicle.entryDate || Date.now()).getFullYear()}`}
               </ThemedText>
             </View>
+            <View style={[
+              styles.dossierStatusPill,
+              vehicle.yardStatus === 'KACHHA' ? { backgroundColor: '#F59E0B' } :
+              (vehicle.yardStatus === 'RELEASED' || vehicle.status === 'RELEASED' || vehicle.status === 'CHECKED_OUT') ? { backgroundColor: '#2563EB' } : { backgroundColor: '#10B981' }
+            ]}>
+              <ThemedText style={styles.dossierStatusText}>
+                {vehicle.yardStatus === 'KACHHA' ? 'KACHHA (AUDIT PENDING)' :
+                 (vehicle.yardStatus === 'RELEASED' || vehicle.status === 'RELEASED' || vehicle.status === 'CHECKED_OUT') ? 'RELEASED (EXITED)' : 'PAKKA (POSSESSION FORMALIZED)'}
+              </ThemedText>
+            </View>
+          </View>
+
+          <View style={styles.dossierBodyRow}>
+            <Image source={{ uri: displayPhoto }} style={styles.dossierThumbnail} />
+            <View style={styles.dossierMeta}>
+              <ThemedText style={styles.dossierPlateNumber}>{vehicle.vehicleNumber.toUpperCase()}</ThemedText>
+              <ThemedText style={styles.dossierModelName}>
+                {vehicle.brand || 'Vehicle'} {vehicle.model || ''} {vehicle.color ? `• ${vehicle.color}` : ''}
+              </ThemedText>
+              <ThemedText style={styles.dossierCategory}>
+                {vehicle.vehicleType === 'TW' ? 'Two Wheeler (2W)' :
+                 vehicle.vehicleType === 'THREE_W' ? 'Three Wheeler (3W)' :
+                 vehicle.vehicleType === 'CV' ? 'Commercial Vehicle (CV)' : 'Four Wheeler (4W)'}
+              </ThemedText>
+            </View>
+          </View>
+        </View>
+
+        {/* Key Security Items Indicator Grid */}
+        <View style={styles.securityGrid}>
+          <View style={[styles.securityBadge, getInventoryItem('key')?.isPresent ? styles.securityBadgePresent : styles.securityBadgeAbsent]}>
+            <ThemedText style={styles.securityBadgeLabel}>🔑 KEY</ThemedText>
+            <ThemedText style={[styles.securityBadgeValue, getInventoryItem('key')?.isPresent ? styles.textPresent : styles.textAbsent]}>
+              {getInventoryItem('key')?.isPresent ? 'YES' : 'NO'}
+            </ThemedText>
+          </View>
+
+          <View style={[styles.securityBadge, getInventoryItem('RC-Original')?.isPresent ? styles.securityBadgePresent : styles.securityBadgeAbsent]}>
+            <ThemedText style={styles.securityBadgeLabel}>📄 RC DOC</ThemedText>
+            <ThemedText style={[styles.securityBadgeValue, getInventoryItem('RC-Original')?.isPresent ? styles.textPresent : styles.textAbsent]}>
+              {getInventoryItem('RC-Original')?.isPresent ? 'YES' : 'NO'}
+            </ThemedText>
+          </View>
+
+          <View style={[styles.securityBadge, getInventoryItem('Battery')?.isPresent ? styles.securityBadgePresent : styles.securityBadgeAbsent]}>
+            <ThemedText style={styles.securityBadgeLabel}>🔋 BATTERY</ThemedText>
+            <ThemedText style={[styles.securityBadgeValue, getInventoryItem('Battery')?.isPresent ? styles.textPresent : styles.textAbsent]}>
+              {getInventoryItem('Battery')?.isPresent ? 'YES' : 'NO'}
+            </ThemedText>
+          </View>
+
+          <View style={[styles.securityBadge, { backgroundColor: '#F8FAFC', borderColor: '#CBD5E1' }]}>
+            <ThemedText style={styles.securityBadgeLabel}>📍 SLOT</ThemedText>
+            <ThemedText style={[styles.securityBadgeValue, { color: '#0F172A' }]}>
+              {vehicle.yardLocation ? `${vehicle.yardLocation.zone}-${vehicle.yardLocation.slot}` : 'A-ZONE'}
+            </ThemedText>
           </View>
         </View>
 
@@ -782,30 +824,18 @@ export default function VehicleDetailsScreen() {
           </View>
         )}
 
-        {/* Card 1: Specifications & Yard Info */}
+        {/* Card 1: Yard & Vehicle Specifications */}
         <View style={styles.sectionCard}>
-          <ThemedText style={styles.sectionHeader}>Specifications & Yard Info</ThemedText>
-          <View style={styles.detailRow}>
-            <ThemedText style={styles.detailLabel}>Serial No.</ThemedText>
-            <ThemedText style={[styles.detailValue, { color: '#4F46E5', fontWeight: '800' }]}>
-              #{vehicle.serialNumber || 'N/A'}
-            </ThemedText>
-          </View>
-          <View style={styles.detailRow}>
-            <ThemedText style={styles.detailLabel}>Inventory No.</ThemedText>
-            <ThemedText style={styles.detailValue}>
-              INV-{new Date(vehicle.createdAt).getFullYear()}-{vehicle.id.substring(0, 6).toUpperCase()}
-            </ThemedText>
-          </View>
-          <View style={styles.detailRow}>
-            <ThemedText style={styles.detailLabel}>Entry Date</ThemedText>
-            <ThemedText style={styles.detailValue}>{formattedEntryDate}</ThemedText>
-          </View>
+          <ThemedText style={styles.sectionHeader}>Yard & Vehicle Specifications</ThemedText>
           <View style={styles.detailRow}>
             <ThemedText style={styles.detailLabel}>Yard Location</ThemedText>
-            <ThemedText style={styles.detailValue}>
-              {vehicle.yardLocation ? `${vehicle.yardLocation.zone} - ${vehicle.yardLocation.slot}` : 'Awaiting Slot Allocation'}
+            <ThemedText style={[styles.detailValue, { color: '#4F46E5', fontWeight: '800' }]}>
+              📍 {vehicle.yardLocation ? `${vehicle.yardLocation.zone} - ${vehicle.yardLocation.slot}` : 'Awaiting Slot Allocation'}
             </ThemedText>
+          </View>
+          <View style={styles.detailRow}>
+            <ThemedText style={styles.detailLabel}>Entry Date & Time</ThemedText>
+            <ThemedText style={styles.detailValue}>{formattedEntryDate}</ThemedText>
           </View>
           <View style={styles.detailRow}>
             <ThemedText style={styles.detailLabel}>Vehicle Category</ThemedText>
@@ -834,8 +864,8 @@ export default function VehicleDetailsScreen() {
               onPress={() => vehicle.customerPhone && Linking.openURL(`tel:${vehicle.customerPhone}`)}
               disabled={!vehicle.customerPhone}
             >
-              <ThemedText style={[styles.detailValue, vehicle.customerPhone ? { color: '#4F46E5', textDecorationLine: 'underline' } : null]}>
-                {vehicle.customerPhone || 'N/A'}
+              <ThemedText style={[styles.detailValue, vehicle.customerPhone ? { color: '#4F46E5', fontWeight: '800', textDecorationLine: 'underline' } : null]}>
+                📞 {vehicle.customerPhone || 'N/A'}
               </ThemedText>
             </TouchableOpacity>
           </View>
@@ -857,11 +887,11 @@ export default function VehicleDetailsScreen() {
           </View>
           <View style={styles.detailRow}>
             <ThemedText style={styles.detailLabel}>Chassis Number</ThemedText>
-            <ThemedText style={styles.detailValue}>{vehicle.chassisNumber || 'N/A'}</ThemedText>
+            <ThemedText style={[styles.detailValue, { fontFamily: 'monospace', fontWeight: '700' }]}>{vehicle.chassisNumber || 'N/A'}</ThemedText>
           </View>
           <View style={styles.detailRow}>
             <ThemedText style={styles.detailLabel}>Engine Number</ThemedText>
-            <ThemedText style={styles.detailValue}>{vehicle.engineNumber || 'N/A'}</ThemedText>
+            <ThemedText style={[styles.detailValue, { fontFamily: 'monospace', fontWeight: '700' }]}>{vehicle.engineNumber || 'N/A'}</ThemedText>
           </View>
         </View>
 
@@ -1362,6 +1392,7 @@ export default function VehicleDetailsScreen() {
 
       {/* Redundant local Edit Modals deleted */}
     </ThemedView>
+    </SafeAreaView>
   );
 }
 
@@ -1407,8 +1438,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 50,
-    paddingBottom: 15,
+    paddingVertical: 12,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
@@ -1429,19 +1459,121 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 160,
   },
-  profileCard: {
+  corporateDossierCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  dossierTopHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1E293B',
+    paddingBottom: 10,
+  },
+  dossierStampBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  dossierStampText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#92400E',
+    letterSpacing: 0.5,
+  },
+  dossierStatusPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  dossierStatusText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  dossierBodyRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#4F46E5',
-    borderRadius: 16,
-    padding: 18,
-    gap: 16,
-    marginBottom: 16,
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 4,
+    gap: 14,
+  },
+  dossierThumbnail: {
+    width: 68,
+    height: 68,
+    borderRadius: 12,
+    backgroundColor: '#1E293B',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  dossierMeta: {
+    flex: 1,
+    gap: 2,
+  },
+  dossierPlateNumber: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  dossierModelName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  dossierCategory: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  securityGrid: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  securityBadge: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  securityBadgePresent: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#DCFCE7',
+  },
+  securityBadgeAbsent: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FEE2E2',
+  },
+  securityBadgeLabel: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '700',
+  },
+  securityBadgeValue: {
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  textPresent: {
+    color: '#15803D',
+  },
+  textAbsent: {
+    color: '#DC2626',
   },
   vehicleThumbnail: {
     width: 76,
@@ -1586,12 +1718,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     maxWidth: '80%',
-  },
-  textPresent: {
-    color: '#166534',
-  },
-  textAbsent: {
-    color: '#64748B',
   },
   checkIconBg: {
     width: 14,

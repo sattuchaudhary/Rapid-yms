@@ -122,7 +122,8 @@ export function calculateParkingCharges(input: ParkingCalculationInput): Parking
   let kachhaEnd: Date | null = null;
   let kachhaDays = 0;
 
-  if (kachhaStart) {
+  // Buyer does NOT pay for Kachha phase (starts from Pakka date)
+  if (releasePerson !== 'BUYER' && kachhaStart) {
     if (pakkaStart) {
       kachhaEnd = pakkaStart < kachhaStart ? kachhaStart : pakkaStart;
     } else if (roStart) {
@@ -182,8 +183,10 @@ export function calculateParkingCharges(input: ParkingCalculationInput): Parking
   let bankAbsorbed = 0;
 
   if (payer === 'BANK') {
-    customerPayable = 0;
-    bankAbsorbed = netAmount;
+    // Bank absorbs in-yard charges (Kachha + Pakka) and wave-off days amount.
+    // Customer pays ONLY for extra RO days that exceeded wave-off days (roNetAmount).
+    customerPayable = roNetAmount;
+    bankAbsorbed = kachhaAmount + pakkaAmount + waiverAmount;
   } else {
     customerPayable = netAmount;
     bankAbsorbed = 0;

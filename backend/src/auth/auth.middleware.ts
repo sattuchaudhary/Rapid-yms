@@ -6,6 +6,8 @@ import jwt from 'jsonwebtoken';
 import { AuthRequest } from '../common/tenant.middleware';
 import { AppError } from '../common/error.handler';
 
+import prisma from '../common/prisma';
+
 interface JwtPayload {
   id: string;
   tenantId: string;
@@ -13,8 +15,8 @@ interface JwtPayload {
   email: string;
 }
 
-// Verify JWT and attach user to request
-export const authenticate = (
+// Verify JWT and attach user to request with instant revocation check
+export const authenticate = async (
   req: AuthRequest,
   _res: Response,
   next: NextFunction
@@ -29,16 +31,26 @@ export const authenticate = (
     const secret = process.env.JWT_SECRET!;
     const decoded = jwt.verify(token, secret) as JwtPayload;
 
+    // Verify active DB status for instant force-logout and session revocation
+    const dbUser = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: { id: true, status: true, role: true, tenantId: true, email: true },
+    });
+
+    if (!dbUser || dbUser.status !== 'ACTIVE') {
+      throw new AppError('Session revoked or account suspended. Please log in again.', 401);
+    }
+
     req.user = {
-      id: decoded.id,
-      tenantId: decoded.tenantId,
-      role: decoded.role,
-      email: decoded.email,
+      id: dbUser.id,
+      tenantId: dbUser.tenantId,
+      role: dbUser.role,
+      email: dbUser.email,
     };
 
     next();
-  } catch (err) {
-    next(new AppError('Invalid or expired token', 401));
+  } catch (err: any) {
+    next(err instanceof AppError ? err : new AppError('Invalid or expired token', 401));
   }
 };
 

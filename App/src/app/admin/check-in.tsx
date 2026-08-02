@@ -17,12 +17,13 @@ import {
   Clipboard,
 } from 'react-native';
 import { useRouter, useNavigation, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
-import { queueOfflineJob, getCachedVehicleByNumber, cacheVehicles, cacheBanks, getCachedBanks, getCachedVehicleById } from '@/services/sqlite';
+import { queueOfflineJob, getCachedVehicleByNumber, cacheVehicles, cacheBanks, getCachedBanks, getCachedVehicleById, saveDraft, getDraftById, deleteDraft } from '@/services/sqlite';
 import { apiRequest, getUserInfo } from '@/services/api';
 import { bluetoothService } from '@/services/bluetooth';
 import { ThemedText } from '@/components/themed-text';
@@ -93,8 +94,11 @@ type VehicleType = 'TW' | 'THREE_W' | 'FW' | 'CV';
 
 export default function CheckInScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const { editVehicleId } = useLocalSearchParams();
+  const { editVehicleId, draftId } = useLocalSearchParams<{ editVehicleId?: string; draftId?: string }>();
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(draftId || null);
+  const [formSubmitted, setFormSubmitted] = useState(false);
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [isOfflineSaved, setIsOfflineSaved] = useState(false);
@@ -505,12 +509,72 @@ export default function CheckInScreen() {
     }
   }, []);
 
+  // Draft Auto-Restore effect
+  useEffect(() => {
+    if (draftId) {
+      const record = getDraftById(draftId);
+      if (record && record.data) {
+        try {
+          const d = JSON.parse(record.data);
+          if (d.vehicleNumber) setVehicleNumber(d.vehicleNumber);
+          if (d.brand) setBrand(d.brand);
+          if (d.model) setModel(d.model);
+          if (d.vehicleType) setVehicleType(d.vehicleType);
+          if (d.bankName) setBankName(d.bankName);
+          if (d.customerName) setCustomerName(d.customerName);
+          if (d.customerPhone) setCustomerPhone(d.customerPhone);
+          if (d.chassisNumber) setChassisNumber(d.chassisNumber);
+          if (d.engineNumber) setEngineNumber(d.engineNumber);
+          if (d.yardRemarks) setYardRemarks(d.yardRemarks);
+          if (d.bodyCondition) setBodyCondition(d.bodyCondition);
+          if (d.photos) setPhotos(d.photos);
+          setActiveDraftId(draftId);
+        } catch (err) {
+          console.warn('[CheckIn] Failed to restore draft state:', err);
+        }
+      }
+    }
+  }, [draftId]);
+
+  const handleAutoSaveDraft = useCallback(() => {
+    if (!vehicleNumber.trim() && !customerName.trim() && !bankName.trim() && photos.length === 0) {
+      return;
+    }
+    const title = vehicleNumber.trim() ? vehicleNumber.trim().toUpperCase() : 'Vehicle Check-In';
+    const subtitle = `${bankName || 'No Bank'} • Customer: ${customerName || 'N/A'}`;
+    const payload = {
+      vehicleNumber, brand, model, vehicleType, bankName,
+      customerName, customerPhone, chassisNumber, engineNumber,
+      yardRemarks, bodyCondition, photos,
+    };
+    const id = saveDraft('CHECK_IN', title, subtitle, payload, activeDraftId || undefined);
+    setActiveDraftId(id);
+  }, [vehicleNumber, brand, model, vehicleType, bankName, customerName, customerPhone, chassisNumber, engineNumber, yardRemarks, bodyCondition, photos, activeDraftId]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', () => {
+      const hasProgress = vehicleNumber.trim() || customerName.trim() || bankName.trim() || photos.length > 0;
+      if (hasProgress && !formSubmitted) {
+        handleAutoSaveDraft();
+      }
+    });
+    return unsubscribe;
+  }, [navigation, vehicleNumber, customerName, bankName, photos, formSubmitted, handleAutoSaveDraft]);
+
   useEffect(() => {
     loadBanks();
 
-    // Fetch registered tenant info on load
+    // Fetch registered tenant info & custom print config on load
     const fetchTenantDetails = async () => {
       try {
+        const savedPrintConfig = await AsyncStorage.getItem('yms_print_config');
+        if (savedPrintConfig) {
+          const parsed = JSON.parse(savedPrintConfig);
+          if (parsed.headerTitle) setTenantName(parsed.headerTitle);
+          if (parsed.headerAddress) setTenantAddress(parsed.headerAddress);
+          return;
+        }
+
         const userInfo = await getUserInfo();
         if (userInfo && userInfo.tenant) {
           if (userInfo.tenant.yardName) {
@@ -993,6 +1057,11 @@ export default function CheckInScreen() {
         }
         
         // Advance to success page
+        setFormSubmitted(true);
+        if (activeDraftId) {
+          deleteDraft(activeDraftId);
+          setActiveDraftId(null);
+        }
         setStep(4);
       } else {
         // App is offline, queue to local SQLite queue
@@ -1022,6 +1091,11 @@ export default function CheckInScreen() {
         }
         
         // Advance to success page
+        setFormSubmitted(true);
+        if (activeDraftId) {
+          deleteDraft(activeDraftId);
+          setActiveDraftId(null);
+        }
         setStep(4);
       }
     } catch (error: any) {
@@ -1142,7 +1216,12 @@ export default function CheckInScreen() {
     >
       <ThemedView style={styles.container}>
       {/* Wizard Header Bar */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          { paddingTop: Math.max(insets.top, 16) + (Platform.OS === 'ios' ? 4 : 8) },
+        ]}
+      >
         {step < 4 ? (
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <ChevronLeft size={20} color="#0F172A" />

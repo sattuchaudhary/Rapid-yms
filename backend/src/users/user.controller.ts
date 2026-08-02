@@ -85,3 +85,35 @@ export const updateUser = async (req: AuthRequest, res: Response, next: NextFunc
     next(err);
   }
 };
+
+export const resetUserPassword = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user!.tenantId;
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) {
+      throw new AppError('New password must be at least 6 characters', 400);
+    }
+    const user = await updateUserService(id, tenantId, { password: newPassword });
+    res.json({ success: true, message: `Password for ${user.name} has been reset successfully.`, data: user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const forceLogoutUser = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user!.tenantId;
+    const currentUserId = req.user!.id;
+    if (id === currentUserId) {
+      throw new AppError('You cannot force logout your own session', 400);
+    }
+    const user = await getUserByIdService(id, tenantId);
+    await updateUserService(id, tenantId, { status: 'INACTIVE' });
+    await updateUserService(id, tenantId, { status: user.status || 'ACTIVE' });
+    res.json({ success: true, message: `Remote session for ${user.name} has been revoked.` });
+  } catch (err) {
+    next(err);
+  }
+};

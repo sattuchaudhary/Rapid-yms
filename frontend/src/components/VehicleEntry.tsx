@@ -248,6 +248,35 @@ export const VehicleEntry: React.FC = () => {
   const [signatureName, setSignatureName] = useState('');
   const [signing, setSigning] = useState(false);
 
+  // Auto-Detect City State & Handler
+  const [detectingCity, setDetectingCity] = useState(false);
+  const autoDetectCity = async () => {
+    setDetectingCity(true);
+    try {
+      const res = await fetch('https://ipapi.co/json/');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.city) {
+          setFormData((prev) => ({ ...prev, placeOfPossession: data.city }));
+          toast.success(`Location detected: ${data.city}`);
+          return;
+        }
+      }
+      const fallbackRes = await fetch('http://ip-api.com/json/');
+      if (fallbackRes.ok) {
+        const fbData = await fallbackRes.json();
+        if (fbData && fbData.city) {
+          setFormData((prev) => ({ ...prev, placeOfPossession: fbData.city }));
+          toast.success(`Location detected: ${fbData.city}`);
+        }
+      }
+    } catch (e) {
+      toast.error('Could not auto-detect location');
+    } finally {
+      setDetectingCity(false);
+    }
+  };
+
   // Success state
   const [createdVehicle, setCreatedVehicle] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -263,6 +292,51 @@ export const VehicleEntry: React.FC = () => {
     const item = target.find((i: any) => i.itemName.toLowerCase() === key.toLowerCase() || (i.keyName && i.keyName.toLowerCase() === key.toLowerCase()) || i.itemName.toLowerCase().includes(key.toLowerCase()));
     return item ? item.remarks || '' : '';
   };
+
+  // Dynamic Print & Layout Settings state
+  const [printConfig, setPrintConfig] = useState<any>({
+    headerTitle: 'SHREE PARKING YARD',
+    headerAddress: 'GURUGRAM VILLAGE, HARYANA',
+    footerDisclaimer: '*** THIS IS A COMPUTER SYSTEM GENERATED DOCUMENT. PHYSICAL SIGNATURE NOT REQUIRED. ***',
+  });
+
+  useEffect(() => {
+    // 1. Load Custom Master Checklist Settings if saved in localStorage
+    try {
+      const savedMaster = localStorage.getItem('yms_master_checklist');
+      if (savedMaster) {
+        const parsed = JSON.parse(savedMaster);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const customChecklist = parsed
+            .filter((item: any) => item.enabled !== false)
+            .map((item: any) => ({
+              itemName: item.itemName,
+              keyName: item.itemName,
+              isPresent: false,
+              remarks: '',
+              isCondition: item.itemName.toLowerCase().includes('condition'),
+              isText: item.itemName.toLowerCase().includes('make') || item.itemName.toLowerCase().includes('remark'),
+            }));
+          if (customChecklist.length > 0) {
+            setChecklist(customChecklist);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[VehicleEntry] Failed to load custom master checklist from settings', e);
+    }
+
+    // 2. Load Custom Print Layout Settings if saved in localStorage
+    try {
+      const savedPrint = localStorage.getItem('yms_print_config');
+      if (savedPrint) {
+        const parsedPrint = JSON.parse(savedPrint);
+        setPrintConfig((prev: any) => ({ ...prev, ...parsedPrint }));
+      }
+    } catch (e) {
+      console.warn('[VehicleEntry] Failed to load custom print settings', e);
+    }
+  }, []);
 
   useEffect(() => {
     const fetchSlots = async () => {
@@ -705,9 +779,20 @@ export const VehicleEntry: React.FC = () => {
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                          Place of Possession *
-                        </label>
+                        <div className="flex justify-between items-center">
+                          <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                            Place of Possession *
+                          </label>
+                          <button
+                            type="button"
+                            onClick={autoDetectCity}
+                            disabled={detectingCity}
+                            className="text-[10px] font-bold text-primary hover:underline flex items-center space-x-1 bg-transparent border-0 p-0 cursor-pointer"
+                          >
+                            <MapPin className="w-3 h-3" />
+                            <span>{detectingCity ? 'Detecting...' : 'Detect City'}</span>
+                          </button>
+                        </div>
                         <input
                           type="text"
                           name="placeOfPossession"
@@ -1426,8 +1511,15 @@ export const VehicleEntry: React.FC = () => {
           <div className="border-2 border-black p-6 bg-white space-y-4 print-card shadow-lg max-w-3xl mx-auto">
             {/* Header Title */}
             <div className="text-center space-y-1">
-              <h1 className="text-sm font-extrabold uppercase tracking-wider text-black border-b-2 border-black pb-1.5 font-serif">Vehicle Information At The Time Of Yard</h1>
-              <h2 className="text-xs font-bold uppercase text-black pt-1">Bank Name -- <span className="underline font-extrabold">{createdVehicle.bankName}</span></h2>
+              <h1 className="text-base font-black uppercase tracking-wider text-black font-serif">
+                {printConfig.headerTitle || 'SHREE PARKING YARD'}
+              </h1>
+              <p className="text-[10px] font-bold text-slate-700 uppercase tracking-widest">
+                {printConfig.headerAddress || 'GURUGRAM VILLAGE, HARYANA'}
+              </p>
+              <h2 className="text-xs font-bold uppercase text-black pt-1 border-b-2 border-black pb-1.5">
+                Bank Name -- <span className="underline font-extrabold">{createdVehicle.bankName}</span>
+              </h2>
             </div>
 
             {/* General Info Table */}
@@ -1681,7 +1773,10 @@ export const VehicleEntry: React.FC = () => {
               <span>Print Receipt</span>
             </button>
             <button
-              onClick={() => toast.success('PDF receipt downloaded successfully!')}
+              onClick={() => {
+                window.print();
+                toast.success('Select "Save as PDF" in print dialog');
+              }}
               className="border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-all shadow-sm"
             >
               <FileDown className="w-4 h-4" />

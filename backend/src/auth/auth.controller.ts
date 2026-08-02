@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { AuthRequest } from '../common/tenant.middleware';
 
 const loginSchema = z.object({
-  email: z.string().email('Valid email required'),
+  email: z.string().trim().toLowerCase().email('Valid email required'),
   password: z.string().min(6, 'Password min 6 chars'),
 });
 
@@ -18,7 +18,8 @@ const changePasswordSchema = z.object({
 export const login = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
-    const result = await loginService(email, password);
+    const reqHost = (req.headers['x-forwarded-host'] || req.headers.host || '') as string;
+    const result = await loginService(email, password, reqHost);
     res.json({ success: true, ...result });
   } catch (err) {
     next(err);

@@ -10,14 +10,14 @@ import {
   Modal,
   Platform,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { apiRequest } from '@/services/api';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import NetInfo from '@react-native-community/netinfo';
-import { getCachedVehicleById, queueOfflineJob, cacheVehicles } from '@/services/sqlite';
+import { getCachedVehicleById, queueOfflineJob, cacheVehicles, saveDraft, getDraftById, deleteDraft } from '@/services/sqlite';
 import {
   ChevronLeft,
   Camera,
@@ -61,7 +61,10 @@ const REPO_KIT_DOCS = [
 
 export default function KachhaToPakkaScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const navigation = useNavigation();
+  const { id, draftId } = useLocalSearchParams<{ id: string; draftId?: string }>();
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(draftId || null);
+  const [formSubmitted, setFormSubmitted] = useState(false);
   const isMounted = useRef(true);
 
   useEffect(() => {
@@ -93,6 +96,44 @@ export default function KachhaToPakkaScreen() {
     bank_inventory: false,
     combined_pdf: false,
   });
+
+  // Restore draft state when draftId is passed
+  useEffect(() => {
+    if (draftId) {
+      const record = getDraftById(draftId);
+      if (record && record.data) {
+        try {
+          const d = JSON.parse(record.data);
+          if (d.uploadMethod) setUploadMethod(d.uploadMethod);
+          if (d.photos) setPhotos(d.photos);
+          if (d.vehicle) setVehicle(d.vehicle);
+          setActiveDraftId(draftId);
+        } catch (err) {
+          console.warn('[KachhaToPakka] Failed to restore draft:', err);
+        }
+      }
+    }
+  }, [draftId]);
+
+  const handleAutoSaveDraft = useCallback(() => {
+    const hasPhotos = Object.values(photos).some(p => !!p);
+    if (!hasPhotos && !uploadMethod) return;
+    const title = vehicle?.vehicleNumber ? `Repo Kit: ${vehicle.vehicleNumber}` : 'Kachha to Pakka';
+    const subtitle = `Bank: ${vehicle?.bankName || 'N/A'} • Repo Kit Upload`;
+    const payload = { vehicle, uploadMethod, photos, id };
+    const newId = saveDraft('KACHHA_TO_PAKKA', title, subtitle, payload, activeDraftId || undefined);
+    setActiveDraftId(newId);
+  }, [vehicle, uploadMethod, photos, id, activeDraftId]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', () => {
+      const hasPhotos = Object.values(photos).some(p => !!p);
+      if ((hasPhotos || uploadMethod) && !formSubmitted) {
+        handleAutoSaveDraft();
+      }
+    });
+    return unsubscribe;
+  }, [navigation, photos, uploadMethod, formSubmitted, handleAutoSaveDraft]);
 
   const [docUploadMode, setDocUploadMode] = useState<Record<string, 'image' | 'pdf'>>({
     pre_intimation: 'image',
@@ -406,6 +447,12 @@ export default function KachhaToPakkaScreen() {
       if (!isMounted.current) return;
 
       if (res.success) {
+        setFormSubmitted(true);
+        if (activeDraftId) {
+          deleteDraft(activeDraftId);
+          setActiveDraftId(null);
+        }
+
         // Update local SQLite cache
         if (vehicle) {
           try {
@@ -418,13 +465,13 @@ export default function KachhaToPakkaScreen() {
               entryDate: vehicle.entryDate ?? null,
               yardStatus: 'PAKKA',
               bankName: vehicle.bank?.name ?? vehicle.bankName ?? null,
-              tenantId: vehicle.tenantId,
+              tenantId: vehicle.tenantId || '',
             }]);
           } catch (cacheErr) {
-            console.warn('[KachhaToPakka] Failed to update local cache:', cacheErr);
+            console.warn('[KachhaToPakka] Failed to update local vehicle cache:', cacheErr);
           }
         }
-        if (isMounted.current) setSuccessVisible(true);
+        setSuccessVisible(true);
       } else {
         throw new Error(res.error || 'Transition failed');
       }

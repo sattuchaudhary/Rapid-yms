@@ -46,6 +46,8 @@ declare module 'lucide-react-native' {
   export const Minus: Icon;
   export const Scan: Icon;
   export const Users: Icon;
+  export const UserCheck: Icon;
+  export const UserX: Icon;
   export const Settings: Icon;
   export const MoreVertical: Icon;
   export const Calculator: Icon;
@@ -69,4 +71,6 @@ declare module 'lucide-react-native' {
   export const Square: Icon;
   export const CheckSquare: Icon;
   export const X: Icon;
+  export const Eye: Icon;
+  export const EyeOff: Icon;
 }

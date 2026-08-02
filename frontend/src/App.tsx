@@ -12,7 +12,7 @@ import { SuperAdminDashboard } from './components/SuperAdminDashboard';
 import { StorageManagement } from './components/StorageManagement';
 import { CustomerPortal } from './components/CustomerPortal';
 import api from './services/api';
-import { Warehouse, LogIn, ShieldAlert, Menu, LayoutDashboard, Plus, Truck, Settings, MoreHorizontal, X, Users, FileText, Database, LogOut, ChevronRight, Shield } from 'lucide-react';
+import { Warehouse, LogIn, ShieldAlert, Menu, LayoutDashboard, Plus, Truck, Settings, MoreHorizontal, X, Users, FileText, Database, LogOut, ChevronRight, Shield, Eye, EyeOff } from 'lucide-react';
 import { ToastContainer } from './components/ToastContainer';
 
 
@@ -53,6 +53,8 @@ export const App: React.FC = () => {
   // Login form state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [forgotModalOpen, setForgotModalOpen] = useState(false);
   const [error, setError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
 
@@ -129,8 +131,9 @@ export const App: React.FC = () => {
     e.preventDefault();
     setError('');
     setLoggingIn(true);
+    const cleanEmail = email.trim().toLowerCase();
     try {
-      const res = await api.post('/auth/login', { email, password });
+      const res = await api.post('/auth/login', { email: cleanEmail, password });
       if (res.data?.success) {
         const { user: loggedInUser, accessToken, refreshToken } = res.data;
         
@@ -262,16 +265,31 @@ export const App: React.FC = () => {
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Password</label>
-                <a href="#forgot" className="text-[10px] font-bold text-primary hover:underline">Forgot password?</a>
+                <button
+                  type="button"
+                  onClick={() => setForgotModalOpen(true)}
+                  className="text-[10px] font-bold text-primary hover:underline bg-transparent border-0 cursor-pointer p-0"
+                >
+                  Forgot password?
+                </button>
               </div>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-slate-950 text-white px-4 py-2.5 rounded-xl border border-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs font-semibold"
-              />
+              <div className="relative flex items-center">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-slate-950 text-white pl-4 pr-10 py-2.5 rounded-xl border border-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs font-semibold"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 text-slate-400 hover:text-slate-200 focus:outline-none bg-transparent border-0 p-1"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
 
             <button
@@ -303,59 +321,90 @@ export const App: React.FC = () => {
             </div>
           </form>
 
-          {/* Quick Sandbox Login helpers */}
-          <div className="border-t border-slate-800/80 pt-6 space-y-2">
-            <span className="text-[9px] uppercase font-bold text-slate-500 tracking-wider block text-center">Development Sandbox Accounts</span>
-            <div className="grid grid-cols-2 gap-2 text-[10px] font-semibold">
-              {/* Show only relevant sandbox options matching domain */}
-              {(!resolvedTenant || isRoot || resolvedTenant.yardName.toLowerCase().includes('system')) && (
-                <button
-                  type="button"
-                  onClick={() => { setEmail('superadmin@yms-saas.com'); setPassword('password123'); }}
-                  className="bg-slate-950 border border-slate-800 text-slate-300 py-2 rounded-lg hover:border-primary/50 transition-colors"
-                >
-                  Super Admin
-                </button>
-              )}
-              {(!resolvedTenant || resolvedTenant.yardName.toLowerCase().includes('shree')) && (
-                <button
-                  type="button"
-                  onClick={() => { setEmail('shreeyard@gmail.com'); setPassword('password123'); }}
-                  className="bg-slate-950 border border-slate-800 text-slate-300 py-2 rounded-lg hover:border-primary/50 transition-colors col-span-2"
-                >
-                  Shree Admin (New)
-                </button>
-              )}
-              {(!resolvedTenant || resolvedTenant.yardName.toLowerCase().includes('mumbai')) && (
-                <>
+          {/* Quick Sandbox Login helpers (DEV Environment Only) */}
+          {import.meta.env.DEV && (
+            <div className="border-t border-slate-800/80 pt-6 space-y-2">
+              <span className="text-[9px] uppercase font-bold text-slate-500 tracking-wider block text-center">Development Sandbox Accounts</span>
+              <div className="grid grid-cols-2 gap-2 text-[10px] font-semibold">
+                {/* Show only relevant sandbox options matching domain */}
+                {(!resolvedTenant || isRoot || resolvedTenant.yardName.toLowerCase().includes('system')) && (
                   <button
                     type="button"
-                    onClick={() => { setEmail('admin@mumbaiyard.com'); setPassword('password123'); }}
+                    onClick={() => { setEmail('superadmin@yms-saas.com'); setPassword('password123'); }}
                     className="bg-slate-950 border border-slate-800 text-slate-300 py-2 rounded-lg hover:border-primary/50 transition-colors"
                   >
-                    Mumbai Admin
+                    Super Admin
                   </button>
+                )}
+                {(!resolvedTenant || resolvedTenant.yardName.toLowerCase().includes('shree')) && (
                   <button
                     type="button"
-                    onClick={() => { setEmail('guard@mumbaiyard.com'); setPassword('password123'); }}
-                    className="bg-slate-950 border border-slate-800 text-slate-300 py-2 rounded-lg hover:border-primary/50 transition-colors"
+                    onClick={() => { setEmail('shreeyard@gmail.com'); setPassword('password123'); }}
+                    className="bg-slate-950 border border-slate-800 text-slate-300 py-2 rounded-lg hover:border-primary/50 transition-colors col-span-2"
                   >
-                    Mumbai Guard
+                    Shree Admin (New)
                   </button>
-                </>
-              )}
-              {(!resolvedTenant || resolvedTenant.yardName.toLowerCase().includes('delhi')) && (
-                <button
-                  type="button"
-                  onClick={() => { setEmail('admin@delhiyard.com'); setPassword('password123'); }}
-                  className="bg-slate-950 border border-slate-800 text-slate-300 py-2 rounded-lg hover:border-primary/50 transition-colors col-span-2"
-                >
-                  Delhi Admin
-                </button>
-              )}
+                )}
+                {(!resolvedTenant || resolvedTenant.yardName.toLowerCase().includes('mumbai')) && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => { setEmail('admin@mumbaiyard.com'); setPassword('password123'); }}
+                      className="bg-slate-950 border border-slate-800 text-slate-300 py-2 rounded-lg hover:border-primary/50 transition-colors"
+                    >
+                      Mumbai Admin
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setEmail('guard@mumbaiyard.com'); setPassword('password123'); }}
+                      className="bg-slate-950 border border-slate-800 text-slate-300 py-2 rounded-lg hover:border-primary/50 transition-colors"
+                    >
+                      Mumbai Guard
+                    </button>
+                  </>
+                )}
+                {(!resolvedTenant || resolvedTenant.yardName.toLowerCase().includes('delhi')) && (
+                  <button
+                    type="button"
+                    onClick={() => { setEmail('admin@delhiyard.com'); setPassword('password123'); }}
+                    className="bg-slate-950 border border-slate-800 text-slate-300 py-2 rounded-lg hover:border-primary/50 transition-colors col-span-2"
+                  >
+                    Delhi Admin
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Forgot Password Help Modal */}
+        {forgotModalOpen && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-sm w-full space-y-4 shadow-2xl relative animate-fade-in text-center">
+              <div className="w-12 h-12 bg-indigo-950/60 border border-indigo-800/40 rounded-xl flex items-center justify-center mx-auto text-indigo-400">
+                <Shield className="w-6 h-6" />
+              </div>
+              <div className="space-y-1.5">
+                <h3 className="text-base font-bold text-white uppercase tracking-wider">Forgot Password?</h3>
+                <p className="text-xs text-slate-400 font-semibold leading-relaxed">
+                  For security reasons, password resets are managed by your <strong>Yard Tenant Admin</strong> or System Supervisor.
+                </p>
+              </div>
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[11px] text-slate-300 space-y-1 text-left">
+                <p>• Contact your Yard Supervisor or Admin directly.</p>
+                <p>• They can issue a temporary password or reset key via the Staff Management Console.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForgotModalOpen(false)}
+                className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-2.5 rounded-xl text-xs transition-colors"
+              >
+                Understood, Close
+              </button>
             </div>
           </div>
-        </div>
+        )}
+
         <ToastContainer />
       </div>
     );
@@ -447,21 +496,24 @@ export const App: React.FC = () => {
       {/* Main Panel views */}
       <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
         {/* Mobile Header Bar */}
-        <header className="md:hidden flex items-center justify-between px-4 py-2.5 bg-slate-950 text-white border-b border-slate-900 shrink-0 shadow-md z-30 select-none">
-          <div className="flex items-center space-x-2.5">
-            <div className="p-1.5 bg-primary/20 text-primary border border-primary/30 rounded-lg">
+        <header className="md:hidden flex items-center justify-between px-4 py-3 bg-slate-950/95 backdrop-blur-md text-white border-b border-slate-900 shrink-0 shadow-lg z-30 select-none">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white rounded-xl shadow-md shadow-indigo-600/30">
               <Warehouse className="w-4 h-4" />
             </div>
-            <span className="font-extrabold text-xs uppercase tracking-wider text-slate-100">
-              {user?.tenant ? user.tenant.yardName : 'YMS SaaS'}
-            </span>
+            <div>
+              <span className="font-black text-xs uppercase tracking-wider text-white font-display block leading-tight">
+                {user?.tenant ? user.tenant.yardName : 'YMS ENTERPRISE'}
+              </span>
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">OPERATING SYSTEM</span>
+            </div>
           </div>
           
-          <div className="flex items-center space-x-2.5">
-            <div className="text-[8px] font-extrabold text-primary uppercase tracking-widest bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full">
+          <div className="flex items-center space-x-2">
+            <div className="text-[9px] font-extrabold text-indigo-300 uppercase tracking-widest bg-indigo-950/60 border border-indigo-800/60 px-2.5 py-1 rounded-full shadow-inner">
               {user?.role.replace('_', ' ')}
             </div>
-            <div className="w-7 h-7 bg-primary/20 text-primary border border-primary/30 rounded-full flex items-center justify-center font-black text-xs shadow-sm">
+            <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-violet-600 text-white rounded-xl flex items-center justify-center font-black text-xs shadow-md shadow-indigo-600/20">
               {user?.name.charAt(0).toUpperCase()}
             </div>
           </div>

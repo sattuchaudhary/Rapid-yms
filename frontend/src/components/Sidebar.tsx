@@ -48,16 +48,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, isO
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   return (
-    <div className="hidden md:flex md:flex-col w-64 bg-slate-900 border-r border-slate-800 text-slate-100 h-screen select-none shrink-0 relative">
-      {/* Yard Logo & Branding */}
-      <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
+    <div className="hidden md:flex md:flex-col w-64 bg-slate-950 border-r border-slate-800/80 text-slate-100 h-screen select-none shrink-0 relative shadow-2xl">
+      {/* Yard Logo & Branding Header */}
+      <div className="p-6 border-b border-slate-800/80 flex items-center justify-between bg-slate-900/40 backdrop-blur-md">
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-primary rounded-lg text-white shadow-lg shadow-primary/30">
-            <Warehouse className="w-6 h-6" />
+          <div className="p-2.5 bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-500 rounded-xl text-white shadow-lg shadow-indigo-600/30 border border-white/10">
+            <Warehouse className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="font-bold text-sm leading-tight text-white uppercase tracking-wider">YMS SaaS</h1>
-            <p className="text-[10px] text-slate-400 font-medium">Yard Management System</p>
+            <h1 className="font-extrabold text-sm leading-tight text-white tracking-wider font-display">YMS ENTERPRISE</h1>
+            <p className="text-[10px] text-slate-400 font-semibold tracking-wide">YARD OPERATING SYSTEM</p>
           </div>
         </div>
         <button
@@ -68,16 +68,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, isO
         </button>
       </div>
 
-      {/* Tenant Yard Context */}
+      {/* Active Yard Context Badge */}
       {user?.tenant && (
-        <div className="px-6 py-4 border-b border-slate-800 bg-slate-950/10">
-          <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Active Yard</p>
-          <p className="text-xs font-semibold text-slate-200 mt-1 truncate">{user.tenant.yardName}</p>
+        <div className="px-5 py-3.5 border-b border-slate-800/60 bg-indigo-950/20 backdrop-blur-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase font-extrabold text-indigo-400 tracking-widest block">Active Yard</span>
+            <div className="flex items-center space-x-1.5">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">Live</span>
+            </div>
+          </div>
+          <p className="text-xs font-bold text-slate-100 mt-1 truncate">{user.tenant.yardName}</p>
         </div>
       )}
 
       {/* Navigation Links */}
-      <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-3 py-5 space-y-1.5 overflow-y-auto">
         {allowedItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;
@@ -88,33 +97,33 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, isO
                 setCurrentTab(item.id);
                 onClose();
               }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
+              className={`w-full flex items-center space-x-3 px-3.5 py-3 rounded-xl text-xs font-bold transition-all duration-200 ${
                 isActive
-                  ? 'bg-primary text-white shadow-md shadow-primary/20 scale-[1.02]'
-                  : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-100'
+                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-lg shadow-indigo-600/30 border border-indigo-400/20 translate-x-1'
+                  : 'text-slate-400 hover:bg-slate-900/80 hover:text-slate-100'
               }`}
             >
-              <Icon className="w-5 h-5" />
-              <span>{item.label}</span>
+              <Icon className={`w-4 h-4 transition-transform duration-200 ${isActive ? 'text-white scale-110' : 'text-slate-400'}`} />
+              <span className="tracking-wide">{item.label}</span>
             </button>
           );
         })}
 
         {/* Collapsible "Manage Settings" Menu for Super Admin */}
         {isSuperAdmin && (
-          <div className="space-y-1 pt-1">
+          <div className="space-y-1 pt-2 border-t border-slate-800/60 mt-2">
             <button
               onClick={() => setSettingsOpen(!settingsOpen)}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 text-slate-400 hover:bg-slate-800/60 hover:text-slate-100`}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all duration-200 text-slate-400 hover:bg-slate-900/80 hover:text-slate-100`}
             >
               <div className="flex items-center space-x-3">
-                <Settings className="w-5 h-5" />
-                <span>Manage Settings</span>
+                <Settings className="w-4 h-4 text-slate-400" />
+                <span className="tracking-wide">Settings</span>
               </div>
               {settingsOpen ? (
-                <ChevronDown className="w-4 h-4 text-slate-500" />
+                <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
               ) : (
-                <ChevronRight className="w-4 h-4 text-slate-500" />
+                <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
               )}
             </button>
 
@@ -126,14 +135,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, isO
                     setCurrentTab('storage-management');
                     onClose();
                   }}
-                  className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                  className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-bold transition-all duration-200 ${
                     currentTab === 'storage-management'
-                      ? 'bg-primary/20 text-primary border-l-2 border-primary'
-                      : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'
+                      ? 'bg-indigo-600/20 text-indigo-300 border-l-2 border-indigo-500 font-extrabold'
+                      : 'text-slate-400 hover:bg-slate-900/40 hover:text-slate-200'
                   }`}
                 >
-                  <Database className="w-4 h-4 shrink-0" />
-                  <span>Storage Management</span>
+                  <Database className="w-3.5 h-3.5 shrink-0" />
+                  <span>Storage Config</span>
                 </button>
               </div>
             )}
@@ -142,16 +151,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, isO
       </nav>
 
       {/* User Session Profile & Logout */}
-      <div className="p-4 border-t border-slate-800 bg-slate-950/40">
-        <div className="flex items-center space-x-3 mb-4">
-          <div className="w-9 h-9 bg-primary/20 text-primary border border-primary/30 rounded-full flex items-center justify-center font-bold text-sm">
+      <div className="p-4 border-t border-slate-800/80 bg-slate-900/40 backdrop-blur-md">
+        <div className="flex items-center space-x-3 mb-3 p-2 rounded-xl bg-slate-900/60 border border-slate-800/60">
+          <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-violet-600 text-white rounded-xl flex items-center justify-center font-black text-sm shadow-md shadow-indigo-600/20">
             {user?.name.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-slate-200 truncate">{user?.name}</p>
+            <p className="text-xs font-bold text-slate-100 truncate">{user?.name}</p>
             <div className="flex items-center space-x-1 mt-0.5">
-              <Shield className="w-3 h-3 text-primary" />
-              <p className="text-[10px] font-bold text-primary uppercase tracking-wider">
+              <Shield className="w-3 h-3 text-indigo-400" />
+              <p className="text-[9px] font-extrabold text-indigo-400 uppercase tracking-widest">
                 {user?.role.replace('_', ' ')}
               </p>
             </div>
@@ -160,9 +169,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, isO
 
         <button
           onClick={logout}
-          className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 rounded-lg text-sm font-semibold border border-slate-800 bg-slate-950/30 text-slate-400 hover:text-rose-400 hover:border-rose-950/30 hover:bg-rose-950/10 transition-all duration-200"
+          className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold border border-slate-800 bg-slate-900/80 text-slate-400 hover:text-rose-400 hover:border-rose-900/40 hover:bg-rose-950/20 transition-all duration-200 shadow-sm"
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="w-3.5 h-3.5" />
           <span>Sign Out</span>
         </button>
       </div>

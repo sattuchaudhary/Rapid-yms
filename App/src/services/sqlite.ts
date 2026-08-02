@@ -51,6 +51,15 @@ export const initDatabase = () => {
         parentId TEXT,
         isThirdParty INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS drafts (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        subtitle TEXT,
+        data TEXT NOT NULL,
+        createdAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL
+      );
     `);
     console.log('[SQLite] Tables initialized successfully');
   } catch (error) {
@@ -272,6 +281,75 @@ export const getOfflineStats = (): OfflineStats => {
   } catch (error) {
     console.error('[SQLite] Error getting offline stats:', error);
     return { totalVehicles: 0, inYard: 0, released: 0, todayEntry: 0, cashRevenue: 0, upiRevenue: 0 };
+  }
+};
+
+// ============================================
+// DRAFTS OPERATIONS
+// ============================================
+
+export interface DraftRecord {
+  id: string;
+  type: 'CHECK_IN' | 'CHECK_OUT' | 'KACHHA_TO_PAKKA';
+  title: string;
+  subtitle: string | null;
+  data: string; // JSON string of form state
+  createdAt: number;
+  updatedAt: number;
+}
+
+export const saveDraft = (
+  type: 'CHECK_IN' | 'CHECK_OUT' | 'KACHHA_TO_PAKKA',
+  title: string,
+  subtitle: string,
+  data: object,
+  existingId?: string
+): string => {
+  const id = existingId || ('draft_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36));
+  const now = Date.now();
+  const dataStr = JSON.stringify(data);
+
+  try {
+    const existing = db.getFirstSync<DraftRecord>('SELECT createdAt FROM drafts WHERE id = ?', [id]);
+    const createdAt = existing ? existing.createdAt : now;
+
+    db.runSync(
+      `INSERT OR REPLACE INTO drafts (id, type, title, subtitle, data, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, type, title, subtitle, dataStr, createdAt, now]
+    );
+    console.log(`[SQLite] Saved draft ${id} (${type}: ${title})`);
+    return id;
+  } catch (error) {
+    console.error('[SQLite] Error saving draft:', error);
+    return id;
+  }
+};
+
+export const getAllDrafts = (): DraftRecord[] => {
+  try {
+    return db.getAllSync<DraftRecord>('SELECT * FROM drafts ORDER BY updatedAt DESC');
+  } catch (error) {
+    console.error('[SQLite] Error getting drafts:', error);
+    return [];
+  }
+};
+
+export const getDraftById = (id: string): DraftRecord | null => {
+  try {
+    return db.getFirstSync<DraftRecord>('SELECT * FROM drafts WHERE id = ?', [id]);
+  } catch (error) {
+    console.error('[SQLite] Error getting draft by id:', error);
+    return null;
+  }
+};
+
+export const deleteDraft = (id: string) => {
+  try {
+    db.runSync('DELETE FROM drafts WHERE id = ?', [id]);
+    console.log(`[SQLite] Deleted draft ${id}`);
+  } catch (error) {
+    console.error('[SQLite] Error deleting draft:', error);
   }
 };
 

@@ -21,14 +21,29 @@ const generateTokens = (payload: {
   return { accessToken, refreshToken };
 };
 
-export const loginService = async (email: string, password: string) => {
-  // Find user by email
+export const loginService = async (email: string, password: string, reqHost?: string) => {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  // Find user by normalized email
   const user = await prisma.user.findFirst({
-    where: { email, status: 'ACTIVE' },
-    include: { tenant: { select: { id: true, yardName: true, status: true, address: true, phone: true } } },
+    where: { email: normalizedEmail, status: 'ACTIVE' },
+    include: { tenant: { select: { id: true, yardName: true, subdomain: true, status: true, address: true, phone: true } } },
   });
 
   if (!user) throw new AppError('Invalid email or password', 401);
+
+  // Tenant subdomain / host boundary verification
+  if (reqHost && user.role !== 'SUPER_ADMIN') {
+    const parts = reqHost.split(':').shift()?.split('.') || [];
+    if (parts.length > 1) {
+      const hostSubdomain = parts[0].toLowerCase();
+      if (hostSubdomain && hostSubdomain !== 'www' && hostSubdomain !== 'localhost') {
+        if (user.tenant.subdomain.toLowerCase() !== hostSubdomain) {
+          throw new AppError('Access Denied: Your account does not belong to this yard.', 403);
+        }
+      }
+    }
+  }
 
   // Check tenant is active
   if (user.tenant.status !== 'ACTIVE') {

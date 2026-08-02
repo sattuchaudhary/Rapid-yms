@@ -347,12 +347,38 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
   const dailyRevenueThisMonth = revenueThisMonthAgg._sum.paidAmount || 0;
   const dailyRevenueThisYear = revenueThisYearAgg._sum.paidAmount || 0;
 
-  // Calculate dynamic accrued loss for currently active KACHHA vehicles
+  // Load Rate Master rules for exact Bank + Vehicle Type rates
+  const tenantRates = await prisma.parkingRate.findMany({
+    where: { tenantId }
+  });
+  const rateMap = new Map<string, number>();
+  for (const r of tenantRates) {
+    if (r.bankId && r.vehicleType) {
+      rateMap.set(`${r.bankId}_${r.vehicleType}`, r.dailyRate);
+    }
+  }
+
+  const resolveDailyRate = (v: any) => {
+    if (v.billing?.dailyRate && v.billing.dailyRate > 0) {
+      return v.billing.dailyRate;
+    }
+    if (v.bankId && v.vehicleType) {
+      const key = `${v.bankId}_${v.vehicleType}`;
+      if (rateMap.has(key)) {
+        return rateMap.get(key)!;
+      }
+    }
+    return 100.0;
+  };
+
+  // Calculate dynamic accrued loss for currently active KACHHA vehicles using Bank Rate Master
+  let dailyLossTodayAccrued = 0;
   let dailyLossThisMonth = 0;
   let dailyLossThisYear = 0;
 
   for (const v of activeKachha) {
-    const dailyRate = v.billing?.dailyRate || 100.0;
+    const dailyRate = resolveDailyRate(v);
+    dailyLossTodayAccrued += dailyRate;
 
     // For This Month: loss since vehicle entered OR start of month
     const startOfLossMonth = v.entryDate > startOfMonth ? v.entryDate : startOfMonth;
@@ -369,13 +395,15 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
     dailyLossThisYear += diffDaysYear * dailyRate;
   }
 
-  // Calculate dynamic accrued Pakka billing value of active Pakka vehicles
+  const dailyLossToday = dailyLossAgg._sum.dailyRate || dailyLossTodayAccrued;
+
+  // Calculate dynamic accrued Pakka billing value of active Pakka vehicles using Bank Rate Master
   let pakkaAccruedToday = 0;
   let pakkaAccruedThisMonth = 0;
   let pakkaAccruedThisYear = 0;
 
   for (const v of activePakka) {
-    const dailyRate = v.billing?.dailyRate || 100.0;
+    const dailyRate = resolveDailyRate(v);
     pakkaAccruedToday += dailyRate;
 
     const billingStart = v.billing?.billingStartDate || v.billingStart || v.entryDate || startOfToday;
@@ -416,10 +444,20 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
     include: { vehicle: true },
   });
 
+  // Combine Realized Collections + Active Pakka Accrued Dues for Total Earning Overview
+  const totalRevenueToday = dailyRevenueToday + pakkaAccruedToday;
+  const totalRevenueThisMonth = dailyRevenueThisMonth + pakkaAccruedThisMonth;
+  const totalRevenueThisYear = dailyRevenueThisYear + pakkaAccruedThisYear;
+
   return {
     stats: {
       totalVehicles,
       todayEntry,
+      occupancy: {
+        capacity: maxCapacity,
+        occupied: occupiedSlots,
+        percentage: occupancyPercentage,
+      },
       kachhaVehicles: {
         thisMonth: kachhaThisMonth,
         total: kachhaCount,
@@ -435,9 +473,24 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
       },
       pendingReleases,
       dailyRevenue: {
-        today: { amount: dailyRevenueToday, count: revenueTodayPaidCount },
-        thisMonth: { amount: dailyRevenueThisMonth, count: revenueThisMonthCount },
-        thisYear: { amount: dailyRevenueThisYear, count: revenueThisYearCount },
+        today: {
+          amount: totalRevenueToday,
+          count: pakkaCount + revenueTodayPaidCount,
+          realized: dailyRevenueToday,
+          accrued: pakkaAccruedToday,
+        },
+        thisMonth: {
+          amount: totalRevenueThisMonth,
+          count: pakkaCount + revenueThisMonthCount,
+          realized: dailyRevenueThisMonth,
+          accrued: pakkaAccruedThisMonth,
+        },
+        thisYear: {
+          amount: totalRevenueThisYear,
+          count: pakkaCount + revenueThisYearCount,
+          realized: dailyRevenueThisYear,
+          accrued: pakkaAccruedThisYear,
+        },
       },
       dailyLoss: {
         today: { amount: dailyLossToday, count: kachhaCount },

@@ -207,10 +207,12 @@ export const getVehicleParkingCalculation = async (req: AuthRequest, res: Respon
     const tenantId = req.user!.tenantId;
     const releasePersonType = req.query.releasePersonType as 'CUSTOMER' | 'BUYER' | undefined;
     const todayDate = req.query.todayDate as string | undefined;
+    const releaseOrderDate = req.query.releaseOrderDate as string | undefined;
 
     const calculation = await getVehicleParkingCalculationService(id, tenantId, {
       releasePersonType,
       todayDate,
+      releaseOrderDate,
     });
     res.json({ success: true, data: calculation });
   } catch (err) {
@@ -222,11 +224,12 @@ export const recalculateVehicleParking = async (req: AuthRequest, res: Response,
   try {
     const { id } = req.params;
     const tenantId = req.user!.tenantId;
-    const { releasePersonType, todayDate } = req.body || {};
+    const { releasePersonType, todayDate, releaseOrderDate } = req.body || {};
 
     const calculation = await getVehicleParkingCalculationService(id, tenantId, {
       releasePersonType,
       todayDate,
+      releaseOrderDate,
     });
     res.json({ success: true, data: calculation });
   } catch (err) {

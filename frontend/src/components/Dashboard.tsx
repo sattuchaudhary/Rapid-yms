@@ -110,6 +110,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
   const [modalStartDate, setModalStartDate] = useState('');
   const [modalEndDate, setModalEndDate] = useState('');
   const [modalActiveStatus, setModalActiveStatus] = useState<'KACHHA' | 'PAKKA' | 'RELEASED' | 'REVENUE' | 'LOSS' | null>(null);
+  const [modalPage, setModalPage] = useState(1);
 
   // Custom Dashboard Date Range states
   const [dateMode, setDateMode] = useState<'realtime' | 'custom'>('realtime');
@@ -117,6 +118,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
   const [customEndDate, setCustomEndDate] = useState('');
 
   const fetchStats = async (start?: string, end?: string) => {
+    if (start && end && new Date(start) > new Date(end)) {
+      toast.show('Start date cannot be after end date', 'error');
+      return;
+    }
     setLoading(true);
     try {
       const params: any = {};
@@ -140,6 +145,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
   const handleCountClick = async (status: 'KACHHA' | 'PAKKA', timeframe: 'this_month' | 'all') => {
     setModalOpen(true);
     setModalLoading(true);
+    setModalPage(1);
     setSearchTerm('');
     setBankFilter('');
     setTypeFilter('');
@@ -168,6 +174,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
   const handleThreeClick = async (status: 'RELEASED' | 'REVENUE' | 'LOSS', timeframe: 'today' | 'this_month' | 'this_year' | 'custom') => {
     setModalOpen(true);
     setModalLoading(true);
+    setModalPage(1);
     setSearchTerm('');
     setBankFilter('');
     setTypeFilter('');
@@ -316,10 +323,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
       type: 'interactive-three' as const,
       statusType: 'REVENUE' as const,
       title: 'Daily Revenue',
-      desc: 'Calculated parking fees',
+      desc: 'Pakka Stock Dues + Released',
       icon: IndianRupee,
       color: 'bg-revenue text-white shadow-lg shadow-revenue/20',
-      badge: 'Billing Engine',
+      badge: 'Total Earnings',
       borderColor: 'border-indigo-200',
       threeValues: stats.dailyRevenue,
       isCurrency: true,
@@ -1574,71 +1581,75 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 text-slate-600">
-                                  {filtered.map((v) => (
-                                    <tr key={v.id} className="hover:bg-slate-50/50 transition-colors">
-                                      <td className="px-5 py-4 font-bold text-slate-800 uppercase tracking-wide">
-                                        {v.vehicleNumber}
-                                      </td>
-                                      <td className="px-5 py-4">
-                                        <div className="font-semibold text-slate-700">
-                                          {v.brand || 'N/A'} {v.model || ''}
-                                        </div>
-                                        <div className="text-[10px] text-slate-400 mt-0.5">{v.color || 'No color spec'}</div>
-                                      </td>
-                                      <td className="px-5 py-4 font-medium text-slate-600">
-                                        {v.bankName}
-                                      </td>
-                                      {isRevenueTab && (
-                                        <td className="px-5 py-4 font-bold text-emerald-600">
-                                          {"\u20B9"}{v.billing?.paidAmount?.toLocaleString('en-IN') || 0}
+                                  {(() => {
+                                    const pageSize = 15;
+                                    const paginated = filtered.slice((modalPage - 1) * pageSize, modalPage * pageSize);
+                                    return paginated.map((v) => (
+                                      <tr key={v.id} className="hover:bg-slate-50/50 transition-colors">
+                                        <td className="px-5 py-4 font-bold text-slate-800 uppercase tracking-wide">
+                                          {v.vehicleNumber}
                                         </td>
-                                      )}
-                                      {isLossTab && (
-                                        <td className="px-5 py-4 font-bold text-rose-500">
-                                          {"\u20B9"}{v.billing?.dailyRate?.toLocaleString('en-IN') || 0}/day
-                                        </td>
-                                      )}
-                                      {isReleasedTab || isRevenueTab ? (
-                                        <td className="px-5 py-4 text-slate-500 font-semibold">
-                                          <div className="flex items-center space-x-1.5">
-                                            <Clock className="w-3.5 h-3.5 text-slate-400" />
-                                            <span>
-                                              {v.release?.releasedAt
-                                                ? new Date(v.release.releasedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                                                : 'N/A'
-                                              }
-                                            </span>
+                                        <td className="px-5 py-4">
+                                          <div className="font-semibold text-slate-700">
+                                            {v.brand || 'N/A'} {v.model || ''}
                                           </div>
+                                          <div className="text-[10px] text-slate-400 mt-0.5">{v.color || 'No color spec'}</div>
                                         </td>
-                                      ) : (
-                                        <td className="px-5 py-4 text-slate-500 font-semibold">
-                                          <div className="flex items-center space-x-1.5">
-                                            <Clock className="w-3.5 h-3.5 text-slate-400" />
-                                            <span>{new Date(v.entryDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                                          </div>
+                                        <td className="px-5 py-4 font-medium text-slate-600">
+                                          {v.bankName}
                                         </td>
-                                      )}
-                                      <td className="px-5 py-4">
-                                        <span className="font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                                          {v.yardLocation?.slot || 'Unallocated'}
-                                        </span>
-                                      </td>
-                                      <td className="px-5 py-4 text-center">
-                                        <button
-                                          onClick={(e) => {
-                                            e.preventDefault();
-                                            localStorage.setItem('yms_vehicle_list_search', v.vehicleNumber);
-                                            setCurrentTab?.('vehicles');
-                                            setModalOpen(false);
-                                          }}
-                                          className="inline-flex items-center space-x-1 text-primary font-semibold hover:underline bg-transparent border-none p-0 outline-none cursor-pointer"
-                                        >
-                                          <span>View File</span>
-                                          <ExternalLink className="w-3 h-3" />
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  ))}
+                                        {isRevenueTab && (
+                                          <td className="px-5 py-4 font-bold text-emerald-600">
+                                            {"\u20B9"}{v.billing?.paidAmount?.toLocaleString('en-IN') || 0}
+                                          </td>
+                                        )}
+                                        {isLossTab && (
+                                          <td className="px-5 py-4 font-bold text-rose-500">
+                                            {"\u20B9"}{v.billing?.dailyRate?.toLocaleString('en-IN') || 0}/day
+                                          </td>
+                                        )}
+                                        {isReleasedTab || isRevenueTab ? (
+                                          <td className="px-5 py-4 text-slate-500 font-semibold">
+                                            <div className="flex items-center space-x-1.5">
+                                              <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                              <span>
+                                                {v.release?.releasedAt
+                                                  ? new Date(v.release.releasedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                                                  : 'N/A'
+                                                }
+                                              </span>
+                                            </div>
+                                          </td>
+                                        ) : (
+                                          <td className="px-5 py-4 text-slate-500 font-semibold">
+                                            <div className="flex items-center space-x-1.5">
+                                              <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                              <span>{new Date(v.entryDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                            </div>
+                                          </td>
+                                        )}
+                                        <td className="px-5 py-4">
+                                          <span className="font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                                            {v.yardLocation?.slot || 'Unallocated'}
+                                          </span>
+                                        </td>
+                                        <td className="px-5 py-4 text-center">
+                                          <button
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              localStorage.setItem('yms_vehicle_list_search', v.vehicleNumber);
+                                              setCurrentTab?.('vehicles');
+                                              setModalOpen(false);
+                                            }}
+                                            className="inline-flex items-center space-x-1 text-primary font-semibold hover:underline bg-transparent border-none p-0 outline-none cursor-pointer"
+                                          >
+                                            <span>View File</span>
+                                            <ExternalLink className="w-3 h-3" />
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    ));
+                                  })()}
                                 </tbody>
                               </table>
                             );
@@ -1652,10 +1663,35 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center text-slate-400 text-[10px] font-bold uppercase tracking-wider px-6">
-              <span>YMS Operations Control</span>
-              <span>Total Displayed: {modalVehicles.length}</span>
-            </div>
+            {(() => {
+              const pageSize = 15;
+              const totalPages = Math.ceil(modalVehicles.length / pageSize) || 1;
+              return (
+                <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-center text-slate-500 text-xs font-bold gap-3 px-6">
+                  <div className="uppercase text-[10px] tracking-wider text-slate-400">
+                    Showing Page {modalPage} of {totalPages} ({modalVehicles.length} total items)
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      disabled={modalPage <= 1}
+                      onClick={() => setModalPage((p) => Math.max(1, p - 1))}
+                      className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-700 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors shadow-sm"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      disabled={modalPage >= totalPages}
+                      onClick={() => setModalPage((p) => Math.min(totalPages, p + 1))}
+                      className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-700 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors shadow-sm"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

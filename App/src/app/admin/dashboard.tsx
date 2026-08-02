@@ -17,7 +17,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { clearTokens, getUserInfo, apiRequest, UserSession, getProfileImage, setProfileImage } from '@/services/api';
 import { registerSyncListener, runSyncQueue, syncBanksOnline } from '@/services/sync';
 import { bluetoothService, BluetoothDevice } from '@/services/bluetooth';
-import { cacheVehicles, getOfflineStats, getQueuedJobs, CachedVehicle } from '@/services/sqlite';
+import { cacheVehicles, getOfflineStats, getQueuedJobs, getAllDrafts, CachedVehicle } from '@/services/sqlite';
 import NetInfo from '@react-native-community/netinfo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
@@ -193,6 +193,7 @@ export default function GuardDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [offlineStats, setOfflineStats] = useState<any>({ totalVehicles: 0, inYard: 0, released: 0, todayEntry: 0 });
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [draftsCount, setDraftsCount] = useState(0);
 
   const formatRole = (roleStr: string | undefined) => {
     if (!roleStr) return 'Yard Operator';
@@ -225,86 +226,96 @@ export default function GuardDashboard() {
     }
   };
 
-  const loadDashboardStats = async () => {
+  // Throttling ref for vehicle sync (30 seconds)
+  const lastSyncTimeRef = useState<{ time: number }>({ time: 0 })[0];
+
+  const loadDashboardStats = async (forceSync = false) => {
     setStatsLoading(true);
-    // 1. Get offline fallback stats first
     try {
-      const localStats = getOfflineStats();
-      setOfflineStats(localStats);
-      
-      const queued = getQueuedJobs();
-      setPendingCount(queued.length);
-    } catch (err) {
-      console.warn('[GuardDashboard] Failed to load offline stats from SQLite:', err);
-    }
-
-    // 2. Fetch live stats from API
-    try {
-      const statsRes = await apiRequest('/api/reports/dashboard');
-      if (statsRes.success && statsRes.data) {
-        setStats(statsRes.data.stats);
-      }
-    } catch (e: any) {
-      console.error('[GuardDashboard] Failed to load dashboard counts:', e.message || e);
-    }
-
-    // Fetch live notifications/logs for recent activity feed
-    try {
-      const res = await apiRequest('/api/notifications');
-      if (res.success && Array.isArray(res.data)) {
-        setRecentActivities(res.data.slice(0, 3));
-      }
-    } catch (e: any) {
-      console.warn('[GuardDashboard] Failed to load recent notifications:', e.message || e);
-    }
-
-    try {
-      const profitRes = await apiRequest('/api/reports/profit-loss');
-      if (profitRes.success && profitRes.data) {
-        setFinances(profitRes.data);
-      }
-    } catch (e: any) {
-      console.error('[GuardDashboard] Failed to load profit-loss sheets:', e.message || e);
-    }
-
-    // Fetch and cache banks
-    try {
-      await syncBanksOnline();
-    } catch (bankErr) {
-      console.warn('[GuardDashboard] Failed to fetch and cache banks online:', bankErr);
-    }
-
-    // 3. Sync local vehicle cache
-    try {
-      const res = await apiRequest('/api/vehicles?limit=1000');
-      if (res.success && res.data) {
-        const formatted = res.data.map((item: any) => ({
-          id: item.id,
-          vehicleNumber: item.vehicleNumber,
-          brand: item.brand,
-          model: item.model,
-          vehicleType: item.vehicleType,
-          entryDate: item.entryDate,
-          yardStatus: item.yardStatus,
-          bankName: item.bankName,
-          tenantId: item.tenantId,
-        }));
-        cacheVehicles(formatted);
+      // 1. Get offline fallback stats first
+      try {
+        const localStats = getOfflineStats();
+        setOfflineStats(localStats);
         
-        // Recalculate offline stats after caching
-        const updatedLocalStats = getOfflineStats();
-        setOfflineStats(updatedLocalStats);
+        const queued = getQueuedJobs();
+        setPendingCount(queued.length);
+      } catch (err) {
+        console.warn('[GuardDashboard] Failed to load offline stats from SQLite:', err);
       }
-    } catch (e: any) {
-      console.warn('[GuardDashboard] Failed to sync local vehicle cache:', e.message || e);
+
+      // 2. Fetch live stats from API
+      try {
+        const statsRes = await apiRequest('/api/reports/dashboard');
+        if (statsRes.success && statsRes.data) {
+          setStats(statsRes.data.stats);
+        }
+      } catch (e: any) {
+        console.error('[GuardDashboard] Failed to load dashboard counts:', e.message || e);
+      }
+
+      // Fetch live notifications/logs for recent activity feed
+      try {
+        const res = await apiRequest('/api/notifications');
+        if (res.success && Array.isArray(res.data)) {
+          setRecentActivities(res.data.slice(0, 3));
+        }
+      } catch (e: any) {
+        console.warn('[GuardDashboard] Failed to load recent notifications:', e.message || e);
+      }
+
+      try {
+        const profitRes = await apiRequest('/api/reports/profit-loss');
+        if (profitRes.success && profitRes.data) {
+          setFinances(profitRes.data);
+        }
+      } catch (e: any) {
+        console.error('[GuardDashboard] Failed to load profit-loss sheets:', e.message || e);
+      }
+
+      // Fetch and cache banks
+      try {
+        await syncBanksOnline();
+      } catch (bankErr) {
+        console.warn('[GuardDashboard] Failed to fetch and cache banks online:', bankErr);
+      }
+
+      // 3. Sync local vehicle cache (Throttled: Sync max once every 30s unless forceSync = true)
+      const now = Date.now();
+      if (forceSync || now - lastSyncTimeRef.time > 30000) {
+        try {
+          const res = await apiRequest('/api/vehicles?limit=1000');
+          if (res.success && res.data) {
+            const formatted = res.data.map((item: any) => ({
+              id: item.id,
+              vehicleNumber: item.vehicleNumber,
+              brand: item.brand,
+              model: item.model,
+              vehicleType: item.vehicleType,
+              entryDate: item.entryDate,
+              yardStatus: item.yardStatus,
+              bankName: item.bankName,
+              tenantId: item.tenantId,
+            }));
+            cacheVehicles(formatted);
+            lastSyncTimeRef.time = now;
+            
+            // Recalculate offline stats after caching
+            const updatedLocalStats = getOfflineStats();
+            setOfflineStats(updatedLocalStats);
+          }
+        } catch (e: any) {
+          console.warn('[GuardDashboard] Failed to sync local vehicle cache:', e.message || e);
+        }
+      }
     } finally {
       setStatsLoading(false);
+      setRefreshing(false);
     }
   };
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadDashboardStats();
+    await loadDashboardStats(true);
     await loadPic();
     setRefreshing(false);
   }, []);
@@ -330,11 +341,21 @@ export default function GuardDashboard() {
       setConnectedPrinter(printer);
     });
 
+    const unsubscribeFocus = navigation.addListener('focus', () => {
+      try {
+        const list = getAllDrafts();
+        setDraftsCount(list.length);
+      } catch (err) {
+        console.warn('[Dashboard] Error refreshing draft count:', err);
+      }
+    });
+
     return () => {
       unsubscribeSync();
       unsubscribePrinter();
+      unsubscribeFocus();
     };
-  }, []);
+  }, [navigation]);
 
   const handleLogout = async () => {
     Alert.alert('Log Out', 'Are you sure you want to log out of the Yard Management system?', [
@@ -449,48 +470,34 @@ export default function GuardDashboard() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#4F46E5']} />
         }
       >
-        {/* Network Sync Status Banner */}
-        <View style={[
-          styles.syncBanner, 
-          !isConnected ? styles.syncBannerOffline : (pendingCount > 0 ? styles.syncBannerSyncing : styles.syncBannerOnline)
-        ]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-            <View style={[
-              styles.syncDot, 
-              !isConnected ? styles.syncDotOffline : (pendingCount > 0 ? styles.syncDotSyncing : styles.syncDotOnline)
-            ]} />
-            <ThemedText style={[
-              styles.syncBannerText,
-              !isConnected ? styles.syncBannerTextOffline : (pendingCount > 0 ? styles.syncBannerTextSyncing : styles.syncBannerTextOnline)
-            ]} numberOfLines={1}>
-              {!isConnected 
-                ? `Offline Mode — Saved locally (${pendingCount} pending)` 
-                : (pendingCount > 0 
-                    ? `Online — Syncing queue (${pendingCount} items remaining)...` 
-                    : 'Online — Cloud Auto-Sync Active')}
-            </ThemedText>
+        {/* Network Sync Status Banner (Only visible when offline or syncing pending queue) */}
+        {(!isConnected || pendingCount > 0) && (
+          <View style={[
+            styles.syncBanner, 
+            !isConnected ? styles.syncBannerOffline : styles.syncBannerSyncing
+          ]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+              <View style={[
+                styles.syncDot, 
+                !isConnected ? styles.syncDotOffline : styles.syncDotSyncing
+              ]} />
+              <ThemedText style={[
+                styles.syncBannerText,
+                !isConnected ? styles.syncBannerTextOffline : styles.syncBannerTextSyncing
+              ]} numberOfLines={1}>
+                {!isConnected 
+                  ? `Offline Mode — Saved locally (${pendingCount} pending)` 
+                  : `Online — Syncing queue (${pendingCount} items remaining)...`}
+              </ThemedText>
+            </View>
+            {isConnected && pendingCount > 0 && (
+              <TouchableOpacity onPress={() => runSyncQueue()} style={styles.syncBtn} activeOpacity={0.7}>
+                <RefreshCw size={11} color="#4F46E5" />
+                <ThemedText style={styles.syncBtnText}>Sync Now</ThemedText>
+              </TouchableOpacity>
+            )}
           </View>
-          {isConnected && pendingCount > 0 && (
-            <TouchableOpacity onPress={() => runSyncQueue()} style={styles.syncBtn} activeOpacity={0.7}>
-              <RefreshCw size={11} color="#4F46E5" />
-              <ThemedText style={styles.syncBtnText}>Sync Now</ThemedText>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Quick Search Floating Bar */}
-        <View style={styles.quickSearchContainer}>
-          <TouchableOpacity 
-            style={styles.quickSearchBox}
-            activeOpacity={0.9}
-            onPress={() => router.push('/admin/vehicle-list')}
-          >
-            <Search size={18} color="#64748B" style={{ marginRight: 10 }} />
-            <ThemedText style={styles.quickSearchPlaceholder} numberOfLines={1}>
-              Search Vehicle Reg No, Brand, Financer...
-            </ThemedText>
-          </TouchableOpacity>
-        </View>
+        )}
 
         {/* Hero Main Action Cards Grid (4 Primary Actions) */}
         <View style={styles.heroActionGrid}>
@@ -540,15 +547,22 @@ export default function GuardDashboard() {
 
           <TouchableOpacity
             style={styles.heroCard}
-            onPress={() => router.push('/admin/print-setup' as any)}
+            onPress={() => router.push('/admin/drafts' as any)}
             activeOpacity={0.85}
           >
-            <View style={[styles.heroIconBg, { backgroundColor: '#ECFDF5' }]}>
-              <Printer size={20} color="#059669" />
+            <View style={[styles.heroIconBg, { backgroundColor: '#EEF2FF' }]}>
+              <FileText size={20} color="#4F46E5" />
             </View>
             <View style={{ flex: 1 }}>
-              <ThemedText style={styles.heroCardTitle}>Print & Setup</ThemedText>
-              <ThemedText style={styles.heroCardSub}>Custom layout</ThemedText>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <ThemedText style={styles.heroCardTitle}>Pending Drafts</ThemedText>
+                {draftsCount > 0 && (
+                  <View style={{ backgroundColor: '#EF4444', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1 }}>
+                    <ThemedText style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '800' }}>{draftsCount}</ThemedText>
+                  </View>
+                )}
+              </View>
+              <ThemedText style={styles.heroCardSub}>{draftsCount > 0 ? `${draftsCount} saved drafts` : 'No saved drafts'}</ThemedText>
             </View>
           </TouchableOpacity>
         </View>
@@ -659,10 +673,10 @@ export default function GuardDashboard() {
           <View style={styles.financialCardHeader}>
             <View style={{ flex: 1 }}>
               <View style={styles.financialBadge}>
-                <ThemedText style={styles.financialBadgeText}>BILLING ENGINE</ThemedText>
+                <ThemedText style={styles.financialBadgeText}>TOTAL EARNINGS OVERVIEW</ThemedText>
               </View>
               <ThemedText style={styles.financialCardTitle}>DAILY REVENUE</ThemedText>
-              <ThemedText style={styles.financialCardSub}>Calculated parking fees</ThemedText>
+              <ThemedText style={styles.financialCardSub}>Pakka Stock Dues + Released Collections</ThemedText>
             </View>
             <View style={[styles.financialIconBg, { backgroundColor: '#3B82F6' }]}>
               <ThemedText style={styles.financialIconText}>₹</ThemedText>
@@ -677,7 +691,7 @@ export default function GuardDashboard() {
                 ₹{stats?.dailyRevenue?.today?.amount ?? 0}
               </ThemedText>
               <ThemedText style={styles.financialColCount}>
-                {stats?.dailyRevenue?.today?.count ?? 0}
+                Accrued: ₹{stats?.dailyRevenue?.today?.accrued ?? 0}
               </ThemedText>
             </View>
             
@@ -688,7 +702,7 @@ export default function GuardDashboard() {
                 ₹{stats?.dailyRevenue?.thisMonth?.amount ?? 0}
               </ThemedText>
               <ThemedText style={styles.financialColCount}>
-                {stats?.dailyRevenue?.thisMonth?.count ?? 0}
+                Accrued: ₹{stats?.dailyRevenue?.thisMonth?.accrued ?? 0}
               </ThemedText>
             </View>
             
@@ -699,7 +713,7 @@ export default function GuardDashboard() {
                 ₹{stats?.dailyRevenue?.thisYear?.amount ?? 0}
               </ThemedText>
               <ThemedText style={styles.financialColCount}>
-                {stats?.dailyRevenue?.thisYear?.count ?? 0}
+                Accrued: ₹{stats?.dailyRevenue?.thisYear?.accrued ?? 0}
               </ThemedText>
             </View>
           </View>

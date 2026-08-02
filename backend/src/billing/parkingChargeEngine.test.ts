@@ -133,25 +133,36 @@ function runEngineTests() {
     console.log('✔ Case 5: Live calculation PASSED');
   }
 
-  // Case 6: Bank pays parking
+  // Case 6: Bank pays parking (in-yard covered by bank, overdue RO days paid by customer)
   {
     const result = calculateParkingCharges({
-      kachhaStartDate: '2026-07-10',
-      pakkaDate: '2026-07-15',
-      actualReleaseDate: '2026-07-20',
+      kachhaStartDate: '2026-07-01',
+      pakkaDate: '2026-07-05',
+      releaseOrderDate: '2026-07-10',
+      actualReleaseDate: '2026-07-25',
       kachhaParkingRate: 100,
       pakkaParkingRate: 150,
+      releaseOrderParkingRate: 200,
+      parkingWaiverDays: 2,
       parkingPayer: 'BANK',
+      releasePersonType: 'CUSTOMER',
     });
 
-    assert.strictEqual(result.totals.netAmount, 1250);
-    assert.strictEqual(result.totals.customerPayable, 0);
-    assert.strictEqual(result.totals.bankAbsorbed, 1250);
+    // RO gross days = 15 (10th to 25th)
+    // Waiver days = 2 (10th & 11th waived)
+    // Chargeable RO days = 13 days (12th to 25th)
+    // RO net amount = 13 * 200 = 2600
+    // Bank absorbs: Kachha (4*100=400) + Pakka (5*150=750) + Waiver (2*200=400) = 1550
+    assert.strictEqual(result.releaseOrder.grossDays, 15);
+    assert.strictEqual(result.releaseOrder.waiverDays, 2);
+    assert.strictEqual(result.releaseOrder.chargeableDays, 13);
+    assert.strictEqual(result.totals.customerPayable, 2600, 'Customer payable must be 2600 for 13 overdue RO days');
+    assert.strictEqual(result.totals.bankAbsorbed, 1550, 'Bank absorbed must cover in-yard + wave-off days');
     assert.strictEqual(result.payer, 'BANK');
-    console.log('✔ Case 6: Bank Payer PASSED');
+    console.log('✔ Case 6: Bank Payer with overdue RO days PASSED');
   }
 
-  // Case 7: Buyer release person selection
+  // Case 7: Buyer release person selection (Kachha days exempt, starts from Pakka date)
   {
     const result = calculateParkingCharges({
       kachhaStartDate: '2026-07-10',
@@ -163,8 +174,12 @@ function runEngineTests() {
     });
 
     assert.strictEqual(result.releasePerson, 'BUYER');
-    assert.strictEqual(result.totals.netAmount, 1250);
-    console.log('✔ Case 7: Buyer release person PASSED');
+    assert.strictEqual(result.kachha.days, 0, 'Kachha days must be 0 for Buyer');
+    assert.strictEqual(result.kachha.amount, 0, 'Kachha amount must be 0 for Buyer');
+    assert.strictEqual(result.pakka.days, 5, 'Pakka days must be 5');
+    assert.strictEqual(result.pakka.amount, 750, 'Pakka amount must be 750');
+    assert.strictEqual(result.totals.netAmount, 750, 'Total net amount must be 750');
+    console.log('✔ Case 7: Buyer release person starting from Pakka date PASSED');
   }
 
   console.log('ALL ENGINE TESTS PASSED SUCCESSFULLY!');

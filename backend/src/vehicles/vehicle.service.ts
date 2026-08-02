@@ -733,6 +733,7 @@ export const getVehicleParkingCalculationService = async (
   options?: {
     todayDate?: string;
     releasePersonType?: 'CUSTOMER' | 'BUYER';
+    releaseOrderDate?: string;
   }
 ) => {
   const vehicle = await prisma.vehicle.findFirst({
@@ -834,7 +835,7 @@ export const getVehicleParkingCalculationService = async (
   return calculateParkingCharges({
     kachhaStartDate: vehicle.kachhaStartDate || vehicle.entryDate,
     pakkaDate: vehicle.pakkaDate,
-    releaseOrderDate: vehicle.releaseOrderDate,
+    releaseOrderDate: options?.releaseOrderDate ? new Date(options.releaseOrderDate) : vehicle.releaseOrderDate,
     actualReleaseDate: vehicle.actualReleaseDate,
     kachhaParkingRate,
     pakkaParkingRate,

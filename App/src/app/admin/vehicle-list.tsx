@@ -10,6 +10,7 @@ import {
   Image,
   ScrollView,
   Alert,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { apiRequest } from '@/services/api';
@@ -17,6 +18,7 @@ import { cacheVehicles, searchCachedVehicles, getOfflineStats, CachedVehicle } f
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import NetInfo from '@react-native-community/netinfo';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { documentDirectory, writeAsStringAsync, EncodingType } from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import {
@@ -40,6 +42,7 @@ export interface ListVehicle extends CachedVehicle {
 
 export default function VehicleListScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [vehicles, setVehicles] = useState<ListVehicle[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -318,7 +321,12 @@ export default function VehicleListScreen() {
   return (
     <ThemedView style={styles.container}>
       {/* Header bar */}
-      <View style={styles.headerBar}>
+      <View
+        style={[
+          styles.headerBar,
+          { paddingTop: Math.max(insets.top, 16) + (Platform.OS === 'ios' ? 4 : 8) },
+        ]}
+      >
         <TouchableOpacity onPress={() => router.back()} style={styles.iconButton} activeOpacity={0.7}>
           <ChevronLeft size={24} color="#0F172A" />
         </TouchableOpacity>
@@ -409,7 +417,10 @@ export default function VehicleListScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4F46E5" />
           }
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: 90 + Math.max(insets.bottom, 16) },
+          ]}
           ListEmptyComponent={() => (
             <View style={styles.emptyList}>
               <Car size={36} color="#94A3B8" style={{ marginBottom: 12 }} />

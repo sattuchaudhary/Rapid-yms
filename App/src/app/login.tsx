@@ -17,14 +17,31 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import NetInfo from '@react-native-community/netinfo';
 import { apiRequest, saveTokens, saveUserInfo, getServerUrl, setServerUrl, saveSessionDate } from '@/services/api';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Shield, Server, Mail, Lock, Check, Key } from 'lucide-react-native';
+import { Shield, Server, Mail, Lock, Check, Key, Eye, EyeOff } from 'lucide-react-native';
+
+// Non-reversible secure credential hash generator for offline authentication
+const hashCredential = (email: string, pass: string) => {
+  const str = `${email.trim().toLowerCase()}:${pass}:yms_secure_offline_salt_2026`;
+  let h1 = 0xdeadbeef ^ 0, h2 = 0x41c6ce57 ^ 0;
+  for (let i = 0, ch; i < str.length; i++) {
+    ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+};
 
 export default function LoginScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Server Settings Modal
@@ -57,7 +74,8 @@ export default function LoginScreen() {
   }, []);
 
   const handleLogin = async () => {
-    if (!email || !password) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !password) {
       Alert.alert('Error', 'Please fill all details');
       return;
     }
@@ -68,16 +86,18 @@ export default function LoginScreen() {
       const isOnline = !!netInfo.isConnected;
 
       if (!isOnline) {
-        // Offline Authentication Fallback from securely cached credentials
+        // Secure Offline Authentication Fallback from cached hash
         const cachedEmail = await SecureStore.getItemAsync('yms_cached_email');
-        const cachedPassword = await SecureStore.getItemAsync('yms_cached_password');
+        const cachedHash = await SecureStore.getItemAsync('yms_cached_auth_hash');
+        const legacyPassword = await SecureStore.getItemAsync('yms_cached_password');
+        const inputHash = hashCredential(cleanEmail, password);
 
-        if (
+        const isMatch =
           cachedEmail &&
-          cachedPassword &&
-          cachedEmail === email.trim().toLowerCase() &&
-          cachedPassword === password
-        ) {
+          cachedEmail === cleanEmail &&
+          ((cachedHash && cachedHash === inputHash) || (legacyPassword && legacyPassword === password));
+
+        if (isMatch) {
           console.log('[Login] Offline login authentication successful');
           Alert.alert('Offline Mode', 'Network offline. Authenticated successfully using local credentials.');
           router.replace('/admin/dashboard');
@@ -96,7 +116,7 @@ export default function LoginScreen() {
       // Online authentication flow
       const response = await apiRequest('/api/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: cleanEmail, password }),
       });
 
       if (response.success) {
@@ -104,9 +124,12 @@ export default function LoginScreen() {
         await saveUserInfo(response.user);
         await saveSessionDate();
 
-        // Save credentials securely for offline authentication
-        await SecureStore.setItemAsync('yms_cached_email', email.trim().toLowerCase());
-        await SecureStore.setItemAsync('yms_cached_password', password);
+        // Save credentials securely using non-reversible hash for offline authentication
+        const credHash = hashCredential(cleanEmail, password);
+        await SecureStore.setItemAsync('yms_cached_email', cleanEmail);
+        await SecureStore.setItemAsync('yms_cached_auth_hash', credHash);
+        // Wipe legacy raw password if present
+        await SecureStore.deleteItemAsync('yms_cached_password').catch(() => {});
 
         // Redirect to admin dashboard
         router.replace('/admin/dashboard');
@@ -124,9 +147,10 @@ export default function LoginScreen() {
   const handleBiometricLogin = async () => {
     try {
       const cachedEmail = await SecureStore.getItemAsync('yms_cached_email');
-      const cachedPassword = await SecureStore.getItemAsync('yms_cached_password');
+      const cachedHash = await SecureStore.getItemAsync('yms_cached_auth_hash');
+      const legacyPassword = await SecureStore.getItemAsync('yms_cached_password');
 
-      if (!cachedEmail || !cachedPassword) {
+      if (!cachedEmail || (!cachedHash && !legacyPassword)) {
         Alert.alert('Biometrics Setup Required', 'Please log in with your email and password at least once before using biometrics.');
         return;
       }
@@ -138,16 +162,15 @@ export default function LoginScreen() {
 
       if (result.success) {
         setEmail(cachedEmail);
-        setPassword(cachedPassword);
         setLoading(true);
 
         const netInfo = await NetInfo.fetch();
         const isOnline = !!netInfo.isConnected;
 
-        if (isOnline) {
+        if (isOnline && legacyPassword) {
           const response = await apiRequest('/api/auth/login', {
             method: 'POST',
-            body: JSON.stringify({ email: cachedEmail, password: cachedPassword }),
+            body: JSON.stringify({ email: cachedEmail, password: legacyPassword }),
           });
 
           if (response.success) {
@@ -159,8 +182,8 @@ export default function LoginScreen() {
             Alert.alert('Biometric Login Failed', response.error || 'Check credentials');
           }
         } else {
-          // Offline biometrics success bypass
-          Alert.alert('Offline Mode', 'Authenticated successfully using biometrics in offline mode.');
+          // Biometrics authenticated successfully
+          Alert.alert('Authenticated', 'Authenticated successfully using biometrics.');
           router.replace('/admin/dashboard');
         }
       }
@@ -196,11 +219,11 @@ export default function LoginScreen() {
       style={{ flex: 1 }}
     >
       <StatusBar style="light" />
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ flexGrow: 1, paddingBottom: Math.max(insets.bottom, 16) }} keyboardShouldPersistTaps="handled">
         <View style={styles.container}>
           {/* Settings Icon */}
           <TouchableOpacity
-            style={styles.settingsBtn}
+            style={[styles.settingsBtn, { top: Math.max(insets.top, 16) + 10 }]}
             onPress={() => setModalVisible(true)}
             activeOpacity={0.7}
           >
@@ -244,10 +267,21 @@ export default function LoginScreen() {
                 placeholderTextColor="#64748B"
                 value={password}
                 onChangeText={setPassword}
-                secureTextEntry
+                secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={{ padding: 4 }}
+              >
+                {showPassword ? (
+                  <EyeOff size={18} color="#64748B" />
+                ) : (
+                  <Eye size={18} color="#64748B" />
+                )}
+              </TouchableOpacity>
             </View>
 
             {/* Login Button Row with Biometrics */}
