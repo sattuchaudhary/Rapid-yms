@@ -129,7 +129,10 @@ export const apiRequest = async (
   try {
     data = JSON.parse(text);
   } catch (e) {
-    data = { error: text };
+    // If response is HTML (e.g., Express 404 or 500 error page), extract clean text inside <pre> tag or strip HTML tags
+    const preMatch = text.match(/<pre>(.*?)<\/pre>/s);
+    const rawClean = preMatch ? preMatch[1].trim() : text.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+    data = { error: rawClean || `Server returned error status ${response.status}` };
   }
 
   if (!response.ok) {
