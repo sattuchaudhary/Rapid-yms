@@ -4,12 +4,8 @@ import {
   View,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
   Alert,
   Modal,
-  Dimensions,
-  Image,
-  FlatList,
   TextInput,
   KeyboardAvoidingView,
   Platform,
@@ -31,57 +27,38 @@ import { getParkingDailyRate } from '@/constants/rates';
 import {
   ChevronLeft,
   MoreVertical,
-  Camera,
   Calculator,
-  Key,
-  MoreHorizontal,
-  Calendar,
-  DollarSign,
   Car,
   Clock,
-  Printer,
-  Share2,
+  DollarSign,
   Trash2,
   FileText,
   Pencil,
-  ChevronDown,
   Building,
   User,
   Phone,
   Shield,
   AlertTriangle,
-  Check,
-  X,
   RefreshCw,
+  X,
+  Camera,
 } from 'lucide-react-native';
 
-const { width } = Dimensions.get('window');
-
-// ----------------------------------------------------------------------
-// Skeleton Loading Placeholder Component
-// ----------------------------------------------------------------------
-function VehicleDetailsSkeleton() {
-  return (
-    <View style={styles.skeletonContainer}>
-      <View style={styles.skeletonHeaderCard}>
-        <View style={styles.skeletonImage} />
-        <View style={styles.skeletonMeta}>
-          <View style={[styles.skeletonLine, { width: '70%', height: 26 }]} />
-          <View style={[styles.skeletonLine, { width: '50%', height: 16, marginTop: 8 }]} />
-          <View style={[styles.skeletonLine, { width: '40%', height: 14, marginTop: 6 }]} />
-        </View>
-      </View>
-      <View style={styles.skeletonGrid}>
-        <View style={styles.skeletonGridBox} />
-        <View style={styles.skeletonGridBox} />
-        <View style={styles.skeletonGridBox} />
-        <View style={styles.skeletonGridBox} />
-      </View>
-      <View style={styles.skeletonCard} />
-      <View style={styles.skeletonCard} />
-    </View>
-  );
-}
+import {
+  VehicleData,
+  BillingData,
+  ParkingCalculation,
+  VehicleHeroCard,
+  MetricCard,
+  AccordionSection,
+  ChecklistCard,
+  ACCESSORY_ITEMS,
+  BillingCard,
+  PhotoGalleryModal,
+  ActionBottomBar,
+  ActionSheetModal,
+  VehicleDetailsSkeleton,
+} from '@/components/vehicle-details';
 
 export default function VehicleDetailsScreen() {
   const router = useRouter();
@@ -90,28 +67,26 @@ export default function VehicleDetailsScreen() {
 
   const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
   const [loading, setLoading] = useState(true);
-  const [vehicle, setVehicle] = useState<any>(null);
-  const [billing, setBilling] = useState<any>(null);
+  const [vehicle, setVehicle] = useState<VehicleData | null>(null);
+  const [billing, setBilling] = useState<BillingData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Modal States
+  // Modal & Drawer States
   const [calcVisible, setCalcVisible] = useState(false);
   const [photosVisible, setPhotosVisible] = useState(false);
   const [actionsSheetVisible, setActionsSheetVisible] = useState(false);
-  const [photoFilterTab, setPhotoFilterTab] = useState<'all' | 'images' | 'pdfs'>('all');
 
-  // Custom Calculator States
+  // Custom Fee Calculator States
   const [calcDays, setCalcDays] = useState('30');
   const [calcResult, setCalcResult] = useState<number | null>(null);
 
-  // Collapsible Accordion Sections State
+  // Expandable Accordion State
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     overview: true,       // Default open
-    vehicleDetails: false,
     repoDetails: false,
+    remarks: false,
     checklist: false,
     billing: false,
-    photos: false,
     advanced: false,
   });
 
@@ -119,16 +94,15 @@ export default function VehicleDetailsScreen() {
     setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Navigation state
   const navigation = useNavigation();
 
-  // Photo Sharing & Viewer States
+  // Photo Sharing & Lightbox States
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
   const [activePhotoUrl, setActivePhotoUrl] = useState<string | null>(null);
   const [sharingInProgress, setSharingInProgress] = useState(false);
-  const [parkingCalculation, setParkingCalculation] = useState<any | null>(null);
+  const [parkingCalculation, setParkingCalculation] = useState<ParkingCalculation | null>(null);
 
-  // Fetch Vehicle Details
+  // Fetch Vehicle Details API
   const fetchVehicleDetails = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -203,7 +177,7 @@ export default function VehicleDetailsScreen() {
     return unsubscribeFocus;
   }, [navigation, fetchVehicleDetails]);
 
-  // Billing calculation helpers
+  // Billing calculations
   const getDailyRate = () => {
     if (billing?.dailyRate) return billing.dailyRate;
     return getParkingDailyRate(vehicle);
@@ -223,7 +197,6 @@ export default function VehicleDetailsScreen() {
     return getDurationDays() * getDailyRate();
   };
 
-  // Run Calculator
   const handleCalculate = () => {
     const days = parseInt(calcDays);
     if (isNaN(days) || days <= 0) {
@@ -233,7 +206,7 @@ export default function VehicleDetailsScreen() {
     setCalcResult(days * getDailyRate());
   };
 
-  // Downloads & shares single photo
+  // Download & Share Photo
   const handleSharePhoto = async (url: string) => {
     try {
       setSharingInProgress(true);
@@ -259,7 +232,7 @@ export default function VehicleDetailsScreen() {
     }
   };
 
-  // Downloads and shares multiple photos sequentially
+  // Share Batch Photos
   const handleShareBatchPhotos = async (urls: string[]) => {
     if (urls.length === 0) {
       Alert.alert('No Photos', 'Please select at least one photo to share.');
@@ -303,7 +276,7 @@ export default function VehicleDetailsScreen() {
     );
   };
 
-  // Base64 helper for PDF reports
+  // Convert image URIs to Base64 for PDF Report
   const uriToBase64 = async (uri: string): Promise<string> => {
     try {
       if (uri.startsWith('http')) {
@@ -328,6 +301,7 @@ export default function VehicleDetailsScreen() {
   };
 
   const generateHTMLReport = async () => {
+    if (!vehicle) return '';
     const photoElements = await Promise.all(
       (vehicle?.photos || []).map(async (p: any) => {
         const base64 = await uriToBase64(p.s3Url);
@@ -528,7 +502,7 @@ export default function VehicleDetailsScreen() {
     }
   };
 
-  // Print Gate Pass Receipt
+  // Print Thermal Gate Pass
   const handlePrint = async () => {
     if (!vehicle) return;
     try {
@@ -576,18 +550,10 @@ export default function VehicleDetailsScreen() {
     );
   };
 
-  const handleMoreMenu = () => {
-    setActionsSheetVisible(true);
-  };
-
-  // Format dates & repo data
+  // Format dates & photo lists
   const defaultPhoto = 'https://images.unsplash.com/photo-1542282088-fe8426682b8f?w=400';
   const imagePhotos = useMemo(() => {
     return vehicle?.photos?.filter((p: any) => !p.s3Url.toLowerCase().split('?')[0].endsWith('.pdf')) || [];
-  }, [vehicle]);
-
-  const pdfPhotos = useMemo(() => {
-    return vehicle?.photos?.filter((p: any) => p.s3Url.toLowerCase().split('?')[0].endsWith('.pdf')) || [];
   }, [vehicle]);
 
   const displayPhoto = imagePhotos.length > 0 ? imagePhotos[0].s3Url : defaultPhoto;
@@ -632,29 +598,11 @@ export default function VehicleDetailsScreen() {
   const yardRemarks = getInventoryItem('Yard Remarks')?.remarks || 'N/A';
   const customerRemarks = getInventoryItem('Customer Remarks')?.remarks || 'N/A';
 
-  const accessoryItems = [
-    { key: 'RC-Original', label: 'RC Original' },
-    { key: 'key', label: 'Keys' },
-    { key: 'Battery', label: 'Battery' },
-    { key: 'Horn', label: 'Horn' },
-    { key: 'Front Tyre', label: 'Front Tyre' },
-    { key: 'Back Tyre', label: 'Back Tyre' },
-    { key: 'Spare Tyre', label: 'Spare Tyre' },
-    { key: 'Tool Kit', label: 'Tool Kit' },
-    { key: 'Side Mirror (Left)', label: 'Side Mirror (L)' },
-    { key: 'Side Mirror (Right)', label: 'Side Mirror (R)' },
-    { key: 'Light Front', label: 'Front Light' },
-    { key: 'Light Back', label: 'Back Light' },
-    { key: 'Light Indicator', label: 'Indicator Lights' },
-    { key: 'Music System', label: 'Music System' },
-    { key: 'Meter Running Condition', label: 'Meter Running' },
-  ];
-
-  // Accessory Checked / Missing Counts
+  // Accessories count summary
   const accessoryCounts = useMemo(() => {
     let checked = 0;
     let missing = 0;
-    accessoryItems.forEach(item => {
+    ACCESSORY_ITEMS.forEach(item => {
       const inv = getInventoryItem(item.key);
       if (inv?.isPresent) checked++;
       else missing++;
@@ -662,7 +610,25 @@ export default function VehicleDetailsScreen() {
     return { checked, missing };
   }, [vehicle]);
 
-  // Loading State
+  // Primary sticky CTA handler
+  const handlePrimaryAction = () => {
+    if (!vehicle) return;
+    if (vehicle.shiftStatus === 'SHIFT_PENDING') {
+      router.push({ pathname: '/admin/check-out', params: { plate: vehicle.vehicleNumber } });
+    } else if (vehicle.yardStatus === 'KACHHA') {
+      router.push({ pathname: '/admin/kachha-to-pakka', params: { id: vehicle.id } });
+    } else if (
+      vehicle.yardStatus === 'RELEASED' ||
+      vehicle.status === 'RELEASED' ||
+      vehicle.status === 'CHECKED_OUT'
+    ) {
+      downloadAndSharePDF();
+    } else {
+      router.push({ pathname: '/admin/check-out', params: { plate: vehicle.vehicleNumber } });
+    }
+  };
+
+  // Loading Skeleton State
   if (loading) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }} edges={['top', 'bottom']}>
@@ -690,7 +656,10 @@ export default function VehicleDetailsScreen() {
           <TouchableOpacity style={styles.retryBtn} onPress={fetchVehicleDetails}>
             <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Retry</ThemedText>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.retryBtn, { backgroundColor: '#64748B', marginTop: 10 }]} onPress={() => router.back()}>
+          <TouchableOpacity
+            style={[styles.retryBtn, { backgroundColor: '#64748B', marginTop: 10 }]}
+            onPress={() => router.back()}
+          >
             <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Back</ThemedText>
           </TouchableOpacity>
         </ThemedView>
@@ -698,35 +667,26 @@ export default function VehicleDetailsScreen() {
     );
   }
 
-  // Determine Operator Status Badge
-  const getStatusBadge = () => {
-    if (vehicle.shiftStatus === 'SHIFT_PENDING') {
-      return { label: 'Shift Pending', bg: '#FEF3C7', color: '#B45309' };
-    }
-    if (vehicle.yardStatus === 'KACHHA') {
-      return { label: 'Pending Verification', bg: '#FEF3C7', color: '#D97706' };
-    }
-    if (vehicle.yardStatus === 'RELEASED' || vehicle.status === 'RELEASED' || vehicle.status === 'CHECKED_OUT') {
-      return { label: 'Released', bg: '#DBEAFE', color: '#2563EB' };
-    }
-    return { label: 'Active Parking', bg: '#DCFCE7', color: '#16A34A' };
-  };
-
-  const statusBadge = getStatusBadge();
-
-  // Filtered Photo Drawer Data
-  const displayedDrawerPhotos = photoFilterTab === 'images' ? imagePhotos : photoFilterTab === 'pdfs' ? pdfPhotos : (vehicle.photos || []);
-
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }} edges={['top', 'left', 'right']}>
       <ThemedView style={styles.container}>
-        {/* Top Operational Navigation Bar */}
+        {/* Top Operations Header */}
         <View style={styles.headerBar}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.iconButton} activeOpacity={0.7}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.iconButton}
+            activeOpacity={0.7}
+            accessibilityLabel="Back"
+          >
             <ChevronLeft size={24} color="#0F172A" />
           </TouchableOpacity>
-          <ThemedText style={styles.headerTitle}>Vehicle Profile</ThemedText>
-          <TouchableOpacity onPress={handleMoreMenu} style={styles.iconButton} activeOpacity={0.7}>
+          <ThemedText style={styles.headerTitle}>Vehicle Operations Profile</ThemedText>
+          <TouchableOpacity
+            onPress={() => setActionsSheetVisible(true)}
+            style={styles.iconButton}
+            activeOpacity={0.7}
+            accessibilityLabel="More options"
+          >
             <MoreVertical size={22} color="#0F172A" />
           </TouchableOpacity>
         </View>
@@ -738,741 +698,317 @@ export default function VehicleDetailsScreen() {
           ]}
           showsVerticalScrollIndicator={false}
         >
-          {/* 1. TOP OPERATOR HERO PROFILE CARD */}
-          <View style={styles.heroProfileCard}>
-            <TouchableOpacity
-              activeOpacity={0.9}
-              onPress={() => setActivePhotoUrl(displayPhoto)}
-              style={styles.heroPhotoWrapper}
-            >
-              <Image source={{ uri: displayPhoto }} style={styles.heroPhoto} />
-              {imagePhotos.length > 1 && (
-                <View style={styles.heroPhotoBadge}>
-                  <Camera size={10} color="#FFFFFF" style={{ marginRight: 3 }} />
-                  <ThemedText style={styles.heroPhotoBadgeText}>{imagePhotos.length}</ThemedText>
-                </View>
-              )}
-            </TouchableOpacity>
+          {/* 1. PREMIUM VEHICLE HERO CARD */}
+          <VehicleHeroCard
+            vehicle={vehicle}
+            displayPhoto={displayPhoto}
+            imageCount={imagePhotos.length}
+            totalDays={getDurationDays()}
+            totalCharges={getTotalCharges()}
+            onPressPhoto={() => setActivePhotoUrl(displayPhoto)}
+          />
 
-            <View style={styles.heroInfo}>
-              <ThemedText style={styles.heroVehicleNumber}>{vehicle.vehicleNumber.toUpperCase()}</ThemedText>
-              <ThemedText style={styles.heroSubText}>
-                {vehicle.brand || 'Vehicle'} {vehicle.model || ''} {vehicle.color ? `• ${vehicle.color}` : ''}
-              </ThemedText>
+          {/* 2. DASHBOARD METRIC CARDS GRID */}
+          <View style={styles.metricsGrid}>
+            <MetricCard
+              label="PARKING DURATION"
+              value={`${getDurationDays()} Days`}
+              subValue={`Entry: ${formattedEntryDate.split(',')[0]}`}
+              icon={<Clock size={16} color="#D97706" />}
+              theme="amber"
+            />
 
-              <View style={[styles.heroStatusBadge, { backgroundColor: statusBadge.bg }]}>
-                <ThemedText style={[styles.heroStatusText, { color: statusBadge.color }]}>
-                  {statusBadge.label}
-                </ThemedText>
-              </View>
-            </View>
+            <MetricCard
+              label="OUTSTANDING DUE"
+              value={`₹${getTotalCharges().toLocaleString('en-IN')}`}
+              subValue={`Rate: ₹${getDailyRate()}/day`}
+              icon={<DollarSign size={16} color="#16A34A" />}
+              theme="green"
+            />
+
+            <MetricCard
+              label="YARD SLOT"
+              value={vehicle.yardLocation ? `${vehicle.yardLocation.zone}-${vehicle.yardLocation.slot}` : 'Unassigned'}
+              subValue="Possession Zone"
+              icon={<Car size={16} color="#4F46E5" />}
+              theme="indigo"
+            />
+
+            <MetricCard
+              label="BANK / FINANCER"
+              value={vehicle.bankName || 'Direct'}
+              subValue={vehicle.bank?.isThirdParty ? 'Third Party Partner' : 'Direct Bank'}
+              icon={<Building size={16} color="#64748B" />}
+              theme="slate"
+            />
           </View>
 
-          {/* 2. OPERATOR 4-METRIC QUICK SUMMARY GRID */}
-          <View style={styles.quickMetricsGrid}>
-            <View style={styles.metricBox}>
-              <View style={[styles.metricIconCircle, { backgroundColor: '#EEF2FF' }]}>
-                <Building size={16} color="#4F46E5" />
-              </View>
-              <ThemedText style={styles.metricLabel}>YARD SLOT</ThemedText>
-              <ThemedText style={styles.metricValue} numberOfLines={1}>
-                {vehicle.yardLocation ? `${vehicle.yardLocation.zone}-${vehicle.yardLocation.slot}` : 'Unassigned'}
-              </ThemedText>
-            </View>
-
-            <View style={styles.metricBox}>
-              <View style={[styles.metricIconCircle, { backgroundColor: '#FEF3C7' }]}>
-                <Clock size={16} color="#D97706" />
-              </View>
-              <ThemedText style={styles.metricLabel}>DURATION</ThemedText>
-              <ThemedText style={styles.metricValue}>
-                {getDurationDays()} Days
-              </ThemedText>
-            </View>
-
-            <View style={styles.metricBox}>
-              <View style={[styles.metricIconCircle, { backgroundColor: '#DCFCE7' }]}>
-                <DollarSign size={16} color="#16A34A" />
-              </View>
-              <ThemedText style={styles.metricLabel}>DUE CHARGES</ThemedText>
-              <ThemedText style={[styles.metricValue, { color: '#16A34A' }]}>
-                ₹{getTotalCharges().toLocaleString('en-IN')}
-              </ThemedText>
-            </View>
-
-            <View style={styles.metricBox}>
-              <View style={[styles.metricIconCircle, { backgroundColor: '#F1F5F9' }]}>
-                <Building size={16} color="#64748B" />
-              </View>
-              <ThemedText style={styles.metricLabel}>BANK / FINANCER</ThemedText>
-              <ThemedText style={styles.metricValue} numberOfLines={1}>
-                {vehicle.bankName || 'Direct'}
-              </ThemedText>
-            </View>
-          </View>
-
-          {/* 3. CONTEXTUAL OPERATOR ACTION BANNER */}
+          {/* 3. CONTEXTUAL OPERATOR ACTION BANNERS */}
           {vehicle.shiftStatus === 'SHIFT_PENDING' && (
-            <View style={styles.contextBannerShift}>
-              <View style={styles.contextBannerRow}>
+            <View style={styles.shiftBanner}>
+              <View style={styles.bannerRow}>
                 <RefreshCw size={20} color="#B45309" />
                 <View style={{ flex: 1 }}>
-                  <ThemedText style={styles.contextBannerTitle}>Shift Pending — Non-Paneled Bank</ThemedText>
-                  <ThemedText style={styles.contextBannerSub}>Bank is not paneled. Queued for transfer.</ThemedText>
+                  <ThemedText style={styles.bannerTitle}>Shift Pending — Non-Paneled Bank</ThemedText>
+                  <ThemedText style={styles.bannerSub}>Bank is not paneled. Queued for transfer.</ThemedText>
                 </View>
               </View>
               <TouchableOpacity
-                style={styles.contextBannerBtnShift}
+                style={styles.shiftBtn}
                 onPress={() => router.push({ pathname: '/admin/check-out', params: { plate: vehicle.vehicleNumber } })}
                 activeOpacity={0.85}
               >
-                <ThemedText style={styles.contextBannerBtnText}>Transfer →</ThemedText>
+                <ThemedText style={styles.shiftBtnText}>Transfer →</ThemedText>
               </TouchableOpacity>
             </View>
           )}
 
           {vehicle.yardStatus === 'KACHHA' && vehicle.shiftStatus !== 'SHIFT_PENDING' && (
             <TouchableOpacity
-              style={styles.contextBannerKachha}
+              style={styles.kachhaBanner}
               onPress={() => router.push({ pathname: '/admin/kachha-to-pakka', params: { id: vehicle.id } })}
               activeOpacity={0.85}
             >
-              <View style={styles.contextBannerRow}>
+              <View style={styles.bannerRow}>
                 <Shield size={20} color="#D97706" />
                 <View style={{ flex: 1 }}>
-                  <ThemedText style={styles.contextBannerTitle}>Verification & Repo Kit Pending</ThemedText>
-                  <ThemedText style={styles.contextBannerSub}>Tap to complete Repo Kit & start active billing</ThemedText>
+                  <ThemedText style={styles.bannerTitle}>Verification & Repo Kit Pending</ThemedText>
+                  <ThemedText style={styles.bannerSub}>Tap to complete Repo Kit & start active billing</ThemedText>
                 </View>
               </View>
-              <ThemedText style={styles.contextBannerBtnKachha}>Verify →</ThemedText>
+              <ThemedText style={styles.kachhaBtnText}>Verify →</ThemedText>
             </TouchableOpacity>
           )}
 
-          {/* 4. EXPANDABLE COLLAPSIBLE SECTIONS */}
-          
-          {/* SECTION 1: Overview & Specifications (Default Open) */}
-          <View style={styles.accordionCard}>
-            <TouchableOpacity
-              style={styles.accordionHeader}
-              onPress={() => toggleSection('overview')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.accordionHeaderLeft}>
-                <Car size={18} color="#4F46E5" />
-                <ThemedText style={styles.accordionTitle}>Overview & Specifications</ThemedText>
-              </View>
-              {expandedSections.overview ? (
-                <ChevronDown size={18} color="#64748B" style={{ transform: [{ rotate: '180deg' }] }} />
-              ) : (
-                <ChevronDown size={18} color="#64748B" />
-              )}
-            </TouchableOpacity>
+          {/* 4. SMART ACCORDION SECTIONS */}
 
-            {expandedSections.overview && (
-              <View style={styles.accordionContent}>
-                <View style={styles.detailRow}>
-                  <ThemedText style={styles.detailLabel}>Entry Date & Time</ThemedText>
-                  <ThemedText style={styles.detailValue}>{formattedEntryDate}</ThemedText>
-                </View>
-                <View style={styles.detailRow}>
-                  <ThemedText style={styles.detailLabel}>Category</ThemedText>
-                  <ThemedText style={styles.detailValue}>
-                    {vehicle.vehicleType === 'TW' ? 'Two Wheeler (2W)' :
-                     vehicle.vehicleType === 'THREE_W' ? 'Three Wheeler (3W)' :
-                     vehicle.vehicleType === 'CV' ? 'Commercial (CV)' : 'Four Wheeler (4W)'}
-                  </ThemedText>
-                </View>
-                <View style={styles.detailRow}>
-                  <ThemedText style={styles.detailLabel}>Color</ThemedText>
-                  <ThemedText style={styles.detailValue}>{vehicle.color || 'N/A'}</ThemedText>
-                </View>
-                <View style={styles.detailRow}>
-                  <ThemedText style={styles.detailLabel}>Yard Serial No.</ThemedText>
-                  <ThemedText style={styles.detailValue}>{vehicle.serialNumber ? `#${vehicle.serialNumber}` : 'N/A'}</ThemedText>
-                </View>
-              </View>
-            )}
-          </View>
+          {/* Section A: Overview & Specifications */}
+          <AccordionSection
+            title="Overview & Specifications"
+            summaryText={`${vehicle.brand || 'Vehicle'} ${vehicle.model || ''} • ${vehicle.color || 'Default Color'} • ${formattedEntryDate.split(',')[0]}`}
+            icon={<Car size={18} color="#4F46E5" />}
+            isExpanded={expandedSections.overview}
+            onToggle={() => toggleSection('overview')}
+          >
+            <View style={styles.detailRow}>
+              <ThemedText style={styles.detailLabel}>Entry Date & Time</ThemedText>
+              <ThemedText style={styles.detailValue}>{formattedEntryDate}</ThemedText>
+            </View>
+            <View style={styles.detailRow}>
+              <ThemedText style={styles.detailLabel}>Vehicle Category</ThemedText>
+              <ThemedText style={styles.detailValue}>
+                {vehicle.vehicleType === 'TW'
+                  ? 'Two Wheeler (2W)'
+                  : vehicle.vehicleType === 'THREE_W'
+                  ? 'Three Wheeler (3W)'
+                  : vehicle.vehicleType === 'CV'
+                  ? 'Commercial (CV)'
+                  : 'Four Wheeler (4W)'}
+              </ThemedText>
+            </View>
+            <View style={styles.detailRow}>
+              <ThemedText style={styles.detailLabel}>Color</ThemedText>
+              <ThemedText style={styles.detailValue}>{vehicle.color || 'N/A'}</ThemedText>
+            </View>
+            <View style={styles.detailRow}>
+              <ThemedText style={styles.detailLabel}>Yard Serial Number</ThemedText>
+              <ThemedText style={styles.detailValue}>
+                {vehicle.serialNumber ? `#${vehicle.serialNumber}` : 'N/A'}
+              </ThemedText>
+            </View>
+          </AccordionSection>
 
-          {/* SECTION 2: Customer & Repossession Details (Default Closed) */}
-          <View style={styles.accordionCard}>
-            <TouchableOpacity
-              style={styles.accordionHeader}
-              onPress={() => toggleSection('repoDetails')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.accordionHeaderLeft}>
-                <User size={18} color="#4F46E5" />
-                <ThemedText style={styles.accordionTitle}>Customer & Repo Details</ThemedText>
-              </View>
-              {expandedSections.repoDetails ? (
-                <ChevronDown size={18} color="#64748B" style={{ transform: [{ rotate: '180deg' }] }} />
-              ) : (
-                <ChevronDown size={18} color="#64748B" />
-              )}
-            </TouchableOpacity>
-
-            {expandedSections.repoDetails && (
-              <View style={styles.accordionContent}>
-                <View style={styles.detailRow}>
-                  <ThemedText style={styles.detailLabel}>Customer Name</ThemedText>
-                  <ThemedText style={styles.detailValue}>{vehicle.customerName || 'N/A'}</ThemedText>
-                </View>
-                <View style={styles.detailRow}>
-                  <ThemedText style={styles.detailLabel}>Customer Mobile</ThemedText>
-                  <TouchableOpacity
-                    onPress={() => vehicle.customerPhone && Linking.openURL(`tel:${vehicle.customerPhone}`)}
-                    disabled={!vehicle.customerPhone}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                  >
-                    {vehicle.customerPhone && <Phone size={14} color="#4F46E5" />}
-                    <ThemedText style={[styles.detailValue, vehicle.customerPhone ? { color: '#4F46E5', fontWeight: '700' } : null]}>
-                      {vehicle.customerPhone || 'N/A'}
-                    </ThemedText>
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.detailRow}>
-                  <ThemedText style={styles.detailLabel}>Bank Name</ThemedText>
-                  <ThemedText style={styles.detailValue}>{vehicle.bankName || 'N/A'}</ThemedText>
-                </View>
-                <View style={styles.detailRow}>
-                  <ThemedText style={styles.detailLabel}>Repo Agency</ThemedText>
-                  <ThemedText style={styles.detailValue}>{parsedRepo.agency}</ThemedText>
-                </View>
-                <View style={styles.detailRow}>
-                  <ThemedText style={styles.detailLabel}>Repo Agent</ThemedText>
-                  <ThemedText style={styles.detailValue}>{parsedRepo.agent}</ThemedText>
-                </View>
-                <View style={styles.detailRow}>
-                  <ThemedText style={styles.detailLabel}>Place of Possession</ThemedText>
-                  <ThemedText style={styles.detailValue}>{parsedRepo.place}</ThemedText>
-                </View>
-                <View style={styles.detailRow}>
-                  <ThemedText style={styles.detailLabel}>Chassis Number</ThemedText>
-                  <ThemedText style={[styles.detailValue, { fontFamily: 'monospace', fontWeight: '700' }]}>
-                    {vehicle.chassisNumber || 'N/A'}
-                  </ThemedText>
-                </View>
-                <View style={styles.detailRow}>
-                  <ThemedText style={styles.detailLabel}>Engine Number</ThemedText>
-                  <ThemedText style={[styles.detailValue, { fontFamily: 'monospace', fontWeight: '700' }]}>
-                    {vehicle.engineNumber || 'N/A'}
-                  </ThemedText>
-                </View>
-              </View>
-            )}
-          </View>
-
-          {/* SECTION 3: Condition & Remarks (Default Closed) */}
-          <View style={styles.accordionCard}>
-            <TouchableOpacity
-              style={styles.accordionHeader}
-              onPress={() => toggleSection('vehicleDetails')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.accordionHeaderLeft}>
-                <FileText size={18} color="#4F46E5" />
-                <ThemedText style={styles.accordionTitle}>Condition Report & Remarks</ThemedText>
-              </View>
-              {expandedSections.vehicleDetails ? (
-                <ChevronDown size={18} color="#64748B" style={{ transform: [{ rotate: '180deg' }] }} />
-              ) : (
-                <ChevronDown size={18} color="#64748B" />
-              )}
-            </TouchableOpacity>
-
-            {expandedSections.vehicleDetails && (
-              <View style={styles.accordionContent}>
-                <View style={styles.detailRow}>
-                  <ThemedText style={styles.detailLabel}>Body Condition</ThemedText>
-                  <View style={[
-                    styles.conditionBadge,
-                    bodyCondition === 'Good' ? styles.bgGood : bodyCondition === 'Bad' ? styles.bgBad : styles.bgAverage
-                  ]}>
-                    <ThemedText style={[
-                      styles.conditionBadgeText,
-                      bodyCondition === 'Good' ? styles.textGood : bodyCondition === 'Bad' ? styles.textBad : styles.textAverage
-                    ]}>
-                      {bodyCondition}
-                    </ThemedText>
-                  </View>
-                </View>
-
-                <View style={styles.remarksBlock}>
-                  <ThemedText style={styles.remarksLabel}>Yard Remarks</ThemedText>
-                  <ThemedText style={styles.remarksValue}>{yardRemarks}</ThemedText>
-                </View>
-
-                <View style={[styles.remarksBlock, { borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 8 }]}>
-                  <ThemedText style={styles.remarksLabel}>Customer Remarks</ThemedText>
-                  <ThemedText style={styles.remarksValue}>{customerRemarks}</ThemedText>
-                </View>
-              </View>
-            )}
-          </View>
-
-          {/* SECTION 4: Compact Accessories Checklist (Default Closed) */}
-          <View style={styles.accordionCard}>
-            <TouchableOpacity
-              style={styles.accordionHeader}
-              onPress={() => toggleSection('checklist')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.accordionHeaderLeft}>
-                <FileText size={18} color="#4F46E5" />
-                <ThemedText style={styles.accordionTitle}>Accessories Checklist</ThemedText>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <View style={styles.accessorySummaryPill}>
-                  <ThemedText style={styles.accessorySummaryText}>
-                    {accessoryCounts.checked} Checked  •  {accessoryCounts.missing} Missing
-                  </ThemedText>
-                </View>
-                {expandedSections.checklist ? (
-                  <ChevronDown size={18} color="#64748B" style={{ transform: [{ rotate: '180deg' }] }} />
-                ) : (
-                  <ChevronDown size={18} color="#64748B" />
-                )}
-              </View>
-            </TouchableOpacity>
-
-            {expandedSections.checklist && (
-              <View style={styles.accordionContent}>
-                <View style={styles.compactAccessoryList}>
-                  {accessoryItems.map(item => {
-                    const invItem = getInventoryItem(item.key);
-                    const isPresent = !!invItem?.isPresent;
-                    let subtext = '';
-                    if (isPresent) {
-                      if (item.key === 'Front Tyre' || item.key === 'Back Tyre') {
-                        const match = invItem.remarks?.match(/\(Tyre Make:\s*(.*?)\)/i);
-                        subtext = match ? match[1]?.trim() : '';
-                      } else {
-                        subtext = invItem.remarks || '';
-                      }
-                    }
-
-                    return (
-                      <View key={item.key} style={styles.compactAccessoryRow}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                          {isPresent ? (
-                            <Check size={16} color="#16A34A" />
-                          ) : (
-                            <X size={16} color="#EF4444" />
-                          )}
-                          <ThemedText style={[styles.compactAccessoryText, !isPresent && { color: '#94A3B8' }]}>
-                            {item.label}
-                          </ThemedText>
-                        </View>
-                        {isPresent ? (
-                          <ThemedText style={styles.compactAccessoryStatusPresent}>
-                            {subtext ? `${subtext}` : 'Present'}
-                          </ThemedText>
-                        ) : (
-                          <ThemedText style={styles.compactAccessoryStatusAbsent}>Missing</ThemedText>
-                        )}
-                      </View>
-                    );
-                  })}
-                </View>
-              </View>
-            )}
-          </View>
-
-          {/* SECTION 5: Dynamic Billing Breakdown (Default Closed) */}
-          <View style={styles.accordionCard}>
-            <TouchableOpacity
-              style={styles.accordionHeader}
-              onPress={() => toggleSection('billing')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.accordionHeaderLeft}>
-                <DollarSign size={18} color="#16A34A" />
-                <ThemedText style={styles.accordionTitle}>Billing & Daily Rates</ThemedText>
-              </View>
-              {expandedSections.billing ? (
-                <ChevronDown size={18} color="#64748B" style={{ transform: [{ rotate: '180deg' }] }} />
-              ) : (
-                <ChevronDown size={18} color="#64748B" />
-              )}
-            </TouchableOpacity>
-
-            {expandedSections.billing && (
-              <View style={styles.accordionContent}>
-                <View style={styles.detailRow}>
-                  <ThemedText style={styles.detailLabel}>Daily Rate</ThemedText>
-                  <ThemedText style={[styles.detailValue, { fontWeight: '700' }]}>₹{getDailyRate()} / Day</ThemedText>
-                </View>
-                <View style={styles.detailRow}>
-                  <ThemedText style={styles.detailLabel}>Total Days Stayed</ThemedText>
-                  <ThemedText style={styles.detailValue}>{getDurationDays()} Days</ThemedText>
-                </View>
-                <View style={styles.detailRow}>
-                  <ThemedText style={styles.detailLabel}>Accrued Dues</ThemedText>
-                  <ThemedText style={[styles.detailValue, { color: '#16A34A', fontWeight: '800', fontSize: 16 }]}>
-                    ₹{getTotalCharges().toLocaleString('en-IN')}
-                  </ThemedText>
-                </View>
-                {parkingCalculation?.phaseBreakdown && (
-                  <View style={{ marginTop: 8, backgroundColor: '#F8FAFC', padding: 10, borderRadius: 8 }}>
-                    <ThemedText style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 4 }}>Phase Breakdown</ThemedText>
-                    <ThemedText style={{ fontSize: 12, color: '#334155' }}>
-                      Kachha: ₹{parkingCalculation.phaseBreakdown.kachhaCharge || 0} ({parkingCalculation.phaseBreakdown.kachhaDays || 0} days)
-                    </ThemedText>
-                    <ThemedText style={{ fontSize: 12, color: '#334155', marginTop: 2 }}>
-                      Pakka: ₹{parkingCalculation.phaseBreakdown.pakkaCharge || 0} ({parkingCalculation.phaseBreakdown.pakkaDays || 0} days)
-                    </ThemedText>
-                  </View>
-                )}
-              </View>
-            )}
-          </View>
-
-          {/* SECTION 6: Advanced / Admin Actions (Default Closed) */}
-          <View style={[styles.accordionCard, { borderColor: '#FEE2E2' }]}>
-            <TouchableOpacity
-              style={[styles.accordionHeader, { backgroundColor: '#FEF2F2' }]}
-              onPress={() => toggleSection('advanced')}
-              activeOpacity={0.7}
-            >
-              <View style={styles.accordionHeaderLeft}>
-                <Shield size={18} color="#EF4444" />
-                <ThemedText style={[styles.accordionTitle, { color: '#991B1B' }]}>Advanced / Admin Actions</ThemedText>
-              </View>
-              {expandedSections.advanced ? (
-                <ChevronDown size={18} color="#991B1B" style={{ transform: [{ rotate: '180deg' }] }} />
-              ) : (
-                <ChevronDown size={18} color="#991B1B" />
-              )}
-            </TouchableOpacity>
-
-            {expandedSections.advanced && (
-              <View style={styles.accordionContent}>
-                <TouchableOpacity
-                  style={styles.dangerZoneBtn}
-                  onPress={handleDelete}
-                  activeOpacity={0.8}
+          {/* Section B: Customer & Repossession Details */}
+          <AccordionSection
+            title="Customer & Repo Details"
+            summaryText={`Bank: ${vehicle.bankName || 'Direct'} • Customer: ${vehicle.customerName || 'N/A'}`}
+            icon={<User size={18} color="#4F46E5" />}
+            isExpanded={expandedSections.repoDetails}
+            onToggle={() => toggleSection('repoDetails')}
+          >
+            <View style={styles.detailRow}>
+              <ThemedText style={styles.detailLabel}>Customer Name</ThemedText>
+              <ThemedText style={styles.detailValue}>{vehicle.customerName || 'N/A'}</ThemedText>
+            </View>
+            <View style={styles.detailRow}>
+              <ThemedText style={styles.detailLabel}>Customer Mobile</ThemedText>
+              <TouchableOpacity
+                onPress={() => vehicle.customerPhone && Linking.openURL(`tel:${vehicle.customerPhone}`)}
+                disabled={!vehicle.customerPhone}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+              >
+                {vehicle.customerPhone ? <Phone size={14} color="#4F46E5" /> : null}
+                <ThemedText
+                  style={[
+                    styles.detailValue,
+                    vehicle.customerPhone ? { color: '#4F46E5', fontWeight: '700' } : null,
+                  ]}
                 >
-                  <Trash2 size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                  <ThemedText style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13 }}>
-                    Permanently Delete Vehicle Record
-                  </ThemedText>
-                </TouchableOpacity>
+                  {vehicle.customerPhone || 'N/A'}
+                </ThemedText>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.detailRow}>
+              <ThemedText style={styles.detailLabel}>Financer / Bank</ThemedText>
+              <ThemedText style={styles.detailValue}>{vehicle.bankName || 'N/A'}</ThemedText>
+            </View>
+            <View style={styles.detailRow}>
+              <ThemedText style={styles.detailLabel}>Repo Agency</ThemedText>
+              <ThemedText style={styles.detailValue}>{parsedRepo.agency}</ThemedText>
+            </View>
+            <View style={styles.detailRow}>
+              <ThemedText style={styles.detailLabel}>Repo Agent</ThemedText>
+              <ThemedText style={styles.detailValue}>{parsedRepo.agent}</ThemedText>
+            </View>
+            <View style={styles.detailRow}>
+              <ThemedText style={styles.detailLabel}>Place of Possession</ThemedText>
+              <ThemedText style={styles.detailValue}>{parsedRepo.place}</ThemedText>
+            </View>
+            <View style={styles.detailRow}>
+              <ThemedText style={styles.detailLabel}>Chassis Number</ThemedText>
+              <ThemedText style={[styles.detailValue, { fontFamily: 'monospace', fontWeight: '700' }]}>
+                {vehicle.chassisNumber || 'N/A'}
+              </ThemedText>
+            </View>
+            <View style={styles.detailRow}>
+              <ThemedText style={styles.detailLabel}>Engine Number</ThemedText>
+              <ThemedText style={[styles.detailValue, { fontFamily: 'monospace', fontWeight: '700' }]}>
+                {vehicle.engineNumber || 'N/A'}
+              </ThemedText>
+            </View>
+          </AccordionSection>
+
+          {/* Section C: Vehicle Condition & Remarks */}
+          <AccordionSection
+            title="Condition Report & Remarks"
+            summaryText={`Body: ${bodyCondition} • Yard Remarks Recorded`}
+            icon={<FileText size={18} color="#4F46E5" />}
+            isExpanded={expandedSections.remarks}
+            onToggle={() => toggleSection('remarks')}
+          >
+            <View style={styles.detailRow}>
+              <ThemedText style={styles.detailLabel}>Body Condition</ThemedText>
+              <View
+                style={[
+                  styles.conditionBadge,
+                  bodyCondition === 'Good'
+                    ? styles.bgGood
+                    : bodyCondition === 'Bad'
+                    ? styles.bgBad
+                    : styles.bgAverage,
+                ]}
+              >
+                <ThemedText
+                  style={[
+                    styles.conditionText,
+                    bodyCondition === 'Good'
+                      ? styles.textGood
+                      : bodyCondition === 'Bad'
+                      ? styles.textBad
+                      : styles.textAverage,
+                  ]}
+                >
+                  {bodyCondition}
+                </ThemedText>
               </View>
-            )}
-          </View>
+            </View>
+
+            <View style={styles.remarksBox}>
+              <ThemedText style={styles.remarksLabel}>Yard Remarks</ThemedText>
+              <ThemedText style={styles.remarksVal}>{yardRemarks}</ThemedText>
+            </View>
+
+            <View style={[styles.remarksBox, { borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 8 }]}>
+              <ThemedText style={styles.remarksLabel}>Customer Remarks</ThemedText>
+              <ThemedText style={styles.remarksVal}>{customerRemarks}</ThemedText>
+            </View>
+          </AccordionSection>
+
+          {/* Section D: Visual Accessories Checklist (Missing items FIRST in Red) */}
+          <AccordionSection
+            title="Accessories Checklist"
+            summaryText={`${accessoryCounts.checked} Available • ${accessoryCounts.missing} Missing`}
+            icon={<FileText size={18} color="#4F46E5" />}
+            isExpanded={expandedSections.checklist}
+            onToggle={() => toggleSection('checklist')}
+            warningPillText={accessoryCounts.missing > 0 ? `${accessoryCounts.missing} Missing` : undefined}
+          >
+            <ChecklistCard inventory={vehicle.inventory} />
+          </AccordionSection>
+
+          {/* Section E: Financial Summary & Billing */}
+          <AccordionSection
+            title="Billing & Daily Rates"
+            summaryText={`₹${getTotalCharges().toLocaleString('en-IN')} Due • ${getDurationDays()} Days Stay`}
+            icon={<DollarSign size={18} color="#16A34A" />}
+            isExpanded={expandedSections.billing}
+            onToggle={() => toggleSection('billing')}
+          >
+            <BillingCard
+              dailyRate={getDailyRate()}
+              totalDays={getDurationDays()}
+              totalCharges={getTotalCharges()}
+              parkingCalculation={parkingCalculation}
+            />
+          </AccordionSection>
+
+          {/* Section F: Advanced / Admin Danger Zone */}
+          <AccordionSection
+            title="Advanced / Admin Actions"
+            summaryText="Permanent Record Deletion & Controls"
+            icon={<Shield size={18} color="#EF4444" />}
+            isExpanded={expandedSections.advanced}
+            onToggle={() => toggleSection('advanced')}
+            isDanger={true}
+          >
+            <TouchableOpacity
+              style={styles.dangerBtn}
+              onPress={handleDelete}
+              activeOpacity={0.8}
+            >
+              <Trash2 size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <ThemedText style={styles.dangerBtnText}>
+                Permanently Delete Vehicle Record
+              </ThemedText>
+            </TouchableOpacity>
+          </AccordionSection>
         </ScrollView>
 
-        {/* 5. STICKY OPERATOR BOTTOM ACTION BAR */}
-        <View style={[styles.stickyBottomBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-          {/* Primary Action Button */}
-          {vehicle.yardStatus === 'KACHHA' && vehicle.shiftStatus !== 'SHIFT_PENDING' && (
-            <TouchableOpacity
-              style={[styles.primaryStickyBtn, { backgroundColor: '#D97706' }]}
-              onPress={() => router.push({ pathname: '/admin/kachha-to-pakka', params: { id: vehicle.id } })}
-              activeOpacity={0.85}
-            >
-              <Shield size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-              <ThemedText style={styles.primaryStickyBtnText}>Complete Verification</ThemedText>
-            </TouchableOpacity>
-          )}
-
-          {vehicle.shiftStatus === 'SHIFT_PENDING' && (
-            <TouchableOpacity
-              style={[styles.primaryStickyBtn, { backgroundColor: '#D97706' }]}
-              onPress={() => router.push({ pathname: '/admin/check-out', params: { plate: vehicle.vehicleNumber } })}
-              activeOpacity={0.85}
-            >
-              <RefreshCw size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-              <ThemedText style={styles.primaryStickyBtnText}>Shift Vehicle</ThemedText>
-            </TouchableOpacity>
-          )}
-
-          {vehicle.yardStatus === 'PAKKA' && (
-            <TouchableOpacity
-              style={[styles.primaryStickyBtn, { backgroundColor: '#16A34A' }]}
-              onPress={() => router.push({ pathname: '/admin/check-out', params: { plate: vehicle.vehicleNumber } })}
-              activeOpacity={0.85}
-            >
-              <Key size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-              <ThemedText style={styles.primaryStickyBtnText}>Release Vehicle</ThemedText>
-            </TouchableOpacity>
-          )}
-
-          {(vehicle.yardStatus === 'RELEASED' || vehicle.status === 'RELEASED' || vehicle.status === 'CHECKED_OUT') && (
-            <TouchableOpacity
-              style={[styles.primaryStickyBtn, { backgroundColor: '#2563EB' }]}
-              onPress={downloadAndSharePDF}
-              activeOpacity={0.85}
-            >
-              <Printer size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-              <ThemedText style={styles.primaryStickyBtnText}>Share Gatepass PDF</ThemedText>
-            </TouchableOpacity>
-          )}
-
-          {/* Quick Action Navigation Bar */}
-          <View style={styles.quickTabBar}>
-            <TouchableOpacity style={styles.quickTabBtn} onPress={() => setPhotosVisible(true)} activeOpacity={0.7}>
-              <Camera size={18} color="#4F46E5" />
-              <ThemedText style={styles.quickTabLabel}>Photos ({imagePhotos.length})</ThemedText>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickTabBtn}
-              onPress={() => setCalcVisible(true)}
-              activeOpacity={0.7}
-            >
-              <Calculator size={18} color="#4F46E5" />
-              <ThemedText style={styles.quickTabLabel}>Calculator</ThemedText>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.quickTabBtn} onPress={downloadAndSharePDF} activeOpacity={0.7}>
-              <FileText size={18} color="#4F46E5" />
-              <ThemedText style={styles.quickTabLabel}>PDF Report</ThemedText>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.quickTabBtn} onPress={handleMoreMenu} activeOpacity={0.7}>
-              <MoreHorizontal size={18} color="#4F46E5" />
-              <ThemedText style={styles.quickTabLabel}>More</ThemedText>
-            </TouchableOpacity>
-          </View>
-        </View>
+        {/* 5. OPERATIONAL STICKY BOTTOM ACTION BAR */}
+        <ActionBottomBar
+          vehicle={vehicle}
+          photoCount={imagePhotos.length}
+          insetsBottom={insets.bottom}
+          onPressPrimaryAction={handlePrimaryAction}
+          onPressPhotos={() => setPhotosVisible(true)}
+          onPressCalculator={() => setCalcVisible(true)}
+          onPressPdf={downloadAndSharePDF}
+          onPressMore={() => setActionsSheetVisible(true)}
+        />
 
         {/* ---------------------------------------------------------------------- */}
-        {/* MODALS */}
+        {/* MODALS & DRAWERS */}
         {/* ---------------------------------------------------------------------- */}
 
-        {/* Inspection Photos Drawer Modal */}
-        <Modal
-          animationType="slide"
-          transparent={true}
+        {/* Attachment Photo Gallery Drawer */}
+        <PhotoGalleryModal
           visible={photosVisible}
-          onRequestClose={() => {
+          photos={vehicle.photos || []}
+          sharingInProgress={sharingInProgress}
+          selectedPhotos={selectedPhotos}
+          activePhotoUrl={activePhotoUrl}
+          onClose={() => {
             setSelectedPhotos([]);
             setPhotosVisible(false);
           }}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <View style={{ flex: 1 }}>
-                  <ThemedText style={styles.modalTitle}>Inspection Attachments</ThemedText>
-                  <ThemedText style={styles.modalSub}>
-                    {vehicle.photos?.length || 0} items captured {selectedPhotos.length > 0 ? `| ${selectedPhotos.length} selected` : ''}
-                  </ThemedText>
-                </View>
-                <TouchableOpacity onPress={() => setPhotosVisible(false)} style={styles.closeIconBtn}>
-                  <X size={20} color="#64748B" />
-                </TouchableOpacity>
-              </View>
+          onSelectPhoto={togglePhotoSelection}
+          onClearSelection={() => setSelectedPhotos([])}
+          onSharePhoto={handleSharePhoto}
+          onShareBatchPhotos={handleShareBatchPhotos}
+          setActivePhotoUrl={setActivePhotoUrl}
+        />
 
-              {/* Photo Filter Tabs */}
-              <View style={styles.photoFilterRow}>
-                <TouchableOpacity
-                  style={[styles.photoFilterChip, photoFilterTab === 'all' && styles.photoFilterChipActive]}
-                  onPress={() => setPhotoFilterTab('all')}
-                >
-                  <ThemedText style={[styles.photoFilterChipText, photoFilterTab === 'all' && styles.photoFilterChipTextActive]}>
-                    All ({vehicle.photos?.length || 0})
-                  </ThemedText>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.photoFilterChip, photoFilterTab === 'images' && styles.photoFilterChipActive]}
-                  onPress={() => setPhotoFilterTab('images')}
-                >
-                  <ThemedText style={[styles.photoFilterChipText, photoFilterTab === 'images' && styles.photoFilterChipTextActive]}>
-                    📷 Images ({imagePhotos.length})
-                  </ThemedText>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.photoFilterChip, photoFilterTab === 'pdfs' && styles.photoFilterChipActive]}
-                  onPress={() => setPhotoFilterTab('pdfs')}
-                >
-                  <ThemedText style={[styles.photoFilterChipText, photoFilterTab === 'pdfs' && styles.photoFilterChipTextActive]}>
-                    📄 PDFs ({pdfPhotos.length})
-                  </ThemedText>
-                </TouchableOpacity>
-              </View>
-
-              <FlatList
-                data={displayedDrawerPhotos}
-                keyExtractor={(item) => item.id}
-                numColumns={2}
-                contentContainerStyle={{ gap: 10, paddingVertical: 10 }}
-                columnWrapperStyle={{ gap: 10 }}
-                ListEmptyComponent={() => (
-                  <View style={styles.emptyPhotosContainer}>
-                    <Camera size={38} color="#94A3B8" />
-                    <ThemedText style={{ color: '#64748B', marginTop: 10 }}>No attachments in this category.</ThemedText>
-                  </View>
-                )}
-                renderItem={({ item }) => {
-                  const isSelected = selectedPhotos.includes(item.s3Url);
-                  const isPdf = item.s3Url.toLowerCase().split('?')[0].endsWith('.pdf');
-                  return (
-                    <View style={styles.gridPhotoWrapper}>
-                      <TouchableOpacity
-                        activeOpacity={0.9}
-                        onPress={() => setActivePhotoUrl(item.s3Url)}
-                        style={{ width: '100%', height: '100%' }}
-                      >
-                        {isPdf ? (
-                          <View style={[styles.gridPhoto, styles.pdfGridPlaceholder]}>
-                            <FileText size={32} color="#EF4444" />
-                            <ThemedText style={styles.pdfGridText}>PDF File</ThemedText>
-                          </View>
-                        ) : (
-                          <Image source={{ uri: item.s3Url }} style={styles.gridPhoto} />
-                        )}
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={[styles.photoSelectCheckbox, isSelected && styles.photoSelectCheckboxActive]}
-                        onPress={() => togglePhotoSelection(item.s3Url)}
-                        activeOpacity={0.7}
-                      >
-                        <ThemedText style={styles.checkboxTick}>{isSelected ? '✓' : ''}</ThemedText>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={styles.photoShareMiniBtn}
-                        onPress={() => handleSharePhoto(item.s3Url)}
-                        activeOpacity={0.7}
-                      >
-                        <Share2 size={12} color="#FFFFFF" />
-                      </TouchableOpacity>
-
-                      <View style={styles.photoTypeTag}>
-                        <ThemedText style={styles.photoTypeTagText}>{item.photoType.toUpperCase()}</ThemedText>
-                      </View>
-                    </View>
-                  );
-                }}
-              />
-
-              <View style={styles.drawerActionsRow}>
-                {selectedPhotos.length > 0 ? (
-                  <>
-                    <TouchableOpacity
-                      onPress={() => handleShareBatchPhotos(selectedPhotos)}
-                      style={[styles.drawerActionBtn, styles.drawerActionBtnPrimary]}
-                      disabled={sharingInProgress}
-                    >
-                      {sharingInProgress ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                      ) : (
-                        <ThemedText style={styles.drawerActionBtnText}>
-                          Share Selected ({selectedPhotos.length})
-                        </ThemedText>
-                      )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => setSelectedPhotos([])}
-                      style={[styles.drawerActionBtn, styles.drawerActionBtnSecondary]}
-                    >
-                      <ThemedText style={styles.drawerActionBtnTextSecondary}>Clear</ThemedText>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <TouchableOpacity
-                    onPress={() => {
-                      const allUrls = vehicle.photos?.map((p: any) => p.s3Url) || [];
-                      handleShareBatchPhotos(allUrls);
-                    }}
-                    style={[styles.drawerActionBtn, styles.drawerActionBtnPrimary, { flex: 2 }]}
-                    disabled={sharingInProgress || !vehicle.photos || vehicle.photos.length === 0}
-                  >
-                    {sharingInProgress ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <ThemedText style={styles.drawerActionBtnText}>Share All Photos</ThemedText>
-                    )}
-                  </TouchableOpacity>
-                )}
-
-                <TouchableOpacity
-                  onPress={() => {
-                    setSelectedPhotos([]);
-                    setPhotosVisible(false);
-                  }}
-                  style={[styles.drawerActionBtn, styles.drawerActionBtnClose]}
-                >
-                  <ThemedText style={styles.drawerActionBtnTextClose}>Close</ThemedText>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-
-        {/* Fullscreen Photo Lightbox Modal */}
-        <Modal
-          animationType="fade"
-          transparent={true}
-          visible={activePhotoUrl !== null}
-          onRequestClose={() => setActivePhotoUrl(null)}
-        >
-          <View style={styles.fullscreenOverlay}>
-            {activePhotoUrl && (
-              <>
-                <View style={styles.fullscreenHeader}>
-                  <TouchableOpacity
-                    onPress={() => setActivePhotoUrl(null)}
-                    style={styles.fullscreenHeaderBtn}
-                    activeOpacity={0.7}
-                  >
-                    <ChevronLeft size={20} color="#FFFFFF" />
-                    <ThemedText style={styles.fullscreenHeaderBtnText}>Back</ThemedText>
-                  </TouchableOpacity>
-
-                  <ThemedText style={styles.fullscreenTitle}>Photo Preview</ThemedText>
-
-                  <TouchableOpacity
-                    onPress={() => handleSharePhoto(activePhotoUrl)}
-                    style={styles.fullscreenHeaderBtn}
-                    activeOpacity={0.7}
-                    disabled={sharingInProgress}
-                  >
-                    {sharingInProgress ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <Share2 size={18} color="#FFFFFF" />
-                    )}
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.fullscreenImageContainer}>
-                  {activePhotoUrl.toLowerCase().split('?')[0].endsWith('.pdf') ? (
-                    <View style={styles.pdfFullscreenWrapper}>
-                      <FileText size={72} color="#EF4444" style={{ marginBottom: 16 }} />
-                      <ThemedText style={styles.pdfFullscreenTitle}>PDF Document File</ThemedText>
-                      <ThemedText style={styles.pdfFullscreenSubtitle}>
-                        This document cannot be previewed directly as an image.
-                      </ThemedText>
-
-                      <TouchableOpacity
-                        style={styles.openPdfBtn}
-                        onPress={() => Linking.openURL(activePhotoUrl)}
-                        activeOpacity={0.8}
-                      >
-                        <ThemedText style={styles.openPdfBtnText}>Open in Browser / Viewer</ThemedText>
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <Image
-                      source={{ uri: activePhotoUrl }}
-                      style={styles.fullscreenImage}
-                      resizeMode="contain"
-                    />
-                  )}
-                </View>
-              </>
-            )}
-          </View>
-        </Modal>
-
-        {/* Fee Calculator Modal */}
+        {/* Fee Estimator Calculator Modal */}
         <Modal
           animationType="slide"
           transparent={true}
@@ -1483,20 +1019,20 @@ export default function VehicleDetailsScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={{ flex: 1 }}
           >
-            <View style={styles.modalOverlay}>
-              <View style={[styles.modalContent, { maxHeight: '55%' }]}>
-                <View style={styles.modalHeader}>
+            <View style={styles.calcOverlay}>
+              <View style={styles.calcContent}>
+                <View style={styles.calcHeader}>
                   <View style={{ flex: 1 }}>
-                    <ThemedText style={styles.modalTitle}>Fee Estimator</ThemedText>
-                    <ThemedText style={styles.modalSub}>Daily Rate: ₹{getDailyRate()}/Day</ThemedText>
+                    <ThemedText style={styles.calcTitle}>Fee Estimator</ThemedText>
+                    <ThemedText style={styles.calcSub}>Daily Rate: ₹{getDailyRate()}/Day</ThemedText>
                   </View>
-                  <TouchableOpacity onPress={() => setCalcVisible(false)} style={styles.closeIconBtn}>
+                  <TouchableOpacity onPress={() => setCalcVisible(false)} style={{ padding: 4 }}>
                     <X size={20} color="#64748B" />
                   </TouchableOpacity>
                 </View>
 
                 <View style={styles.calcBody}>
-                  <ThemedText style={styles.calcLabel}>Enter Number of Days</ThemedText>
+                  <ThemedText style={styles.calcInputLabel}>Enter Number of Days</ThemedText>
                   <View style={styles.calcInputWrapper}>
                     <Clock size={16} color="#64748B" style={{ marginRight: 8 }} />
                     <TextInput
@@ -1511,19 +1047,19 @@ export default function VehicleDetailsScreen() {
                     />
                   </View>
 
-                  <TouchableOpacity style={styles.calculateBtn} onPress={handleCalculate}>
-                    <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Calculate Charges</ThemedText>
+                  <TouchableOpacity style={styles.calcSubmitBtn} onPress={handleCalculate}>
+                    <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Calculate Fees</ThemedText>
                   </TouchableOpacity>
 
-                  {calcResult !== null && (
+                  {calcResult !== null ? (
                     <View style={styles.calcResultBox}>
                       <ThemedText style={styles.calcResultTitle}>Estimated Charges</ThemedText>
-                      <ThemedText style={styles.calcResultValue}>₹{calcResult.toLocaleString('en-IN')}</ThemedText>
+                      <ThemedText style={styles.calcResultVal}>₹{calcResult.toLocaleString('en-IN')}</ThemedText>
                       <ThemedText style={styles.calcResultSub}>
                         For {calcDays} Days at ₹{getDailyRate()}/Day
                       </ThemedText>
                     </View>
-                  )}
+                  ) : null}
                 </View>
 
                 <TouchableOpacity
@@ -1531,7 +1067,7 @@ export default function VehicleDetailsScreen() {
                     setCalcVisible(false);
                     setCalcResult(null);
                   }}
-                  style={[styles.closeModalBtn, { backgroundColor: '#64748B', marginTop: 12 }]}
+                  style={styles.calcDoneBtn}
                 >
                   <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Done</ThemedText>
                 </TouchableOpacity>
@@ -1541,122 +1077,34 @@ export default function VehicleDetailsScreen() {
         </Modal>
 
         {/* Custom Actions Sheet Drawer */}
-        <Modal
-          animationType="slide"
-          transparent={true}
+        <ActionSheetModal
           visible={actionsSheetVisible}
-          onRequestClose={() => setActionsSheetVisible(false)}
-        >
-          <TouchableOpacity
-            style={styles.actionsSheetOverlay}
-            activeOpacity={1}
-            onPress={() => setActionsSheetVisible(false)}
-          >
-            <View style={styles.actionsSheetContent}>
-              <View style={styles.actionsSheetHeader}>
-                <View style={styles.actionsSheetIndicator} />
-                <ThemedText style={styles.actionsSheetTitle}>Vehicle Actions</ThemedText>
-              </View>
-
-              <View style={styles.actionsSheetList}>
-                <TouchableOpacity
-                  style={styles.actionsSheetItem}
-                  onPress={() => {
-                    setActionsSheetVisible(false);
-                    downloadAndSharePDF();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.actionsSheetIconBox, { backgroundColor: '#EEF2FF' }]}>
-                    <FileText size={18} color="#4F46E5" />
-                  </View>
-                  <ThemedText style={styles.actionsSheetText}>Share Condition Report (PDF)</ThemedText>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.actionsSheetItem}
-                  onPress={() => {
-                    setActionsSheetVisible(false);
-                    router.push({
-                      pathname: '/admin/check-in',
-                      params: { editVehicleId: id },
-                    });
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.actionsSheetIconBox, { backgroundColor: '#ECFDF5' }]}>
-                    <Pencil size={18} color="#059669" />
-                  </View>
-                  <ThemedText style={styles.actionsSheetText}>Edit Vehicle Record</ThemedText>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.actionsSheetItem}
-                  onPress={() => {
-                    setActionsSheetVisible(false);
-                    handlePrint();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.actionsSheetIconBox, { backgroundColor: '#F5F3FF' }]}>
-                    <Printer size={18} color="#7C3AED" />
-                  </View>
-                  <ThemedText style={styles.actionsSheetText}>Print Thermal Gate Pass</ThemedText>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.actionsSheetItem}
-                  onPress={async () => {
-                    setActionsSheetVisible(false);
-                    const detailStr = `Vehicle: ${vehicle?.brand || ''} ${vehicle?.model || ''}\nNumber: ${vehicle?.vehicleNumber}\nStatus: ${statusBadge.label}\nDays: ${getDurationDays()}\nCharges: ₹${getTotalCharges()}`;
-                    try {
-                      await Sharing.shareAsync({ message: detailStr } as any);
-                    } catch {
-                      Alert.alert('Vehicle Details', detailStr);
-                    }
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.actionsSheetIconBox, { backgroundColor: '#FFF7ED' }]}>
-                    <Share2 size={18} color="#EA580C" />
-                  </View>
-                  <ThemedText style={styles.actionsSheetText}>Share Details Text</ThemedText>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.actionsSheetItem, styles.actionsSheetItemDelete]}
-                  onPress={() => {
-                    setActionsSheetVisible(false);
-                    setTimeout(() => {
-                      handleDelete();
-                    }, 150);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.actionsSheetIconBox, { backgroundColor: '#FEF2F2' }]}>
-                    <Trash2 size={18} color="#EF4444" />
-                  </View>
-                  <ThemedText style={[styles.actionsSheetText, { color: '#EF4444' }]}>Delete Vehicle Record</ThemedText>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.actionsSheetCancel}
-                  onPress={() => setActionsSheetVisible(false)}
-                  activeOpacity={0.8}
-                >
-                  <ThemedText style={styles.actionsSheetCancelText}>Cancel</ThemedText>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </TouchableOpacity>
-        </Modal>
+          onClose={() => setActionsSheetVisible(false)}
+          onSharePDF={downloadAndSharePDF}
+          onEditVehicle={() =>
+            router.push({
+              pathname: '/admin/check-in',
+              params: { editVehicleId: id },
+            })
+          }
+          onPrintThermal={handlePrint}
+          onShareText={async () => {
+            const detailStr = `Vehicle: ${vehicle?.brand || ''} ${vehicle?.model || ''}\nNumber: ${vehicle?.vehicleNumber}\nDays: ${getDurationDays()}\nCharges: ₹${getTotalCharges()}`;
+            try {
+              await Sharing.shareAsync({ message: detailStr } as any);
+            } catch {
+              Alert.alert('Vehicle Details', detailStr);
+            }
+          }}
+          onDeleteVehicle={handleDelete}
+        />
       </ThemedView>
     </SafeAreaView>
   );
 }
 
 // ----------------------------------------------------------------------
-// STYLESHEET
+// MAIN SCREEN STYLESHEET
 // ----------------------------------------------------------------------
 const styles = StyleSheet.create({
   container: {
@@ -1681,64 +1129,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
     color: '#0F172A',
   },
   scrollContent: {
     padding: 16,
   },
-
-  // Skeleton Loading Styles
-  skeletonContainer: {
-    padding: 16,
-    gap: 16,
-  },
-  skeletonHeaderCard: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 16,
-    gap: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  skeletonImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    backgroundColor: '#E2E8F0',
-  },
-  skeletonMeta: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  skeletonLine: {
-    backgroundColor: '#E2E8F0',
-    borderRadius: 4,
-  },
-  skeletonGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  skeletonGridBox: {
-    width: '48%',
-    height: 70,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  skeletonCard: {
-    height: 100,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-
-  // Error Container
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -1759,114 +1156,16 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
 
-  // Hero Card
-  heroProfileCard: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    gap: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 12,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  heroPhotoWrapper: {
-    position: 'relative',
-  },
-  heroPhoto: {
-    width: 84,
-    height: 84,
-    borderRadius: 12,
-    backgroundColor: '#F1F5F9',
-  },
-  heroPhotoBadge: {
-    position: 'absolute',
-    bottom: 4,
-    right: 4,
-    backgroundColor: 'rgba(15, 23, 42, 0.75)',
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  heroPhotoBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  heroInfo: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  heroVehicleNumber: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#0F172A',
-    letterSpacing: 0.5,
-  },
-  heroSubText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748B',
-    marginTop: 2,
-  },
-  heroStatusBadge: {
-    alignSelf: 'flex-start',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 20,
-    marginTop: 8,
-  },
-  heroStatusText: {
-    fontSize: 11,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-  },
-
-  // 4-Metric Grid
-  quickMetricsGrid: {
+  // Metric grid
+  metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
     marginBottom: 12,
   },
-  metricBox: {
-    width: '48.5%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  metricIconCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  metricLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#64748B',
-    letterSpacing: 0.5,
-  },
-  metricValue: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginTop: 2,
-  },
 
-  // Context Banners
-  contextBannerKachha: {
+  // Context banners
+  shiftBanner: {
     backgroundColor: '#FFFBEB',
     borderRadius: 14,
     padding: 14,
@@ -1877,7 +1176,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  contextBannerShift: {
+  kachhaBanner: {
     backgroundColor: '#FFFBEB',
     borderRadius: 14,
     padding: 14,
@@ -1888,23 +1187,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  contextBannerRow: {
+  bannerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     flex: 1,
   },
-  contextBannerTitle: {
+  bannerTitle: {
     fontSize: 13,
     fontWeight: '800',
     color: '#92400E',
   },
-  contextBannerSub: {
+  bannerSub: {
     fontSize: 11,
     color: '#B45309',
     marginTop: 2,
   },
-  contextBannerBtnKachha: {
+  kachhaBtnText: {
     fontSize: 12,
     fontWeight: '800',
     color: '#D97706',
@@ -1913,53 +1212,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 8,
   },
-  contextBannerBtnShift: {
+  shiftBtn: {
     backgroundColor: '#D97706',
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 8,
   },
-  contextBannerBtnText: {
+  shiftBtnText: {
     fontSize: 12,
     fontWeight: '800',
     color: '#FFFFFF',
   },
 
-  // Accordion Section Cards
-  accordionCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 10,
-    overflow: 'hidden',
-  },
-  accordionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 14,
-    backgroundColor: '#FFFFFF',
-  },
-  accordionHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  accordionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  accordionContent: {
-    paddingHorizontal: 14,
-    paddingBottom: 14,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    paddingTop: 10,
-  },
-
-  // Detail Rows inside Accordion
+  // Detail rows inside accordions
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1974,14 +1239,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   detailValue: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#0F172A',
     fontWeight: '600',
     textAlign: 'right',
   },
 
   // Remarks
-  remarksBlock: {
+  remarksBox: {
     marginTop: 8,
   },
   remarksLabel: {
@@ -1990,7 +1255,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
     marginBottom: 2,
   },
-  remarksValue: {
+  remarksVal: {
     fontSize: 13,
     color: '#1E293B',
   },
@@ -2001,7 +1266,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 6,
   },
-  conditionBadgeText: {
+  conditionText: {
     fontSize: 11,
     fontWeight: '800',
   },
@@ -2012,48 +1277,8 @@ const styles = StyleSheet.create({
   bgBad: { backgroundColor: '#FEE2E2' },
   textBad: { color: '#B91C1C' },
 
-  // Compact Accessories List
-  accessorySummaryPill: {
-    backgroundColor: '#F1F5F9',
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-  },
-  accessorySummaryText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#475569',
-  },
-  compactAccessoryList: {
-    gap: 6,
-  },
-  compactAccessoryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    backgroundColor: '#F8FAFC',
-  },
-  compactAccessoryText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  compactAccessoryStatusPresent: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#15803D',
-  },
-  compactAccessoryStatusAbsent: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#EF4444',
-  },
-
-  // Danger Zone
-  dangerZoneBtn: {
+  // Danger zone
+  dangerBtn: {
     backgroundColor: '#EF4444',
     borderRadius: 10,
     paddingVertical: 12,
@@ -2061,301 +1286,45 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexDirection: 'row',
   },
-
-  // Sticky Bottom Bar
-  stickyBottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  primaryStickyBtn: {
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    marginBottom: 8,
-  },
-  primaryStickyBtnText: {
+  dangerBtnText: {
     color: '#FFFFFF',
-    fontSize: 15,
     fontWeight: '800',
-  },
-  quickTabBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  quickTabBtn: {
-    alignItems: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-  },
-  quickTabLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#4F46E5',
-    marginTop: 3,
+    fontSize: 13,
   },
 
-  // Modals
-  modalOverlay: {
+  // Fee Calculator Modal
+  calcOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.6)',
     justifyContent: 'flex-end',
   },
-  modalContent: {
+  calcContent: {
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
-    maxHeight: '85%',
   },
-  modalHeader: {
+  calcHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
   },
-  modalTitle: {
+  calcTitle: {
     fontSize: 18,
     fontWeight: '800',
     color: '#0F172A',
   },
-  modalSub: {
+  calcSub: {
     fontSize: 12,
     color: '#64748B',
     marginTop: 2,
   },
-  closeIconBtn: {
-    padding: 6,
-  },
-
-  // Photo Filter Tabs
-  photoFilterRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-  },
-  photoFilterChip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    backgroundColor: '#F1F5F9',
-  },
-  photoFilterChipActive: {
-    backgroundColor: '#EEF2FF',
-    borderWidth: 1,
-    borderColor: '#4F46E5',
-  },
-  photoFilterChipText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  photoFilterChipTextActive: {
-    color: '#4F46E5',
-  },
-
-  // Photo Grid
-  gridPhotoWrapper: {
-    flex: 1,
-    height: 120,
-    borderRadius: 12,
-    overflow: 'hidden',
-    position: 'relative',
-    backgroundColor: '#F1F5F9',
-  },
-  gridPhoto: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 12,
-  },
-  pdfGridPlaceholder: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-  },
-  pdfGridText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#EF4444',
-    marginTop: 4,
-  },
-  photoSelectCheckbox: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  photoSelectCheckboxActive: {
-    backgroundColor: '#16A34A',
-    borderColor: '#16A34A',
-  },
-  checkboxTick: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  photoShareMiniBtn: {
-    position: 'absolute',
-    top: 6,
-    left: 6,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: 'rgba(15, 23, 42, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  photoTypeTag: {
-    position: 'absolute',
-    bottom: 6,
-    left: 6,
-    backgroundColor: 'rgba(15, 23, 42, 0.8)',
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 4,
-  },
-  photoTypeTagText: {
-    color: '#FFFFFF',
-    fontSize: 8,
-    fontWeight: '700',
-  },
-  emptyPhotosContainer: {
-    padding: 30,
-    alignItems: 'center',
-  },
-
-  // Drawer Actions
-  drawerActionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 16,
-  },
-  drawerActionBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  drawerActionBtnPrimary: {
-    backgroundColor: '#4F46E5',
-  },
-  drawerActionBtnSecondary: {
-    backgroundColor: '#F1F5F9',
-  },
-  drawerActionBtnClose: {
-    backgroundColor: '#64748B',
-    flex: 0.7,
-  },
-  drawerActionBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  drawerActionBtnTextSecondary: {
-    color: '#1E293B',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  drawerActionBtnTextClose: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-
-  // Fullscreen Viewer
-  fullscreenOverlay: {
-    flex: 1,
-    backgroundColor: '#000000',
-  },
-  fullscreenHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 50,
-    paddingBottom: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-  },
-  fullscreenHeaderBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    padding: 8,
-  },
-  fullscreenHeaderBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  fullscreenTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  fullscreenImageContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  fullscreenImage: {
-    width: width,
-    height: '100%',
-  },
-  pdfFullscreenWrapper: {
-    alignItems: 'center',
-    padding: 24,
-  },
-  pdfFullscreenTitle: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '800',
-    marginBottom: 6,
-  },
-  pdfFullscreenSubtitle: {
-    color: '#94A3B8',
-    fontSize: 13,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  openPdfBtn: {
-    backgroundColor: '#4F46E5',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-  },
-  openPdfBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-
-  // Fee Calculator Modal
   calcBody: {
     gap: 12,
     paddingVertical: 10,
   },
-  calcLabel: {
+  calcInputLabel: {
     fontSize: 13,
     fontWeight: '700',
     color: '#1E293B',
@@ -2376,7 +1345,7 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     fontWeight: '700',
   },
-  calculateBtn: {
+  calcSubmitBtn: {
     backgroundColor: '#4F46E5',
     paddingVertical: 14,
     borderRadius: 10,
@@ -2396,7 +1365,7 @@ const styles = StyleSheet.create({
     color: '#4338CA',
     textTransform: 'uppercase',
   },
-  calcResultValue: {
+  calcResultVal: {
     fontSize: 28,
     fontWeight: '900',
     color: '#4338CA',
@@ -2407,75 +1376,11 @@ const styles = StyleSheet.create({
     color: '#6366F1',
     fontWeight: '600',
   },
-  closeModalBtn: {
+  calcDoneBtn: {
+    backgroundColor: '#64748B',
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
-  },
-
-  // Actions Sheet
-  actionsSheetOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-    justifyContent: 'flex-end',
-  },
-  actionsSheetContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-  },
-  actionsSheetHeader: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  actionsSheetIndicator: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#CBD5E1',
-    marginBottom: 12,
-  },
-  actionsSheetTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  actionsSheetList: {
-    gap: 8,
-  },
-  actionsSheetItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: '#F8FAFC',
-  },
-  actionsSheetItemDelete: {
-    backgroundColor: '#FEF2F2',
-  },
-  actionsSheetIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  actionsSheetText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
-  actionsSheetCancel: {
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  actionsSheetCancelText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#64748B',
+    marginTop: 12,
   },
 });
