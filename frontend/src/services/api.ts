@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+const LIVE_API_URL = 'https://rapid-yms.onrender.com/api';
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  baseURL: import.meta.env.VITE_API_URL || LIVE_API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -34,7 +36,7 @@ api.interceptors.response.use(
         if (authData) {
           const { refreshToken } = JSON.parse(authData);
           if (refreshToken) {
-            const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+            const baseURL = import.meta.env.VITE_API_URL || LIVE_API_URL;
             const res = await axios.post(`${baseURL}/auth/refresh`, { refreshToken });
             if (res.data?.success) {
               const updatedAuth = {

@@ -10,8 +10,10 @@ const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
 const connection = new Redis(redisUrl, {
   maxRetriesPerRequest: null,
+  enableOfflineQueue: false,
+  lazyConnect: true,
   retryStrategy(times) {
-    if (times > 3) return null;
+    if (times > 2) return null;
     return Math.min(times * 500, 2000);
   },
 });
