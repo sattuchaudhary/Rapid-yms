@@ -227,6 +227,7 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
     activeKachha,
     activePakka,
     todayEntry,
+    shiftPendingCount,
   ] = await Promise.all([
     // Active vehicles inside yard
     prisma.vehicle.count({ where: { tenantId, yardStatus: { in: ['KACHHA', 'PAKKA'] } } }),
@@ -337,6 +338,13 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
       where: {
         tenantId,
         entryDate: { gte: startOfToday }
+      }
+    }),
+    // Shift Pending count
+    prisma.vehicle.count({
+      where: {
+        tenantId,
+        shiftStatus: { in: ['SHIFT_PENDING', 'SHIFT_INITIATED'] }
       }
     })
   ]);
@@ -472,6 +480,7 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
         thisYear: releasedThisYear,
       },
       pendingReleases,
+      shiftPendingCount: shiftPendingCount || 0,
       dailyRevenue: {
         today: {
           amount: totalRevenueToday,

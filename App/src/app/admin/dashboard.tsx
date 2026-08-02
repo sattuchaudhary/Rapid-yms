@@ -647,7 +647,7 @@ export default function GuardDashboard() {
             </View>
           </View>
           <ThemedText style={[styles.metricVal, { color: '#B45309' }]}>
-            {stats?.shiftPendingCount ?? stats?.kachhaVehicles?.total ?? 0} Vehicles
+            {stats?.shiftPendingCount ?? 0} Vehicles
           </ThemedText>
           <ThemedText style={{ fontSize: 11, color: '#92400E', marginTop: 2, fontWeight: '600' }}>
             Non-paneled bank vehicles queued for transfer →
