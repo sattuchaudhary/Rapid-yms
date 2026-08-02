@@ -416,16 +416,16 @@ export const RateMaster: React.FC = () => {
   const totalSubBanksCount = banks.filter(b => b.parentId !== null).length;
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-slate-50/50 space-y-6 md:space-y-8 flex-1 overflow-y-auto font-sans select-none max-w-7xl mx-auto w-full">
+    <div className="p-4 sm:p-6 md:p-8 bg-slate-950 space-y-6 md:space-y-8 flex-1 overflow-y-auto font-sans select-none max-w-7xl mx-auto w-full text-white">
       
       {/* Premium Header with Create Bank Button */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0 border-b border-slate-100 pb-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0 border-b border-slate-800 pb-6">
         <div>
-          <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
-            <Sparkles className="w-7 h-7 text-indigo-600 animate-pulse" />
+          <h2 className="text-3xl font-black text-white tracking-tight flex items-center gap-2 font-display">
+            <Sparkles className="w-7 h-7 text-indigo-400 animate-pulse" />
             <span>Bank & Parking Rate Management</span>
           </h2>
-          <p className="text-sm text-slate-500 font-medium mt-1">
+          <p className="text-xs text-slate-400 font-medium mt-1">
             Establish custom financial channels. Define direct banking partnerships or set up third-party networks with multi-nested sub-banks.
           </p>
         </div>
@@ -433,7 +433,7 @@ export const RateMaster: React.FC = () => {
         {/* Create Bank Action Trigger */}
         <button
           onClick={handleOpenCreateModal}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-3 rounded-2xl shadow-lg shadow-indigo-600/10 flex items-center gap-2 active:scale-95 transition-all text-sm self-start md:self-auto"
+          className="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold px-6 py-3 rounded-2xl shadow-lg shadow-indigo-600/20 flex items-center gap-2 active:scale-95 transition-all text-xs cursor-pointer self-start md:self-auto"
         >
           <Plus className="w-5 h-5" />
           <span>Create Bank / Partner</span>
@@ -443,12 +443,12 @@ export const RateMaster: React.FC = () => {
       {/* Top Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         {/* Direct Finance Card */}
-        <div className="relative overflow-hidden bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between group hover:shadow-md transition-all duration-300">
+        <div className="relative overflow-hidden bg-slate-900/60 backdrop-blur-md p-6 rounded-3xl border border-slate-800/80 shadow-xl flex items-center justify-between group hover:border-slate-700 transition-all duration-300">
           <div className="space-y-1.5 z-10">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Direct Finance Banks</span>
             <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-extrabold text-slate-800 tracking-tight">{totalDirectCount}</span>
-              <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Active</span>
+              <span className="text-4xl font-black text-white tracking-tight font-display">{totalDirectCount}</span>
+              <span className="text-xs font-extrabold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full">Active</span>
             </div>
           </div>
           <div className="p-4 bg-indigo-50 group-hover:bg-indigo-100/80 rounded-2xl transition-colors duration-300 z-10">

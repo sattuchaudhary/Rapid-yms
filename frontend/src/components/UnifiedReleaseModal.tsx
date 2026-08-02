@@ -359,18 +359,18 @@ export const UnifiedReleaseModal: React.FC<UnifiedReleaseModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm select-none font-sans animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md select-none font-sans animate-fade-in">
       <div
-        className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-scale-in"
+        className="bg-slate-950 text-white rounded-3xl border border-slate-800 shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-scale-in"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-900 text-white shrink-0">
+        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900 text-white shrink-0">
           <div className="text-left">
-            <span className="text-[9px] font-black uppercase tracking-widest text-amber-450 bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-full">
+            <span className="text-[9px] font-black uppercase tracking-widest text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-full">
               Operations Desk
             </span>
-            <h3 className="text-base sm:text-lg font-black tracking-tight mt-1 bg-gradient-to-r from-white via-slate-100 to-slate-300 bg-clip-text text-transparent">
+            <h3 className="text-base sm:text-lg font-black tracking-tight mt-1 text-white">
               Unified Vehicle Release Desk
             </h3>
             <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
@@ -380,14 +380,14 @@ export const UnifiedReleaseModal: React.FC<UnifiedReleaseModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-all active:scale-90"
+            className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-all active:scale-90 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto bg-slate-50/50 p-6 flex flex-col min-h-0">
+        <div className="flex-1 overflow-y-auto bg-slate-950 p-6 flex flex-col min-h-0 text-white">
           {!selectedRelVehicle ? (
             /* STEP 1: Search & Select Vehicle */
             <div className="flex-1 flex flex-col items-center justify-center max-w-lg mx-auto w-full py-10 space-y-6">

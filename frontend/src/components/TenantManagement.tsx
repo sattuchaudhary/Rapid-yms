@@ -256,28 +256,28 @@ export const TenantManagement: React.FC = () => {
   const totalStorageAllocated = tenants.reduce((acc, t) => acc + (t.storageLimit || 0), 0) / 1024; // GB to TB
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-slate-50 space-y-6 md:space-y-8 flex-1 overflow-y-auto relative font-sans">
+    <div className="p-4 sm:p-6 md:p-8 bg-slate-950 text-white space-y-6 md:space-y-8 flex-1 overflow-y-auto relative font-sans">
       {/* Page Header with Tabs */}
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between space-y-4 md:space-y-0 border-b border-slate-200 pb-4">
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between space-y-4 md:space-y-0 border-b border-slate-800 pb-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Super Admin Console</h2>
-          <p className="text-sm text-slate-500 font-medium">Platform analytics, tenant provisioning, and global system health</p>
+          <h2 className="text-2xl font-black text-white tracking-wide font-display">Super Admin Console</h2>
+          <p className="text-xs text-slate-400 font-semibold mt-0.5">Platform analytics, tenant provisioning, and global system health</p>
         </div>
         
         {/* Navigation Tabs */}
-        <div className="flex bg-slate-200/50 p-1 rounded-xl w-fit">
+        <div className="flex bg-slate-900 p-1 rounded-xl w-fit border border-slate-800">
           <button
             onClick={() => setActiveTab('analytics')}
-            className={`px-6 py-2 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'analytics' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            className={`px-6 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'analytics' ? 'bg-slate-800 text-white shadow-sm font-extrabold' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             Platform Analytics
           </button>
           <button
             onClick={() => setActiveTab('yards')}
-            className={`px-6 py-2 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'yards' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            className={`px-6 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'yards' ? 'bg-slate-800 text-white shadow-sm font-extrabold' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             Yards Management

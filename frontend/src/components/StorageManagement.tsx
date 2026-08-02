@@ -203,14 +203,14 @@ export const StorageManagement: React.FC = () => {
   );
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-slate-50 space-y-6 md:space-y-8 flex-1 overflow-y-auto font-sans text-slate-800">
+    <div className="p-4 sm:p-6 md:p-8 bg-slate-950 space-y-6 md:space-y-8 flex-1 overflow-y-auto font-sans text-white">
       {/* Page Header */}
-      <div className="border-b border-slate-200 pb-5">
-        <h2 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center">
-          <Database className="w-7 h-7 mr-2 text-primary" />
+      <div className="border-b border-slate-800 pb-5">
+        <h2 className="text-2xl font-black text-white tracking-tight flex items-center font-display">
+          <Database className="w-7 h-7 mr-2 text-indigo-400" />
           Storage & Quota Management
         </h2>
-        <p className="text-sm text-slate-500 font-medium mt-1">
+        <p className="text-xs text-slate-400 font-semibold mt-1">
           Dynamic cloud storage allocation, multi-account S3 integrations, and custom bucket mapping for yard tenants.
         </p>
       </div>

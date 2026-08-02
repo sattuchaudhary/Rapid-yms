@@ -337,22 +337,22 @@ export const LossAnalysis: React.FC = () => {
   const maxSegmentLoss = Math.max(...Object.values(segmentStats).map(s => s.loss), 1);
 
   return (
-    <div className="p-4 sm:p-5 md:p-6 bg-slate-50 space-y-5 md:space-y-6 flex-1 overflow-y-auto font-sans text-left">
+    <div className="p-4 sm:p-5 md:p-6 bg-slate-950 text-white space-y-5 md:space-y-6 flex-1 overflow-y-auto font-sans text-left">
       
       {/* Dynamic Console Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-3.5 md:space-y-0 select-none">
         <div>
           <div className="flex items-center space-x-2">
-            <span className="bg-primary/5 text-primary px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border border-primary/20 flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-primary animate-pulse" />
+            <span className="bg-indigo-500/10 text-indigo-400 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border border-indigo-500/20 flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-indigo-400 animate-pulse" />
               <span>Operations & Finance Ledger Active</span>
             </span>
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight mt-1 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-700 bg-clip-text text-transparent">
+          <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight mt-1 font-display">
             Tenant Profit & Loss Ledger
           </h2>
-          <p className="text-[11px] sm:text-xs text-slate-450 font-semibold">
-            Track immediate realized cash, settle delayed bank invoices, calculate reconciliation variances, and opportunity opportunity costs.
+          <p className="text-[11px] sm:text-xs text-slate-400 font-semibold">
+            Track immediate realized cash, settle delayed bank invoices, calculate reconciliation variances, and opportunity costs.
           </p>
         </div>
 

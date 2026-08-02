@@ -519,7 +519,7 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
   const currentStep = getWorkflowStep();
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-50 flex flex-col select-none overflow-y-auto animate-fade-in font-sans">
+    <div className="fixed inset-0 z-50 bg-slate-950 text-slate-100 flex flex-col select-none overflow-y-auto animate-fade-in font-sans">
       
       {/* Premium Sticky Eco Gradient Header */}
       <div className="bg-gradient-to-r from-emerald-950 via-teal-905 to-slate-900 text-white px-4 py-3 sm:px-6 sm:py-4 sticky top-0 z-40 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 shadow-lg border-b border-emerald-900/30">
