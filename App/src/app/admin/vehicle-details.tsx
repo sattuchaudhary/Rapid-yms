@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -18,7 +18,7 @@ import {
 import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { apiRequest, getUserInfo, UserSession } from '@/services/api';
 import { bluetoothService } from '@/services/bluetooth';
-import { getCachedVehicleByNumber, getCachedVehicleById, queueOfflineJob, cacheVehicles, getCachedBanks, CachedVehicle } from '@/services/sqlite';
+import { getCachedVehicleById } from '@/services/sqlite';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import NetInfo from '@react-native-community/netinfo';
@@ -45,16 +45,49 @@ import {
   FileText,
   Pencil,
   ChevronDown,
+  Building,
+  User,
+  Phone,
+  Shield,
+  AlertTriangle,
+  Check,
+  X,
+  RefreshCw,
 } from 'lucide-react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
 
 const { width } = Dimensions.get('window');
+
+// ----------------------------------------------------------------------
+// Skeleton Loading Placeholder Component
+// ----------------------------------------------------------------------
+function VehicleDetailsSkeleton() {
+  return (
+    <View style={styles.skeletonContainer}>
+      <View style={styles.skeletonHeaderCard}>
+        <View style={styles.skeletonImage} />
+        <View style={styles.skeletonMeta}>
+          <View style={[styles.skeletonLine, { width: '70%', height: 26 }]} />
+          <View style={[styles.skeletonLine, { width: '50%', height: 16, marginTop: 8 }]} />
+          <View style={[styles.skeletonLine, { width: '40%', height: 14, marginTop: 6 }]} />
+        </View>
+      </View>
+      <View style={styles.skeletonGrid}>
+        <View style={styles.skeletonGridBox} />
+        <View style={styles.skeletonGridBox} />
+        <View style={styles.skeletonGridBox} />
+        <View style={styles.skeletonGridBox} />
+      </View>
+      <View style={styles.skeletonCard} />
+      <View style={styles.skeletonCard} />
+    </View>
+  );
+}
 
 export default function VehicleDetailsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams();
-  
+
   const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [vehicle, setVehicle] = useState<any>(null);
@@ -65,20 +98,142 @@ export default function VehicleDetailsScreen() {
   const [calcVisible, setCalcVisible] = useState(false);
   const [photosVisible, setPhotosVisible] = useState(false);
   const [actionsSheetVisible, setActionsSheetVisible] = useState(false);
-  
+  const [photoFilterTab, setPhotoFilterTab] = useState<'all' | 'images' | 'pdfs'>('all');
+
   // Custom Calculator States
   const [calcDays, setCalcDays] = useState('30');
   const [calcResult, setCalcResult] = useState<number | null>(null);
 
-  // Navigation states
+  // Collapsible Accordion Sections State
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    overview: true,       // Default open
+    vehicleDetails: false,
+    repoDetails: false,
+    checklist: false,
+    billing: false,
+    photos: false,
+    advanced: false,
+  });
+
+  const toggleSection = (key: string) => {
+    setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // Navigation state
   const navigation = useNavigation();
 
   // Photo Sharing & Viewer States
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
   const [activePhotoUrl, setActivePhotoUrl] = useState<string | null>(null);
   const [sharingInProgress, setSharingInProgress] = useState(false);
+  const [parkingCalculation, setParkingCalculation] = useState<any | null>(null);
 
-  // Downloads a remote AWS S3 url to local device temporary storage and shares/saves it
+  // Fetch Vehicle Details
+  const fetchVehicleDetails = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const netInfo = await NetInfo.fetch();
+      const isOnline = !!netInfo.isConnected;
+
+      if (isOnline) {
+        const res = await apiRequest(`/api/vehicles/${id}`);
+        if (res.success && res.data) {
+          setVehicle(res.data);
+
+          try {
+            const calcRes = await apiRequest(`/api/vehicles/${id}/parking-calculation`);
+            if (calcRes.success && calcRes.data) {
+              setParkingCalculation(calcRes.data);
+            }
+          } catch (calcErr) {
+            console.warn('[VehicleDetails] Failed to fetch parking calculation:', calcErr);
+          }
+
+          try {
+            const billRes = await apiRequest(`/api/billing/${id}`);
+            if (billRes.success && billRes.data) {
+              setBilling(billRes.data);
+            }
+          } catch (billingErr) {
+            console.warn('[VehicleDetails] Failed to fetch live billing:', billingErr);
+          }
+        } else {
+          setError('Could not retrieve vehicle information.');
+        }
+      } else {
+        const cached = getCachedVehicleById(id as string);
+        if (cached) {
+          setVehicle(cached as any);
+          setBilling({
+            vehicleId: cached.id,
+            dailyRate: getParkingDailyRate(cached as any),
+            totalDays: 0,
+            totalAmount: 0,
+            paidAmount: 0,
+            paymentStatus: 'PENDING',
+            billingStartDate: cached.entryDate,
+          } as any);
+        } else {
+          setError('Offline mode. Vehicle details not found in cache.');
+        }
+      }
+    } catch (err: any) {
+      console.error('[VehicleDetails] Error fetching:', err);
+      setError(err.message || 'Server connection failed.');
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    const init = async () => {
+      const info = await getUserInfo();
+      setCurrentUser(info);
+      fetchVehicleDetails();
+    };
+    init();
+  }, [id]);
+
+  useEffect(() => {
+    const unsubscribeFocus = navigation.addListener('focus', () => {
+      fetchVehicleDetails();
+    });
+    return unsubscribeFocus;
+  }, [navigation, fetchVehicleDetails]);
+
+  // Billing calculation helpers
+  const getDailyRate = () => {
+    if (billing?.dailyRate) return billing.dailyRate;
+    return getParkingDailyRate(vehicle);
+  };
+
+  const getDurationDays = () => {
+    if (billing?.totalDays) return billing.totalDays;
+    if (!vehicle?.entryDate) return 1;
+    const entryDate = new Date(vehicle.entryDate);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - entryDate.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
+  };
+
+  const getTotalCharges = () => {
+    if (billing?.totalAmount) return billing.totalAmount;
+    return getDurationDays() * getDailyRate();
+  };
+
+  // Run Calculator
+  const handleCalculate = () => {
+    const days = parseInt(calcDays);
+    if (isNaN(days) || days <= 0) {
+      Alert.alert('Invalid Input', 'Please enter a valid number of days');
+      return;
+    }
+    setCalcResult(days * getDailyRate());
+  };
+
+  // Downloads & shares single photo
   const handleSharePhoto = async (url: string) => {
     try {
       setSharingInProgress(true);
@@ -148,120 +303,7 @@ export default function VehicleDetailsScreen() {
     );
   };
 
-  const [parkingCalculation, setParkingCalculation] = useState<any | null>(null);
-
-  const fetchVehicleDetails = useCallback(async () => {
-    if (!id) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const netInfo = await NetInfo.fetch();
-      const isOnline = !!netInfo.isConnected;
-
-      if (isOnline) {
-        // Fetch from live REST API
-        const res = await apiRequest(`/api/vehicles/${id}`);
-        if (res.success && res.data) {
-          setVehicle(res.data);
-          
-          // Fetch dynamic 3-phase parking calculation
-          try {
-            const calcRes = await apiRequest(`/api/vehicles/${id}/parking-calculation`);
-            if (calcRes.success && calcRes.data) {
-              setParkingCalculation(calcRes.data);
-            }
-          } catch (calcErr) {
-            console.warn('[VehicleDetails] Failed to fetch parking calculation:', calcErr);
-          }
-
-          // Try fetching calculated billing
-          try {
-            const billRes = await apiRequest(`/api/billing/${id}`);
-            if (billRes.success && billRes.data) {
-              setBilling(billRes.data);
-            }
-          } catch (billingErr) {
-            console.warn('[VehicleDetails] Failed to fetch live billing:', billingErr);
-          }
-        } else {
-          setError('Could not retrieve vehicle information.');
-        }
-
-      } else {
-        // Offline: try loading from SQLite cache
-        const cached = getCachedVehicleById(id as string);
-        if (cached) {
-          setVehicle(cached as any);
-          setBilling({
-            vehicleId: cached.id,
-            dailyRate: getParkingDailyRate(cached as any),
-            totalDays: 0,
-            totalAmount: 0,
-            paidAmount: 0,
-            paymentStatus: 'PENDING',
-            billingStartDate: cached.entryDate,
-          } as any);
-        } else {
-          setError('Offline mode. Vehicle details not found in cache.');
-        }
-      }
-    } catch (err: any) {
-      console.error('[VehicleDetails] Error fetching:', err);
-      setError(err.message || 'Server connection failed.');
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    const init = async () => {
-      const info = await getUserInfo();
-      setCurrentUser(info);
-      fetchVehicleDetails();
-    };
-    init();
-  }, [id]);
-
-  useEffect(() => {
-    const unsubscribeFocus = navigation.addListener('focus', () => {
-      fetchVehicleDetails();
-    });
-    return unsubscribeFocus;
-  }, [navigation, fetchVehicleDetails]);
-
-  // Daily rate fallback
-  const getDailyRate = () => {
-    if (billing?.dailyRate) return billing.dailyRate;
-    return getParkingDailyRate(vehicle);
-  };
-
-  // Duration Days
-  const getDurationDays = () => {
-    if (billing?.totalDays) return billing.totalDays;
-    if (!vehicle?.entryDate) return 1;
-    const entryDate = new Date(vehicle.entryDate);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - entryDate.getTime());
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
-  };
-
-  // Total calculated charges
-  const getTotalCharges = () => {
-    if (billing?.totalAmount) return billing.totalAmount;
-    return getDurationDays() * getDailyRate();
-  };
-
-  // Run Calculator
-  const handleCalculate = () => {
-    const days = parseInt(calcDays);
-    if (isNaN(days) || days <= 0) {
-      Alert.alert('Invalid Input', 'Please enter a valid number of days');
-      return;
-    }
-    setCalcResult(days * getDailyRate());
-  };
-
-  // Helper to convert URIs (local or remote) to base64
+  // Base64 helper for PDF reports
   const uriToBase64 = async (uri: string): Promise<string> => {
     try {
       if (uri.startsWith('http')) {
@@ -281,12 +323,11 @@ export default function VehicleDetailsScreen() {
       }
     } catch (err) {
       console.warn('Error converting URI to base64:', err);
-      return uri; // fallback
+      return uri;
     }
   };
 
   const generateHTMLReport = async () => {
-    // Convert remote photos to base64
     const photoElements = await Promise.all(
       (vehicle?.photos || []).map(async (p: any) => {
         const base64 = await uriToBase64(p.s3Url);
@@ -299,7 +340,6 @@ export default function VehicleDetailsScreen() {
       })
     );
 
-    // Group the checklist items in a 2-column layout to save vertical space
     let checklistRows = '';
     const activeInventory = vehicle?.inventory || [];
     for (let i = 0; i < activeInventory.length; i += 2) {
@@ -308,8 +348,7 @@ export default function VehicleDetailsScreen() {
 
       const renderCell = (item: any) => {
         if (!item) return '<td style="border: 1px solid #cbd5e1; width: 50%;"></td>';
-        
-        // Filter out body condition and remarks from checklist rows
+
         const ignoreList = ['Body Condition', 'Yard Remarks', 'Customer Remarks'];
         if (ignoreList.includes(item.itemName)) {
           return '<td style="border: 1px solid #cbd5e1; width: 50%;"></td>';
@@ -321,7 +360,7 @@ export default function VehicleDetailsScreen() {
           const make = match ? match[1]?.trim() : '';
           details = make ? ` (${make})` : '';
         }
-        
+
         const isPresentBadge = item.isPresent
           ? '<span style="background-color: #def7ec; color: #03543f; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 9px; text-transform: uppercase;">YES</span>'
           : '<span style="background-color: #fde8e8; color: #9b1c1c; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 9px; text-transform: uppercase;">NO</span>';
@@ -349,7 +388,7 @@ export default function VehicleDetailsScreen() {
     const tenantAddress = vehicle?.tenant?.address || 'GURUGRAM VILLAGE, HARYANA';
     const entryDateStr = vehicle?.entryDate ? new Date(vehicle.entryDate).toLocaleString('en-IN') : new Date().toLocaleString('en-IN');
 
-    const htmlContent = `
+    return `
       <!DOCTYPE html>
       <html>
       <head>
@@ -459,7 +498,6 @@ export default function VehicleDetailsScreen() {
       </body>
       </html>
     `;
-    return htmlContent;
   };
 
   const downloadAndSharePDF = async () => {
@@ -490,8 +528,6 @@ export default function VehicleDetailsScreen() {
     }
   };
 
-  // Save edit helper deleted: redirected to check-in wizard
-
   // Print Gate Pass Receipt
   const handlePrint = async () => {
     if (!vehicle) return;
@@ -513,15 +549,15 @@ export default function VehicleDetailsScreen() {
     }
   };
 
-  // Delete vehicle
+  // Delete vehicle with strong confirmation
   const handleDelete = () => {
     Alert.alert(
-      'Delete Vehicle',
-      `Are you sure you want to permanently delete vehicle ${vehicle?.vehicleNumber}? This action is irreversible.`,
+      'Permanent Deletion Warning',
+      `Are you sure you want to permanently delete vehicle ${vehicle?.vehicleNumber}? All associated records, inventory, and photos will be removed permanently.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete',
+          text: 'Permanently Delete',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -544,35 +580,19 @@ export default function VehicleDetailsScreen() {
     setActionsSheetVisible(true);
   };
 
-  if (loading) {
-    return (
-      <ThemedView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4F46E5" />
-        <ThemedText style={styles.loadingText}>Fetching details from cloud...</ThemedText>
-      </ThemedView>
-    );
-  }
-
-  if (error || !vehicle) {
-    return (
-      <ThemedView style={styles.errorContainer}>
-        <ThemedText style={styles.errorText}>{error || 'Vehicle not found.'}</ThemedText>
-        <TouchableOpacity style={styles.retryBtn} onPress={fetchVehicleDetails}>
-          <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Retry</ThemedText>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.retryBtn, { backgroundColor: '#64748B', marginTop: 10 }]} onPress={() => router.back()}>
-          <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Back</ThemedText>
-        </TouchableOpacity>
-      </ThemedView>
-    );
-  }
-
+  // Format dates & repo data
   const defaultPhoto = 'https://images.unsplash.com/photo-1542282088-fe8426682b8f?w=400';
-  const imagePhotos = vehicle.photos?.filter((p: any) => !p.s3Url.toLowerCase().split('?')[0].endsWith('.pdf')) || [];
+  const imagePhotos = useMemo(() => {
+    return vehicle?.photos?.filter((p: any) => !p.s3Url.toLowerCase().split('?')[0].endsWith('.pdf')) || [];
+  }, [vehicle]);
+
+  const pdfPhotos = useMemo(() => {
+    return vehicle?.photos?.filter((p: any) => p.s3Url.toLowerCase().split('?')[0].endsWith('.pdf')) || [];
+  }, [vehicle]);
+
   const displayPhoto = imagePhotos.length > 0 ? imagePhotos[0].s3Url : defaultPhoto;
-  
-  // Format dates
-  const entryDateObj = vehicle.entryDate ? new Date(vehicle.entryDate) : new Date();
+
+  const entryDateObj = vehicle?.entryDate ? new Date(vehicle.entryDate) : new Date();
   const formattedEntryDate = entryDateObj.toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',
@@ -581,7 +601,6 @@ export default function VehicleDetailsScreen() {
     minute: '2-digit',
   });
 
-  // Parser for repoAgency
   const parseRepoAgency = (repoAgencyStr: string | null | undefined) => {
     if (!repoAgencyStr) return { agency: 'N/A', agent: 'N/A', place: 'N/A' };
     const match = repoAgencyStr.match(/Agency:\s*(.*?)\s*\|\s*Agent:\s*(.*?)\s*\|\s*Place:\s*(.*)/i);
@@ -599,26 +618,14 @@ export default function VehicleDetailsScreen() {
     };
   };
 
-  const parsedRepo = parseRepoAgency(vehicle.repoAgency);
+  const parsedRepo = parseRepoAgency(vehicle?.repoAgency);
 
-  // Helper to find checklist items (backward compatible with Battery/battry)
   const getInventoryItem = (itemName: string) => {
     const searchName = itemName.toLowerCase() === 'battery' ? 'battry' : itemName;
-    return vehicle.inventory?.find((item: any) => 
+    return vehicle?.inventory?.find((item: any) =>
       item.itemName.toLowerCase() === itemName.toLowerCase() ||
       item.itemName.toLowerCase() === searchName.toLowerCase()
     );
-  };
-
-  // Parser for tyre make
-  const getTyreMake = (itemName: string) => {
-    const item = getInventoryItem(itemName);
-    if (!item || !item.isPresent) return 'Absent';
-    if (!item.remarks) return 'Present (Unknown Make)';
-    const match = item.remarks.match(/\(Tyre Make:\s*(.*?)\)/i);
-    const make = match ? match[1]?.trim() : '';
-    const cleanRemarks = item.remarks.replace(/\s*\(Tyre Make:\s*.*?\)/i, '').trim();
-    return make ? `${make}${cleanRemarks ? ` - ${cleanRemarks}` : ''}` : `Present ${cleanRemarks ? `(${cleanRemarks})` : ''}`;
   };
 
   const bodyCondition = getInventoryItem('Body Condition')?.remarks || 'Average';
@@ -643,834 +650,1018 @@ export default function VehicleDetailsScreen() {
     { key: 'Meter Running Condition', label: 'Meter Running' },
   ];
 
-  const renderAccessoryCard = (item: { key: string; label: string }) => {
-    const invItem = getInventoryItem(item.key);
-    const isPresent = !!invItem?.isPresent;
-    
-    let subtext = '';
-    if (isPresent) {
-      if (item.key === 'Front Tyre' || item.key === 'Back Tyre') {
-        const match = invItem.remarks?.match(/\(Tyre Make:\s*(.*?)\)/i);
-        subtext = match ? match[1]?.trim() : '';
-      } else {
-        subtext = invItem.remarks || '';
-      }
-    }
+  // Accessory Checked / Missing Counts
+  const accessoryCounts = useMemo(() => {
+    let checked = 0;
+    let missing = 0;
+    accessoryItems.forEach(item => {
+      const inv = getInventoryItem(item.key);
+      if (inv?.isPresent) checked++;
+      else missing++;
+    });
+    return { checked, missing };
+  }, [vehicle]);
 
+  // Loading State
+  if (loading) {
     return (
-      <View key={item.key} style={[styles.accessoryCard, isPresent ? styles.accessoryPresent : styles.accessoryAbsent]}>
-        <View style={styles.accessoryHeader}>
-          <ThemedText style={[styles.accessoryLabel, isPresent ? styles.textPresent : styles.textAbsent]}>
-            {item.label}
-          </ThemedText>
-          {isPresent ? (
-            <View style={styles.checkIconBg}><ThemedText style={styles.checkIconText}>✓</ThemedText></View>
-          ) : (
-            <View style={styles.crossIconBg}><ThemedText style={styles.crossIconText}>✗</ThemedText></View>
-          )}
-        </View>
-        {isPresent && subtext ? (
-          <ThemedText style={styles.accessorySubtext} numberOfLines={1}>{subtext}</ThemedText>
-        ) : null}
-      </View>
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }} edges={['top', 'bottom']}>
+        <ThemedView style={styles.container}>
+          <View style={styles.headerBar}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.iconButton}>
+              <ChevronLeft size={24} color="#0F172A" />
+            </TouchableOpacity>
+            <ThemedText style={styles.headerTitle}>Vehicle Profile</ThemedText>
+            <View style={styles.iconButton} />
+          </View>
+          <VehicleDetailsSkeleton />
+        </ThemedView>
+      </SafeAreaView>
     );
+  }
+
+  // Error State
+  if (error || !vehicle) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }} edges={['top', 'bottom']}>
+        <ThemedView style={styles.errorContainer}>
+          <AlertTriangle size={48} color="#EF4444" style={{ marginBottom: 12 }} />
+          <ThemedText style={styles.errorText}>{error || 'Vehicle not found.'}</ThemedText>
+          <TouchableOpacity style={styles.retryBtn} onPress={fetchVehicleDetails}>
+            <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Retry</ThemedText>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.retryBtn, { backgroundColor: '#64748B', marginTop: 10 }]} onPress={() => router.back()}>
+            <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Back</ThemedText>
+          </TouchableOpacity>
+        </ThemedView>
+      </SafeAreaView>
+    );
+  }
+
+  // Determine Operator Status Badge
+  const getStatusBadge = () => {
+    if (vehicle.shiftStatus === 'SHIFT_PENDING') {
+      return { label: 'Shift Pending', bg: '#FEF3C7', color: '#B45309' };
+    }
+    if (vehicle.yardStatus === 'KACHHA') {
+      return { label: 'Pending Verification', bg: '#FEF3C7', color: '#D97706' };
+    }
+    if (vehicle.yardStatus === 'RELEASED' || vehicle.status === 'RELEASED' || vehicle.status === 'CHECKED_OUT') {
+      return { label: 'Released', bg: '#DBEAFE', color: '#2563EB' };
+    }
+    return { label: 'Active Parking', bg: '#DCFCE7', color: '#16A34A' };
   };
 
+  const statusBadge = getStatusBadge();
+
+  // Filtered Photo Drawer Data
+  const displayedDrawerPhotos = photoFilterTab === 'images' ? imagePhotos : photoFilterTab === 'pdfs' ? pdfPhotos : (vehicle.photos || []);
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }} edges={['top', 'bottom', 'left', 'right']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }} edges={['top', 'left', 'right']}>
       <ThemedView style={styles.container}>
-      {/* Top Header Navigation */}
-      <View style={styles.headerBar}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconButton} activeOpacity={0.7}>
-          <ChevronLeft size={24} color="#0F172A" />
-        </TouchableOpacity>
-        <ThemedText style={styles.headerTitle}>Vehicle Details</ThemedText>
-        <TouchableOpacity onPress={handleMoreMenu} style={styles.iconButton} activeOpacity={0.7}>
-          <MoreVertical size={22} color="#0F172A" />
-        </TouchableOpacity>
-      </View>
+        {/* Top Operational Navigation Bar */}
+        <View style={styles.headerBar}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.iconButton} activeOpacity={0.7}>
+            <ChevronLeft size={24} color="#0F172A" />
+          </TouchableOpacity>
+          <ThemedText style={styles.headerTitle}>Vehicle Profile</ThemedText>
+          <TouchableOpacity onPress={handleMoreMenu} style={styles.iconButton} activeOpacity={0.7}>
+            <MoreVertical size={22} color="#0F172A" />
+          </TouchableOpacity>
+        </View>
 
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: 90 + Math.max(insets.bottom, 16) },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Official Executive Corporate Asset Dossier Card */}
-        <View style={styles.corporateDossierCard}>
-          <View style={styles.dossierTopHeader}>
-            <View style={styles.dossierStampBadge}>
-              <ThemedText style={styles.dossierStampText}>
-                OFFICIAL ASSET DOSSIER {vehicle.serialNumber ? `#${vehicle.serialNumber}` : `INV-${new Date(vehicle.entryDate || Date.now()).getFullYear()}`}
-              </ThemedText>
-            </View>
-            <View style={[
-              styles.dossierStatusPill,
-              vehicle.yardStatus === 'KACHHA' ? { backgroundColor: '#F59E0B' } :
-              (vehicle.yardStatus === 'RELEASED' || vehicle.status === 'RELEASED' || vehicle.status === 'CHECKED_OUT') ? { backgroundColor: '#2563EB' } : { backgroundColor: '#10B981' }
-            ]}>
-              <ThemedText style={styles.dossierStatusText}>
-                {vehicle.yardStatus === 'KACHHA' ? 'KACHHA (AUDIT PENDING)' :
-                 (vehicle.yardStatus === 'RELEASED' || vehicle.status === 'RELEASED' || vehicle.status === 'CHECKED_OUT') ? 'RELEASED (EXITED)' : 'PAKKA (POSSESSION FORMALIZED)'}
-              </ThemedText>
-            </View>
-          </View>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: 130 + Math.max(insets.bottom, 16) },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* 1. TOP OPERATOR HERO PROFILE CARD */}
+          <View style={styles.heroProfileCard}>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => setActivePhotoUrl(displayPhoto)}
+              style={styles.heroPhotoWrapper}
+            >
+              <Image source={{ uri: displayPhoto }} style={styles.heroPhoto} />
+              {imagePhotos.length > 1 && (
+                <View style={styles.heroPhotoBadge}>
+                  <Camera size={10} color="#FFFFFF" style={{ marginRight: 3 }} />
+                  <ThemedText style={styles.heroPhotoBadgeText}>{imagePhotos.length}</ThemedText>
+                </View>
+              )}
+            </TouchableOpacity>
 
-          <View style={styles.dossierBodyRow}>
-            <Image source={{ uri: displayPhoto }} style={styles.dossierThumbnail} />
-            <View style={styles.dossierMeta}>
-              <ThemedText style={styles.dossierPlateNumber}>{vehicle.vehicleNumber.toUpperCase()}</ThemedText>
-              <ThemedText style={styles.dossierModelName}>
+            <View style={styles.heroInfo}>
+              <ThemedText style={styles.heroVehicleNumber}>{vehicle.vehicleNumber.toUpperCase()}</ThemedText>
+              <ThemedText style={styles.heroSubText}>
                 {vehicle.brand || 'Vehicle'} {vehicle.model || ''} {vehicle.color ? `• ${vehicle.color}` : ''}
               </ThemedText>
-              <ThemedText style={styles.dossierCategory}>
-                {vehicle.vehicleType === 'TW' ? 'Two Wheeler (2W)' :
-                 vehicle.vehicleType === 'THREE_W' ? 'Three Wheeler (3W)' :
-                 vehicle.vehicleType === 'CV' ? 'Commercial Vehicle (CV)' : 'Four Wheeler (4W)'}
+
+              <View style={[styles.heroStatusBadge, { backgroundColor: statusBadge.bg }]}>
+                <ThemedText style={[styles.heroStatusText, { color: statusBadge.color }]}>
+                  {statusBadge.label}
+                </ThemedText>
+              </View>
+            </View>
+          </View>
+
+          {/* 2. OPERATOR 4-METRIC QUICK SUMMARY GRID */}
+          <View style={styles.quickMetricsGrid}>
+            <View style={styles.metricBox}>
+              <View style={[styles.metricIconCircle, { backgroundColor: '#EEF2FF' }]}>
+                <Building size={16} color="#4F46E5" />
+              </View>
+              <ThemedText style={styles.metricLabel}>YARD SLOT</ThemedText>
+              <ThemedText style={styles.metricValue} numberOfLines={1}>
+                {vehicle.yardLocation ? `${vehicle.yardLocation.zone}-${vehicle.yardLocation.slot}` : 'Unassigned'}
+              </ThemedText>
+            </View>
+
+            <View style={styles.metricBox}>
+              <View style={[styles.metricIconCircle, { backgroundColor: '#FEF3C7' }]}>
+                <Clock size={16} color="#D97706" />
+              </View>
+              <ThemedText style={styles.metricLabel}>DURATION</ThemedText>
+              <ThemedText style={styles.metricValue}>
+                {getDurationDays()} Days
+              </ThemedText>
+            </View>
+
+            <View style={styles.metricBox}>
+              <View style={[styles.metricIconCircle, { backgroundColor: '#DCFCE7' }]}>
+                <DollarSign size={16} color="#16A34A" />
+              </View>
+              <ThemedText style={styles.metricLabel}>DUE CHARGES</ThemedText>
+              <ThemedText style={[styles.metricValue, { color: '#16A34A' }]}>
+                ₹{getTotalCharges().toLocaleString('en-IN')}
+              </ThemedText>
+            </View>
+
+            <View style={styles.metricBox}>
+              <View style={[styles.metricIconCircle, { backgroundColor: '#F1F5F9' }]}>
+                <Building size={16} color="#64748B" />
+              </View>
+              <ThemedText style={styles.metricLabel}>BANK / FINANCER</ThemedText>
+              <ThemedText style={styles.metricValue} numberOfLines={1}>
+                {vehicle.bankName || 'Direct'}
               </ThemedText>
             </View>
           </View>
-        </View>
 
-        {/* Key Security Items Indicator Grid */}
-        <View style={styles.securityGrid}>
-          <View style={[styles.securityBadge, getInventoryItem('key')?.isPresent ? styles.securityBadgePresent : styles.securityBadgeAbsent]}>
-            <ThemedText style={styles.securityBadgeLabel}>🔑 KEY</ThemedText>
-            <ThemedText style={[styles.securityBadgeValue, getInventoryItem('key')?.isPresent ? styles.textPresent : styles.textAbsent]}>
-              {getInventoryItem('key')?.isPresent ? 'YES' : 'NO'}
-            </ThemedText>
-          </View>
-
-          <View style={[styles.securityBadge, getInventoryItem('RC-Original')?.isPresent ? styles.securityBadgePresent : styles.securityBadgeAbsent]}>
-            <ThemedText style={styles.securityBadgeLabel}>📄 RC DOC</ThemedText>
-            <ThemedText style={[styles.securityBadgeValue, getInventoryItem('RC-Original')?.isPresent ? styles.textPresent : styles.textAbsent]}>
-              {getInventoryItem('RC-Original')?.isPresent ? 'YES' : 'NO'}
-            </ThemedText>
-          </View>
-
-          <View style={[styles.securityBadge, getInventoryItem('Battery')?.isPresent ? styles.securityBadgePresent : styles.securityBadgeAbsent]}>
-            <ThemedText style={styles.securityBadgeLabel}>🔋 BATTERY</ThemedText>
-            <ThemedText style={[styles.securityBadgeValue, getInventoryItem('Battery')?.isPresent ? styles.textPresent : styles.textAbsent]}>
-              {getInventoryItem('Battery')?.isPresent ? 'YES' : 'NO'}
-            </ThemedText>
-          </View>
-
-          <View style={[styles.securityBadge, { backgroundColor: '#F8FAFC', borderColor: '#CBD5E1' }]}>
-            <ThemedText style={styles.securityBadgeLabel}>📍 SLOT</ThemedText>
-            <ThemedText style={[styles.securityBadgeValue, { color: '#0F172A' }]}>
-              {vehicle.yardLocation ? `${vehicle.yardLocation.zone}-${vehicle.yardLocation.slot}` : 'A-ZONE'}
-            </ThemedText>
-          </View>
-        </View>
-
-        {/* Phase-Specific Action Banners */}
-        {vehicle.yardStatus === 'KACHHA' && (
-          <TouchableOpacity
-            style={styles.bannerKachha}
-            onPress={() => router.push({ pathname: '/admin/kachha-to-pakka', params: { id: vehicle.id } })}
-            activeOpacity={0.85}
-          >
-            <View style={styles.bannerLeftRow}>
-              <View style={styles.badgeKachhaDot} />
-              <View style={{ flex: 1 }}>
-                <ThemedText style={styles.bannerKachhaTitle}>⚠️ Billing Inactive — Repo Kit Pending</ThemedText>
-                <ThemedText style={styles.bannerKachhaSub}>Tap to submit Repo Kit & convert to PAKKA</ThemedText>
+          {/* 3. CONTEXTUAL OPERATOR ACTION BANNER */}
+          {vehicle.shiftStatus === 'SHIFT_PENDING' && (
+            <View style={styles.contextBannerShift}>
+              <View style={styles.contextBannerRow}>
+                <RefreshCw size={20} color="#B45309" />
+                <View style={{ flex: 1 }}>
+                  <ThemedText style={styles.contextBannerTitle}>Shift Pending — Non-Paneled Bank</ThemedText>
+                  <ThemedText style={styles.contextBannerSub}>Bank is not paneled. Queued for transfer.</ThemedText>
+                </View>
               </View>
+              <TouchableOpacity
+                style={styles.contextBannerBtnShift}
+                onPress={() => router.push({ pathname: '/admin/check-out', params: { plate: vehicle.vehicleNumber } })}
+                activeOpacity={0.85}
+              >
+                <ThemedText style={styles.contextBannerBtnText}>Transfer →</ThemedText>
+              </TouchableOpacity>
             </View>
-            <ThemedText style={styles.bannerKachhaBtn}>Submit →</ThemedText>
-          </TouchableOpacity>
-        )}
+          )}
 
-        {/* Shift Pending Banner */}
-        {vehicle.shiftStatus === 'SHIFT_PENDING' && (
-          <View style={{
-            backgroundColor: '#FFFBEB',
-            borderRadius: 14,
-            padding: 14,
-            marginTop: 10,
-            borderWidth: 1.5,
-            borderColor: '#FDE68A',
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-              <ThemedText style={{ fontSize: 20, marginRight: 10 }}>🚚</ThemedText>
-              <View style={{ flex: 1 }}>
-                <ThemedText style={{ fontSize: 13, fontWeight: '800', color: '#92400E' }}>
-                  Shift Pending — Non-Paneled Bank
-                </ThemedText>
-                <ThemedText style={{ fontSize: 11, color: '#B45309', marginTop: 2 }}>
-                  This vehicle's bank is not paneled with this yard. Awaiting transfer.
-                </ThemedText>
-              </View>
-            </View>
+          {vehicle.yardStatus === 'KACHHA' && vehicle.shiftStatus !== 'SHIFT_PENDING' && (
             <TouchableOpacity
-              style={{
-                backgroundColor: '#D97706',
-                borderRadius: 10,
-                paddingVertical: 8,
-                paddingHorizontal: 14,
-              }}
+              style={styles.contextBannerKachha}
+              onPress={() => router.push({ pathname: '/admin/kachha-to-pakka', params: { id: vehicle.id } })}
+              activeOpacity={0.85}
+            >
+              <View style={styles.contextBannerRow}>
+                <Shield size={20} color="#D97706" />
+                <View style={{ flex: 1 }}>
+                  <ThemedText style={styles.contextBannerTitle}>Verification & Repo Kit Pending</ThemedText>
+                  <ThemedText style={styles.contextBannerSub}>Tap to complete Repo Kit & start active billing</ThemedText>
+                </View>
+              </View>
+              <ThemedText style={styles.contextBannerBtnKachha}>Verify →</ThemedText>
+            </TouchableOpacity>
+          )}
+
+          {/* 4. EXPANDABLE COLLAPSIBLE SECTIONS */}
+          
+          {/* SECTION 1: Overview & Specifications (Default Open) */}
+          <View style={styles.accordionCard}>
+            <TouchableOpacity
+              style={styles.accordionHeader}
+              onPress={() => toggleSection('overview')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.accordionHeaderLeft}>
+                <Car size={18} color="#4F46E5" />
+                <ThemedText style={styles.accordionTitle}>Overview & Specifications</ThemedText>
+              </View>
+              {expandedSections.overview ? (
+                <ChevronDown size={18} color="#64748B" style={{ transform: [{ rotate: '180deg' }] }} />
+              ) : (
+                <ChevronDown size={18} color="#64748B" />
+              )}
+            </TouchableOpacity>
+
+            {expandedSections.overview && (
+              <View style={styles.accordionContent}>
+                <View style={styles.detailRow}>
+                  <ThemedText style={styles.detailLabel}>Entry Date & Time</ThemedText>
+                  <ThemedText style={styles.detailValue}>{formattedEntryDate}</ThemedText>
+                </View>
+                <View style={styles.detailRow}>
+                  <ThemedText style={styles.detailLabel}>Category</ThemedText>
+                  <ThemedText style={styles.detailValue}>
+                    {vehicle.vehicleType === 'TW' ? 'Two Wheeler (2W)' :
+                     vehicle.vehicleType === 'THREE_W' ? 'Three Wheeler (3W)' :
+                     vehicle.vehicleType === 'CV' ? 'Commercial (CV)' : 'Four Wheeler (4W)'}
+                  </ThemedText>
+                </View>
+                <View style={styles.detailRow}>
+                  <ThemedText style={styles.detailLabel}>Color</ThemedText>
+                  <ThemedText style={styles.detailValue}>{vehicle.color || 'N/A'}</ThemedText>
+                </View>
+                <View style={styles.detailRow}>
+                  <ThemedText style={styles.detailLabel}>Yard Serial No.</ThemedText>
+                  <ThemedText style={styles.detailValue}>{vehicle.serialNumber ? `#${vehicle.serialNumber}` : 'N/A'}</ThemedText>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* SECTION 2: Customer & Repossession Details (Default Closed) */}
+          <View style={styles.accordionCard}>
+            <TouchableOpacity
+              style={styles.accordionHeader}
+              onPress={() => toggleSection('repoDetails')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.accordionHeaderLeft}>
+                <User size={18} color="#4F46E5" />
+                <ThemedText style={styles.accordionTitle}>Customer & Repo Details</ThemedText>
+              </View>
+              {expandedSections.repoDetails ? (
+                <ChevronDown size={18} color="#64748B" style={{ transform: [{ rotate: '180deg' }] }} />
+              ) : (
+                <ChevronDown size={18} color="#64748B" />
+              )}
+            </TouchableOpacity>
+
+            {expandedSections.repoDetails && (
+              <View style={styles.accordionContent}>
+                <View style={styles.detailRow}>
+                  <ThemedText style={styles.detailLabel}>Customer Name</ThemedText>
+                  <ThemedText style={styles.detailValue}>{vehicle.customerName || 'N/A'}</ThemedText>
+                </View>
+                <View style={styles.detailRow}>
+                  <ThemedText style={styles.detailLabel}>Customer Mobile</ThemedText>
+                  <TouchableOpacity
+                    onPress={() => vehicle.customerPhone && Linking.openURL(`tel:${vehicle.customerPhone}`)}
+                    disabled={!vehicle.customerPhone}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                  >
+                    {vehicle.customerPhone && <Phone size={14} color="#4F46E5" />}
+                    <ThemedText style={[styles.detailValue, vehicle.customerPhone ? { color: '#4F46E5', fontWeight: '700' } : null]}>
+                      {vehicle.customerPhone || 'N/A'}
+                    </ThemedText>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.detailRow}>
+                  <ThemedText style={styles.detailLabel}>Bank Name</ThemedText>
+                  <ThemedText style={styles.detailValue}>{vehicle.bankName || 'N/A'}</ThemedText>
+                </View>
+                <View style={styles.detailRow}>
+                  <ThemedText style={styles.detailLabel}>Repo Agency</ThemedText>
+                  <ThemedText style={styles.detailValue}>{parsedRepo.agency}</ThemedText>
+                </View>
+                <View style={styles.detailRow}>
+                  <ThemedText style={styles.detailLabel}>Repo Agent</ThemedText>
+                  <ThemedText style={styles.detailValue}>{parsedRepo.agent}</ThemedText>
+                </View>
+                <View style={styles.detailRow}>
+                  <ThemedText style={styles.detailLabel}>Place of Possession</ThemedText>
+                  <ThemedText style={styles.detailValue}>{parsedRepo.place}</ThemedText>
+                </View>
+                <View style={styles.detailRow}>
+                  <ThemedText style={styles.detailLabel}>Chassis Number</ThemedText>
+                  <ThemedText style={[styles.detailValue, { fontFamily: 'monospace', fontWeight: '700' }]}>
+                    {vehicle.chassisNumber || 'N/A'}
+                  </ThemedText>
+                </View>
+                <View style={styles.detailRow}>
+                  <ThemedText style={styles.detailLabel}>Engine Number</ThemedText>
+                  <ThemedText style={[styles.detailValue, { fontFamily: 'monospace', fontWeight: '700' }]}>
+                    {vehicle.engineNumber || 'N/A'}
+                  </ThemedText>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* SECTION 3: Condition & Remarks (Default Closed) */}
+          <View style={styles.accordionCard}>
+            <TouchableOpacity
+              style={styles.accordionHeader}
+              onPress={() => toggleSection('vehicleDetails')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.accordionHeaderLeft}>
+                <FileText size={18} color="#4F46E5" />
+                <ThemedText style={styles.accordionTitle}>Condition Report & Remarks</ThemedText>
+              </View>
+              {expandedSections.vehicleDetails ? (
+                <ChevronDown size={18} color="#64748B" style={{ transform: [{ rotate: '180deg' }] }} />
+              ) : (
+                <ChevronDown size={18} color="#64748B" />
+              )}
+            </TouchableOpacity>
+
+            {expandedSections.vehicleDetails && (
+              <View style={styles.accordionContent}>
+                <View style={styles.detailRow}>
+                  <ThemedText style={styles.detailLabel}>Body Condition</ThemedText>
+                  <View style={[
+                    styles.conditionBadge,
+                    bodyCondition === 'Good' ? styles.bgGood : bodyCondition === 'Bad' ? styles.bgBad : styles.bgAverage
+                  ]}>
+                    <ThemedText style={[
+                      styles.conditionBadgeText,
+                      bodyCondition === 'Good' ? styles.textGood : bodyCondition === 'Bad' ? styles.textBad : styles.textAverage
+                    ]}>
+                      {bodyCondition}
+                    </ThemedText>
+                  </View>
+                </View>
+
+                <View style={styles.remarksBlock}>
+                  <ThemedText style={styles.remarksLabel}>Yard Remarks</ThemedText>
+                  <ThemedText style={styles.remarksValue}>{yardRemarks}</ThemedText>
+                </View>
+
+                <View style={[styles.remarksBlock, { borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 8 }]}>
+                  <ThemedText style={styles.remarksLabel}>Customer Remarks</ThemedText>
+                  <ThemedText style={styles.remarksValue}>{customerRemarks}</ThemedText>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* SECTION 4: Compact Accessories Checklist (Default Closed) */}
+          <View style={styles.accordionCard}>
+            <TouchableOpacity
+              style={styles.accordionHeader}
+              onPress={() => toggleSection('checklist')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.accordionHeaderLeft}>
+                <FileText size={18} color="#4F46E5" />
+                <ThemedText style={styles.accordionTitle}>Accessories Checklist</ThemedText>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={styles.accessorySummaryPill}>
+                  <ThemedText style={styles.accessorySummaryText}>
+                    {accessoryCounts.checked} Checked  •  {accessoryCounts.missing} Missing
+                  </ThemedText>
+                </View>
+                {expandedSections.checklist ? (
+                  <ChevronDown size={18} color="#64748B" style={{ transform: [{ rotate: '180deg' }] }} />
+                ) : (
+                  <ChevronDown size={18} color="#64748B" />
+                )}
+              </View>
+            </TouchableOpacity>
+
+            {expandedSections.checklist && (
+              <View style={styles.accordionContent}>
+                <View style={styles.compactAccessoryList}>
+                  {accessoryItems.map(item => {
+                    const invItem = getInventoryItem(item.key);
+                    const isPresent = !!invItem?.isPresent;
+                    let subtext = '';
+                    if (isPresent) {
+                      if (item.key === 'Front Tyre' || item.key === 'Back Tyre') {
+                        const match = invItem.remarks?.match(/\(Tyre Make:\s*(.*?)\)/i);
+                        subtext = match ? match[1]?.trim() : '';
+                      } else {
+                        subtext = invItem.remarks || '';
+                      }
+                    }
+
+                    return (
+                      <View key={item.key} style={styles.compactAccessoryRow}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                          {isPresent ? (
+                            <Check size={16} color="#16A34A" />
+                          ) : (
+                            <X size={16} color="#EF4444" />
+                          )}
+                          <ThemedText style={[styles.compactAccessoryText, !isPresent && { color: '#94A3B8' }]}>
+                            {item.label}
+                          </ThemedText>
+                        </View>
+                        {isPresent ? (
+                          <ThemedText style={styles.compactAccessoryStatusPresent}>
+                            {subtext ? `${subtext}` : 'Present'}
+                          </ThemedText>
+                        ) : (
+                          <ThemedText style={styles.compactAccessoryStatusAbsent}>Missing</ThemedText>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* SECTION 5: Dynamic Billing Breakdown (Default Closed) */}
+          <View style={styles.accordionCard}>
+            <TouchableOpacity
+              style={styles.accordionHeader}
+              onPress={() => toggleSection('billing')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.accordionHeaderLeft}>
+                <DollarSign size={18} color="#16A34A" />
+                <ThemedText style={styles.accordionTitle}>Billing & Daily Rates</ThemedText>
+              </View>
+              {expandedSections.billing ? (
+                <ChevronDown size={18} color="#64748B" style={{ transform: [{ rotate: '180deg' }] }} />
+              ) : (
+                <ChevronDown size={18} color="#64748B" />
+              )}
+            </TouchableOpacity>
+
+            {expandedSections.billing && (
+              <View style={styles.accordionContent}>
+                <View style={styles.detailRow}>
+                  <ThemedText style={styles.detailLabel}>Daily Rate</ThemedText>
+                  <ThemedText style={[styles.detailValue, { fontWeight: '700' }]}>₹{getDailyRate()} / Day</ThemedText>
+                </View>
+                <View style={styles.detailRow}>
+                  <ThemedText style={styles.detailLabel}>Total Days Stayed</ThemedText>
+                  <ThemedText style={styles.detailValue}>{getDurationDays()} Days</ThemedText>
+                </View>
+                <View style={styles.detailRow}>
+                  <ThemedText style={styles.detailLabel}>Accrued Dues</ThemedText>
+                  <ThemedText style={[styles.detailValue, { color: '#16A34A', fontWeight: '800', fontSize: 16 }]}>
+                    ₹{getTotalCharges().toLocaleString('en-IN')}
+                  </ThemedText>
+                </View>
+                {parkingCalculation?.phaseBreakdown && (
+                  <View style={{ marginTop: 8, backgroundColor: '#F8FAFC', padding: 10, borderRadius: 8 }}>
+                    <ThemedText style={{ fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 4 }}>Phase Breakdown</ThemedText>
+                    <ThemedText style={{ fontSize: 12, color: '#334155' }}>
+                      Kachha: ₹{parkingCalculation.phaseBreakdown.kachhaCharge || 0} ({parkingCalculation.phaseBreakdown.kachhaDays || 0} days)
+                    </ThemedText>
+                    <ThemedText style={{ fontSize: 12, color: '#334155', marginTop: 2 }}>
+                      Pakka: ₹{parkingCalculation.phaseBreakdown.pakkaCharge || 0} ({parkingCalculation.phaseBreakdown.pakkaDays || 0} days)
+                    </ThemedText>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+
+          {/* SECTION 6: Advanced / Admin Actions (Default Closed) */}
+          <View style={[styles.accordionCard, { borderColor: '#FEE2E2' }]}>
+            <TouchableOpacity
+              style={[styles.accordionHeader, { backgroundColor: '#FEF2F2' }]}
+              onPress={() => toggleSection('advanced')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.accordionHeaderLeft}>
+                <Shield size={18} color="#EF4444" />
+                <ThemedText style={[styles.accordionTitle, { color: '#991B1B' }]}>Advanced / Admin Actions</ThemedText>
+              </View>
+              {expandedSections.advanced ? (
+                <ChevronDown size={18} color="#991B1B" style={{ transform: [{ rotate: '180deg' }] }} />
+              ) : (
+                <ChevronDown size={18} color="#991B1B" />
+              )}
+            </TouchableOpacity>
+
+            {expandedSections.advanced && (
+              <View style={styles.accordionContent}>
+                <TouchableOpacity
+                  style={styles.dangerZoneBtn}
+                  onPress={handleDelete}
+                  activeOpacity={0.8}
+                >
+                  <Trash2 size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <ThemedText style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13 }}>
+                    Permanently Delete Vehicle Record
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </ScrollView>
+
+        {/* 5. STICKY OPERATOR BOTTOM ACTION BAR */}
+        <View style={[styles.stickyBottomBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          {/* Primary Action Button */}
+          {vehicle.yardStatus === 'KACHHA' && vehicle.shiftStatus !== 'SHIFT_PENDING' && (
+            <TouchableOpacity
+              style={[styles.primaryStickyBtn, { backgroundColor: '#D97706' }]}
+              onPress={() => router.push({ pathname: '/admin/kachha-to-pakka', params: { id: vehicle.id } })}
+              activeOpacity={0.85}
+            >
+              <Shield size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <ThemedText style={styles.primaryStickyBtnText}>Complete Verification</ThemedText>
+            </TouchableOpacity>
+          )}
+
+          {vehicle.shiftStatus === 'SHIFT_PENDING' && (
+            <TouchableOpacity
+              style={[styles.primaryStickyBtn, { backgroundColor: '#D97706' }]}
               onPress={() => router.push({ pathname: '/admin/check-out', params: { plate: vehicle.vehicleNumber } })}
               activeOpacity={0.85}
             >
-              <ThemedText style={{ fontSize: 11, fontWeight: '800', color: '#FFFFFF' }}>Shift →</ThemedText>
+              <RefreshCw size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <ThemedText style={styles.primaryStickyBtnText}>Shift Vehicle</ThemedText>
             </TouchableOpacity>
-          </View>
-        )}
+          )}
 
-        {vehicle.yardStatus === 'PAKKA' && (
-          <View style={styles.bannerPakka}>
-            <View style={styles.bannerLeftRow}>
-              <View style={styles.badgePakkaDot} />
-              <View style={{ flex: 1 }}>
-                <ThemedText style={styles.bannerPakkaTitle}>🟢 PAKKA — Active Billing ({getDurationDays()} Days)</ThemedText>
-                <ThemedText style={styles.bannerPakkaSub}>Accrued Dues: ₹{getTotalCharges()} (₹{getDailyRate()}/Day)</ThemedText>
-              </View>
-            </View>
+          {vehicle.yardStatus === 'PAKKA' && (
             <TouchableOpacity
-              style={styles.bannerPakkaReleaseBtn}
+              style={[styles.primaryStickyBtn, { backgroundColor: '#16A34A' }]}
               onPress={() => router.push({ pathname: '/admin/check-out', params: { plate: vehicle.vehicleNumber } })}
               activeOpacity={0.85}
             >
-              <Key size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-              <ThemedText style={styles.bannerPakkaReleaseBtnText}>Release</ThemedText>
+              <Key size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <ThemedText style={styles.primaryStickyBtnText}>Release Vehicle</ThemedText>
             </TouchableOpacity>
-          </View>
-        )}
+          )}
 
-        {(vehicle.yardStatus === 'RELEASED' || vehicle.status === 'RELEASED' || vehicle.status === 'CHECKED_OUT') && (
-          <View style={styles.bannerReleased}>
-            <View style={styles.bannerLeftRow}>
-              <View style={styles.badgeReleasedDot} />
-              <View style={{ flex: 1 }}>
-                <ThemedText style={styles.bannerReleasedTitle}>✅ RELEASED — Vehicle Exited Yard</ThemedText>
-                <ThemedText style={styles.bannerReleasedSub}>
-                  Paid: ₹{billing?.paidAmount || billing?.totalAmount || getTotalCharges()} • Gate Pass Issued
-                </ThemedText>
-              </View>
-            </View>
+          {(vehicle.yardStatus === 'RELEASED' || vehicle.status === 'RELEASED' || vehicle.status === 'CHECKED_OUT') && (
             <TouchableOpacity
-              style={styles.bannerReleasedPrintBtn}
+              style={[styles.primaryStickyBtn, { backgroundColor: '#2563EB' }]}
               onPress={downloadAndSharePDF}
               activeOpacity={0.85}
             >
-              <Printer size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-              <ThemedText style={styles.bannerReleasedPrintBtnText}>Print</ThemedText>
+              <Printer size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <ThemedText style={styles.primaryStickyBtnText}>Share Gatepass PDF</ThemedText>
             </TouchableOpacity>
-          </View>
-        )}
+          )}
 
-        {/* Card 1: Yard & Vehicle Specifications */}
-        <View style={styles.sectionCard}>
-          <ThemedText style={styles.sectionHeader}>Yard & Vehicle Specifications</ThemedText>
-          <View style={styles.detailRow}>
-            <ThemedText style={styles.detailLabel}>Yard Location</ThemedText>
-            <ThemedText style={[styles.detailValue, { color: '#4F46E5', fontWeight: '800' }]}>
-              📍 {vehicle.yardLocation ? `${vehicle.yardLocation.zone} - ${vehicle.yardLocation.slot}` : 'Awaiting Slot Allocation'}
-            </ThemedText>
-          </View>
-          <View style={styles.detailRow}>
-            <ThemedText style={styles.detailLabel}>Entry Date & Time</ThemedText>
-            <ThemedText style={styles.detailValue}>{formattedEntryDate}</ThemedText>
-          </View>
-          <View style={styles.detailRow}>
-            <ThemedText style={styles.detailLabel}>Vehicle Category</ThemedText>
-            <ThemedText style={styles.detailValue}>
-              {vehicle.vehicleType === 'TW' ? 'Two Wheeler (2W)' :
-               vehicle.vehicleType === 'THREE_W' ? 'Three Wheeler (3W)' :
-               vehicle.vehicleType === 'CV' ? 'Commercial Vehicle (CV)' : 'Four Wheeler (4W)'}
-            </ThemedText>
-          </View>
-          <View style={styles.detailRow}>
-            <ThemedText style={styles.detailLabel}>Color</ThemedText>
-            <ThemedText style={styles.detailValue}>{vehicle.color || 'N/A'}</ThemedText>
-          </View>
-        </View>
+          {/* Quick Action Navigation Bar */}
+          <View style={styles.quickTabBar}>
+            <TouchableOpacity style={styles.quickTabBtn} onPress={() => setPhotosVisible(true)} activeOpacity={0.7}>
+              <Camera size={18} color="#4F46E5" />
+              <ThemedText style={styles.quickTabLabel}>Photos ({imagePhotos.length})</ThemedText>
+            </TouchableOpacity>
 
-        {/* Card 2: Repossession & Customer Details */}
-        <View style={styles.sectionCard}>
-          <ThemedText style={styles.sectionHeader}>Repossession & Customer Details</ThemedText>
-          <View style={styles.detailRow}>
-            <ThemedText style={styles.detailLabel}>Customer Name</ThemedText>
-            <ThemedText style={styles.detailValue}>{vehicle.customerName || 'N/A'}</ThemedText>
-          </View>
-          <View style={styles.detailRow}>
-            <ThemedText style={styles.detailLabel}>Customer Mob No.</ThemedText>
-            <TouchableOpacity 
-              onPress={() => vehicle.customerPhone && Linking.openURL(`tel:${vehicle.customerPhone}`)}
-              disabled={!vehicle.customerPhone}
+            <TouchableOpacity
+              style={styles.quickTabBtn}
+              onPress={() => setCalcVisible(true)}
+              activeOpacity={0.7}
             >
-              <ThemedText style={[styles.detailValue, vehicle.customerPhone ? { color: '#4F46E5', fontWeight: '800', textDecorationLine: 'underline' } : null]}>
-                📞 {vehicle.customerPhone || 'N/A'}
-              </ThemedText>
+              <Calculator size={18} color="#4F46E5" />
+              <ThemedText style={styles.quickTabLabel}>Calculator</ThemedText>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.quickTabBtn} onPress={downloadAndSharePDF} activeOpacity={0.7}>
+              <FileText size={18} color="#4F46E5" />
+              <ThemedText style={styles.quickTabLabel}>PDF Report</ThemedText>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.quickTabBtn} onPress={handleMoreMenu} activeOpacity={0.7}>
+              <MoreHorizontal size={18} color="#4F46E5" />
+              <ThemedText style={styles.quickTabLabel}>More</ThemedText>
             </TouchableOpacity>
           </View>
-          <View style={styles.detailRow}>
-            <ThemedText style={styles.detailLabel}>Bank Name</ThemedText>
-            <ThemedText style={styles.detailValue}>{vehicle.bankName || 'N/A'}</ThemedText>
-          </View>
-          <View style={styles.detailRow}>
-            <ThemedText style={styles.detailLabel}>Repo Agency</ThemedText>
-            <ThemedText style={styles.detailValue}>{parsedRepo.agency}</ThemedText>
-          </View>
-          <View style={styles.detailRow}>
-            <ThemedText style={styles.detailLabel}>Repo Agent</ThemedText>
-            <ThemedText style={styles.detailValue}>{parsedRepo.agent}</ThemedText>
-          </View>
-          <View style={styles.detailRow}>
-            <ThemedText style={styles.detailLabel}>Place of Possession</ThemedText>
-            <ThemedText style={styles.detailValue}>{parsedRepo.place}</ThemedText>
-          </View>
-          <View style={styles.detailRow}>
-            <ThemedText style={styles.detailLabel}>Chassis Number</ThemedText>
-            <ThemedText style={[styles.detailValue, { fontFamily: 'monospace', fontWeight: '700' }]}>{vehicle.chassisNumber || 'N/A'}</ThemedText>
-          </View>
-          <View style={styles.detailRow}>
-            <ThemedText style={styles.detailLabel}>Engine Number</ThemedText>
-            <ThemedText style={[styles.detailValue, { fontFamily: 'monospace', fontWeight: '700' }]}>{vehicle.engineNumber || 'N/A'}</ThemedText>
-          </View>
         </View>
 
-        {/* Card 3: Condition & Remarks */}
-        <View style={styles.sectionCard}>
-          <ThemedText style={styles.sectionHeader}>Condition & Remarks</ThemedText>
-          <View style={styles.detailRow}>
-            <ThemedText style={styles.detailLabel}>Body Condition</ThemedText>
-            <View style={[
-              styles.conditionBadge,
-              bodyCondition === 'Good' ? styles.bgGood : bodyCondition === 'Bad' ? styles.bgBad : styles.bgAverage
-            ]}>
-              <ThemedText style={[
-                styles.conditionBadgeText,
-                bodyCondition === 'Good' ? styles.textGood : bodyCondition === 'Bad' ? styles.textBad : styles.textAverage
-              ]}>
-                {bodyCondition}
-              </ThemedText>
-            </View>
-          </View>
-          <View style={styles.detailRow}>
-            <ThemedText style={styles.detailLabel}>Front Tyre Make</ThemedText>
-            <ThemedText style={styles.detailValue}>{getTyreMake('Front Tyre')}</ThemedText>
-          </View>
-          <View style={styles.detailRow}>
-            <ThemedText style={styles.detailLabel}>Back Tyre Make</ThemedText>
-            <ThemedText style={styles.detailValue}>{getTyreMake('Back Tyre')}</ThemedText>
-          </View>
-          
-          <View style={styles.remarksBlock}>
-            <ThemedText style={styles.remarksLabel}>Yard Remarks</ThemedText>
-            <ThemedText style={styles.remarksValue}>{yardRemarks}</ThemedText>
-          </View>
+        {/* ---------------------------------------------------------------------- */}
+        {/* MODALS */}
+        {/* ---------------------------------------------------------------------- */}
 
-          <View style={[styles.remarksBlock, { borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 8 }]}>
-            <ThemedText style={styles.remarksLabel}>Customer Remarks</ThemedText>
-            <ThemedText style={styles.remarksValue}>{customerRemarks}</ThemedText>
-          </View>
-        </View>
-
-        {/* Card 4: Accessories Checklist */}
-        <View style={styles.sectionCard}>
-          <ThemedText style={styles.sectionHeader}>Accessories Checklist</ThemedText>
-          <View style={styles.accessoriesGrid}>
-            {accessoryItems.map(renderAccessoryCard)}
-          </View>
-        </View>
-
-        {/* Side-by-Side Slabs Cards */}
-        <View style={styles.slabsRow}>
-          <View style={styles.slabCard}>
-            <Clock size={16} color="#64748B" style={{ marginBottom: 6 }} />
-            <ThemedText style={styles.slabTitle}>Parking Duration</ThemedText>
-            <ThemedText style={styles.slabValue}>{getDurationDays()} Days</ThemedText>
-            <ThemedText style={styles.slabSub}>
-              (As on {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})
-            </ThemedText>
-          </View>
-
-          <View style={styles.slabCard}>
-            <DollarSign size={16} color="#64748B" style={{ marginBottom: 6 }} />
-            <ThemedText style={styles.slabTitle}>Total Charges</ThemedText>
-            <ThemedText style={[styles.slabValue, { color: '#10B981' }]}>₹{getTotalCharges()}</ThemedText>
-            <ThemedText style={styles.slabSub}>
-              (₹{getDailyRate()} / Day)
-            </ThemedText>
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Kachha → Pakka Action Banner (shown only when KACHHA) */}
-      {vehicle.yardStatus === 'KACHHA' && (
-        <TouchableOpacity
-          style={styles.kachhaBanner}
-          onPress={() => router.push({ pathname: '/admin/kachha-to-pakka', params: { id: vehicle.id } })}
-          activeOpacity={0.85}
+        {/* Inspection Photos Drawer Modal */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={photosVisible}
+          onRequestClose={() => {
+            setSelectedPhotos([]);
+            setPhotosVisible(false);
+          }}
         >
-          <View style={styles.kachhaBannerLeft}>
-            <View style={styles.kachhaDot} />
-            <View>
-              <ThemedText style={styles.kachhaBannerTitle}>Billing Not Started Yet</ThemedText>
-              <ThemedText style={styles.kachhaBannerSub}>Submit Repo Kit to convert to PAKKA</ThemedText>
-            </View>
-          </View>
-          <ThemedText style={styles.kachhaBannerArrow}>Submit →</ThemedText>
-        </TouchableOpacity>
-      )}
-
-      {/* Bottom Actions Tab Bar */}
-      <View style={styles.actionTabBar}>
-        <TouchableOpacity style={styles.tabButton} onPress={() => setPhotosVisible(true)} activeOpacity={0.7}>
-          <Camera size={20} color="#4F46E5" />
-          <ThemedText style={styles.tabLabelText}>Photos</ThemedText>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.tabButton} 
-          onPress={() => router.push({ pathname: '/admin/calculate-charges', params: { id: vehicle.id } })} 
-          activeOpacity={0.7}
-        >
-          <Calculator size={20} color="#4F46E5" />
-          <ThemedText style={styles.tabLabelText}>Calculate</ThemedText>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.tabButton} 
-          onPress={() => router.push({ pathname: '/admin/check-out', params: { plate: vehicle.vehicleNumber } })} 
-          activeOpacity={0.7}
-        >
-          <Key size={20} color="#4F46E5" />
-          <ThemedText style={styles.tabLabelText}>Release</ThemedText>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.tabButton} onPress={handleMoreMenu} activeOpacity={0.7}>
-          <MoreHorizontal size={20} color="#4F46E5" />
-          <ThemedText style={styles.tabLabelText}>More</ThemedText>
-        </TouchableOpacity>
-      </View>
-
-      {/* Inspection Photos Drawer Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={photosVisible}
-        onRequestClose={() => {
-          setSelectedPhotos([]);
-          setPhotosVisible(false);
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <ThemedText style={styles.modalTitle}>Inspection Photos</ThemedText>
-              <ThemedText style={styles.modalSub}>
-                {vehicle.photos?.length || 0} photos captured {selectedPhotos.length > 0 ? `| ${selectedPhotos.length} selected` : ''}
-              </ThemedText>
-            </View>
-
-            <FlatList
-              data={vehicle.photos}
-              keyExtractor={(item) => item.id}
-              numColumns={2}
-              contentContainerStyle={{ gap: 10, paddingVertical: 10 }}
-              columnWrapperStyle={{ gap: 10 }}
-              ListEmptyComponent={() => (
-                <View style={styles.emptyPhotosContainer}>
-                  <Camera size={38} color="#94A3B8" />
-                  <ThemedText style={{ color: '#64748B', marginTop: 10 }}>No photos logged for this vehicle.</ThemedText>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <View style={{ flex: 1 }}>
+                  <ThemedText style={styles.modalTitle}>Inspection Attachments</ThemedText>
+                  <ThemedText style={styles.modalSub}>
+                    {vehicle.photos?.length || 0} items captured {selectedPhotos.length > 0 ? `| ${selectedPhotos.length} selected` : ''}
+                  </ThemedText>
                 </View>
-              )}
-              renderItem={({ item }) => {
-                const isSelected = selectedPhotos.includes(item.s3Url);
-                const isPdf = item.s3Url.toLowerCase().split('?')[0].endsWith('.pdf');
-                return (
-                  <View style={styles.gridPhotoWrapper}>
+                <TouchableOpacity onPress={() => setPhotosVisible(false)} style={styles.closeIconBtn}>
+                  <X size={20} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Photo Filter Tabs */}
+              <View style={styles.photoFilterRow}>
+                <TouchableOpacity
+                  style={[styles.photoFilterChip, photoFilterTab === 'all' && styles.photoFilterChipActive]}
+                  onPress={() => setPhotoFilterTab('all')}
+                >
+                  <ThemedText style={[styles.photoFilterChipText, photoFilterTab === 'all' && styles.photoFilterChipTextActive]}>
+                    All ({vehicle.photos?.length || 0})
+                  </ThemedText>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.photoFilterChip, photoFilterTab === 'images' && styles.photoFilterChipActive]}
+                  onPress={() => setPhotoFilterTab('images')}
+                >
+                  <ThemedText style={[styles.photoFilterChipText, photoFilterTab === 'images' && styles.photoFilterChipTextActive]}>
+                    📷 Images ({imagePhotos.length})
+                  </ThemedText>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.photoFilterChip, photoFilterTab === 'pdfs' && styles.photoFilterChipActive]}
+                  onPress={() => setPhotoFilterTab('pdfs')}
+                >
+                  <ThemedText style={[styles.photoFilterChipText, photoFilterTab === 'pdfs' && styles.photoFilterChipTextActive]}>
+                    📄 PDFs ({pdfPhotos.length})
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+
+              <FlatList
+                data={displayedDrawerPhotos}
+                keyExtractor={(item) => item.id}
+                numColumns={2}
+                contentContainerStyle={{ gap: 10, paddingVertical: 10 }}
+                columnWrapperStyle={{ gap: 10 }}
+                ListEmptyComponent={() => (
+                  <View style={styles.emptyPhotosContainer}>
+                    <Camera size={38} color="#94A3B8" />
+                    <ThemedText style={{ color: '#64748B', marginTop: 10 }}>No attachments in this category.</ThemedText>
+                  </View>
+                )}
+                renderItem={({ item }) => {
+                  const isSelected = selectedPhotos.includes(item.s3Url);
+                  const isPdf = item.s3Url.toLowerCase().split('?')[0].endsWith('.pdf');
+                  return (
+                    <View style={styles.gridPhotoWrapper}>
+                      <TouchableOpacity
+                        activeOpacity={0.9}
+                        onPress={() => setActivePhotoUrl(item.s3Url)}
+                        style={{ width: '100%', height: '100%' }}
+                      >
+                        {isPdf ? (
+                          <View style={[styles.gridPhoto, styles.pdfGridPlaceholder]}>
+                            <FileText size={32} color="#EF4444" />
+                            <ThemedText style={styles.pdfGridText}>PDF File</ThemedText>
+                          </View>
+                        ) : (
+                          <Image source={{ uri: item.s3Url }} style={styles.gridPhoto} />
+                        )}
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[styles.photoSelectCheckbox, isSelected && styles.photoSelectCheckboxActive]}
+                        onPress={() => togglePhotoSelection(item.s3Url)}
+                        activeOpacity={0.7}
+                      >
+                        <ThemedText style={styles.checkboxTick}>{isSelected ? '✓' : ''}</ThemedText>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.photoShareMiniBtn}
+                        onPress={() => handleSharePhoto(item.s3Url)}
+                        activeOpacity={0.7}
+                      >
+                        <Share2 size={12} color="#FFFFFF" />
+                      </TouchableOpacity>
+
+                      <View style={styles.photoTypeTag}>
+                        <ThemedText style={styles.photoTypeTagText}>{item.photoType.toUpperCase()}</ThemedText>
+                      </View>
+                    </View>
+                  );
+                }}
+              />
+
+              <View style={styles.drawerActionsRow}>
+                {selectedPhotos.length > 0 ? (
+                  <>
                     <TouchableOpacity
-                      activeOpacity={0.9}
-                      onPress={() => setActivePhotoUrl(item.s3Url)}
-                      style={{ width: '100%', height: '100%' }}
+                      onPress={() => handleShareBatchPhotos(selectedPhotos)}
+                      style={[styles.drawerActionBtn, styles.drawerActionBtnPrimary]}
+                      disabled={sharingInProgress}
                     >
-                      {isPdf ? (
-                        <View style={[styles.gridPhoto, styles.pdfGridPlaceholder]}>
-                          <FileText size={32} color="#EF4444" />
-                          <ThemedText style={styles.pdfGridText}>PDF Document</ThemedText>
-                        </View>
+                      {sharingInProgress ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
                       ) : (
-                        <Image source={{ uri: item.s3Url }} style={styles.gridPhoto} />
+                        <ThemedText style={styles.drawerActionBtnText}>
+                          Share Selected ({selectedPhotos.length})
+                        </ThemedText>
                       )}
                     </TouchableOpacity>
-
-                    {/* Selection Checkbox */}
                     <TouchableOpacity
-                      style={[styles.photoSelectCheckbox, isSelected && styles.photoSelectCheckboxActive]}
-                      onPress={() => togglePhotoSelection(item.s3Url)}
-                      activeOpacity={0.7}
+                      onPress={() => setSelectedPhotos([])}
+                      style={[styles.drawerActionBtn, styles.drawerActionBtnSecondary]}
                     >
-                      <ThemedText style={styles.checkboxTick}>{isSelected ? '✓' : ''}</ThemedText>
+                      <ThemedText style={styles.drawerActionBtnTextSecondary}>Clear</ThemedText>
                     </TouchableOpacity>
-
-                    {/* Single Photo Share Button */}
-                    <TouchableOpacity
-                      style={styles.photoShareMiniBtn}
-                      onPress={() => handleSharePhoto(item.s3Url)}
-                      activeOpacity={0.7}
-                    >
-                      <Share2 size={12} color="#FFFFFF" />
-                    </TouchableOpacity>
-
-                    <View style={styles.photoTypeTag}>
-                      <ThemedText style={styles.photoTypeTagText}>{item.photoType.toUpperCase()}</ThemedText>
-                    </View>
-                  </View>
-                );
-              }}
-            />
-
-            {/* Batch Sharing Action Bar */}
-            <View style={styles.drawerActionsRow}>
-              {selectedPhotos.length > 0 ? (
-                <>
+                  </>
+                ) : (
                   <TouchableOpacity
-                    onPress={() => handleShareBatchPhotos(selectedPhotos)}
-                    style={[styles.drawerActionBtn, styles.drawerActionBtnPrimary]}
+                    onPress={() => {
+                      const allUrls = vehicle.photos?.map((p: any) => p.s3Url) || [];
+                      handleShareBatchPhotos(allUrls);
+                    }}
+                    style={[styles.drawerActionBtn, styles.drawerActionBtnPrimary, { flex: 2 }]}
+                    disabled={sharingInProgress || !vehicle.photos || vehicle.photos.length === 0}
+                  >
+                    {sharingInProgress ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <ThemedText style={styles.drawerActionBtnText}>Share All Photos</ThemedText>
+                    )}
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity
+                  onPress={() => {
+                    setSelectedPhotos([]);
+                    setPhotosVisible(false);
+                  }}
+                  style={[styles.drawerActionBtn, styles.drawerActionBtnClose]}
+                >
+                  <ThemedText style={styles.drawerActionBtnTextClose}>Close</ThemedText>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Fullscreen Photo Lightbox Modal */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={activePhotoUrl !== null}
+          onRequestClose={() => setActivePhotoUrl(null)}
+        >
+          <View style={styles.fullscreenOverlay}>
+            {activePhotoUrl && (
+              <>
+                <View style={styles.fullscreenHeader}>
+                  <TouchableOpacity
+                    onPress={() => setActivePhotoUrl(null)}
+                    style={styles.fullscreenHeaderBtn}
+                    activeOpacity={0.7}
+                  >
+                    <ChevronLeft size={20} color="#FFFFFF" />
+                    <ThemedText style={styles.fullscreenHeaderBtnText}>Back</ThemedText>
+                  </TouchableOpacity>
+
+                  <ThemedText style={styles.fullscreenTitle}>Photo Preview</ThemedText>
+
+                  <TouchableOpacity
+                    onPress={() => handleSharePhoto(activePhotoUrl)}
+                    style={styles.fullscreenHeaderBtn}
+                    activeOpacity={0.7}
                     disabled={sharingInProgress}
                   >
                     {sharingInProgress ? (
                       <ActivityIndicator size="small" color="#FFFFFF" />
                     ) : (
-                      <ThemedText style={styles.drawerActionBtnText}>
-                        Share Selected ({selectedPhotos.length})
-                      </ThemedText>
+                      <Share2 size={18} color="#FFFFFF" />
                     )}
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => setSelectedPhotos([])}
-                    style={[styles.drawerActionBtn, styles.drawerActionBtnSecondary]}
-                  >
-                    <ThemedText style={styles.drawerActionBtnTextSecondary}>Clear</ThemedText>
+                </View>
+
+                <View style={styles.fullscreenImageContainer}>
+                  {activePhotoUrl.toLowerCase().split('?')[0].endsWith('.pdf') ? (
+                    <View style={styles.pdfFullscreenWrapper}>
+                      <FileText size={72} color="#EF4444" style={{ marginBottom: 16 }} />
+                      <ThemedText style={styles.pdfFullscreenTitle}>PDF Document File</ThemedText>
+                      <ThemedText style={styles.pdfFullscreenSubtitle}>
+                        This document cannot be previewed directly as an image.
+                      </ThemedText>
+
+                      <TouchableOpacity
+                        style={styles.openPdfBtn}
+                        onPress={() => Linking.openURL(activePhotoUrl)}
+                        activeOpacity={0.8}
+                      >
+                        <ThemedText style={styles.openPdfBtnText}>Open in Browser / Viewer</ThemedText>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <Image
+                      source={{ uri: activePhotoUrl }}
+                      style={styles.fullscreenImage}
+                      resizeMode="contain"
+                    />
+                  )}
+                </View>
+              </>
+            )}
+          </View>
+        </Modal>
+
+        {/* Fee Calculator Modal */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={calcVisible}
+          onRequestClose={() => setCalcVisible(false)}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={{ flex: 1 }}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={[styles.modalContent, { maxHeight: '55%' }]}>
+                <View style={styles.modalHeader}>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText style={styles.modalTitle}>Fee Estimator</ThemedText>
+                    <ThemedText style={styles.modalSub}>Daily Rate: ₹{getDailyRate()}/Day</ThemedText>
+                  </View>
+                  <TouchableOpacity onPress={() => setCalcVisible(false)} style={styles.closeIconBtn}>
+                    <X size={20} color="#64748B" />
                   </TouchableOpacity>
-                </>
-              ) : (
+                </View>
+
+                <View style={styles.calcBody}>
+                  <ThemedText style={styles.calcLabel}>Enter Number of Days</ThemedText>
+                  <View style={styles.calcInputWrapper}>
+                    <Clock size={16} color="#64748B" style={{ marginRight: 8 }} />
+                    <TextInput
+                      style={styles.calcInput}
+                      keyboardType="numeric"
+                      value={calcDays}
+                      onChangeText={(val: string) => {
+                        setCalcDays(val);
+                        setCalcResult(null);
+                      }}
+                      placeholder="30"
+                    />
+                  </View>
+
+                  <TouchableOpacity style={styles.calculateBtn} onPress={handleCalculate}>
+                    <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Calculate Charges</ThemedText>
+                  </TouchableOpacity>
+
+                  {calcResult !== null && (
+                    <View style={styles.calcResultBox}>
+                      <ThemedText style={styles.calcResultTitle}>Estimated Charges</ThemedText>
+                      <ThemedText style={styles.calcResultValue}>₹{calcResult.toLocaleString('en-IN')}</ThemedText>
+                      <ThemedText style={styles.calcResultSub}>
+                        For {calcDays} Days at ₹{getDailyRate()}/Day
+                      </ThemedText>
+                    </View>
+                  )}
+                </View>
+
                 <TouchableOpacity
                   onPress={() => {
-                    const allUrls = vehicle.photos?.map((p: any) => p.s3Url) || [];
-                    handleShareBatchPhotos(allUrls);
-                  }}
-                  style={[styles.drawerActionBtn, styles.drawerActionBtnPrimary, { flex: 2 }]}
-                  disabled={sharingInProgress || !vehicle.photos || vehicle.photos.length === 0}
-                >
-                  {sharingInProgress ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <ThemedText style={styles.drawerActionBtnText}>Share All Photos</ThemedText>
-                  )}
-                </TouchableOpacity>
-              )}
-
-              <TouchableOpacity
-                onPress={() => {
-                  setSelectedPhotos([]);
-                  setPhotosVisible(false);
-                }}
-                style={[styles.drawerActionBtn, styles.drawerActionBtnClose]}
-              >
-                <ThemedText style={styles.drawerActionBtnTextClose}>Close</ThemedText>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Fullscreen Photo Viewer Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={activePhotoUrl !== null}
-        onRequestClose={() => setActivePhotoUrl(null)}
-      >
-        <View style={styles.fullscreenOverlay}>
-          {activePhotoUrl && (
-            <>
-              {/* Top Bar inside Fullscreen Viewer */}
-              <View style={styles.fullscreenHeader}>
-                <TouchableOpacity
-                  onPress={() => setActivePhotoUrl(null)}
-                  style={styles.fullscreenHeaderBtn}
-                  activeOpacity={0.7}
-                >
-                  <ThemedText style={styles.fullscreenHeaderBtnText}>← Back</ThemedText>
-                </TouchableOpacity>
-
-                <ThemedText style={styles.fullscreenTitle}>Photo Preview</ThemedText>
-
-                <TouchableOpacity
-                  onPress={() => handleSharePhoto(activePhotoUrl)}
-                  style={styles.fullscreenHeaderBtn}
-                  activeOpacity={0.7}
-                  disabled={sharingInProgress}
-                >
-                  {sharingInProgress ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <ThemedText style={styles.fullscreenHeaderBtnText}>Share / Save</ThemedText>
-                  )}
-                </TouchableOpacity>
-              </View>
-
-              {/* Main Photo */}
-              <View style={styles.fullscreenImageContainer}>
-                {activePhotoUrl.toLowerCase().split('?')[0].endsWith('.pdf') ? (
-                  <View style={styles.pdfFullscreenWrapper}>
-                    <FileText size={72} color="#EF4444" style={{ marginBottom: 16 }} />
-                    <ThemedText style={styles.pdfFullscreenTitle}>PDF Document File</ThemedText>
-                    <ThemedText style={styles.pdfFullscreenSubtitle}>
-                      This document cannot be previewed directly as an image.
-                    </ThemedText>
-                    
-                    <TouchableOpacity
-                      style={styles.openPdfBtn}
-                      onPress={() => Linking.openURL(activePhotoUrl)}
-                      activeOpacity={0.8}
-                    >
-                      <ThemedText style={styles.openPdfBtnText}>Open in PDF Viewer / Browser</ThemedText>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <Image
-                    source={{ uri: activePhotoUrl }}
-                    style={styles.fullscreenImage}
-                    resizeMode="contain"
-                  />
-                )}
-              </View>
-            </>
-          )}
-        </View>
-      </Modal>
-
-      {/* Charge Calculator Drawer Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={calcVisible}
-        onRequestClose={() => setCalcVisible(false)}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
-        >
-          <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '50%' }]}>
-            <View style={styles.modalHeader}>
-              <ThemedText style={styles.modalTitle}>Estimate Parking Fees</ThemedText>
-              <ThemedText style={styles.modalSub}>Rate Plan: ₹{getDailyRate()}/Day</ThemedText>
-            </View>
-
-            <View style={styles.calcBody}>
-              <ThemedText style={styles.calcLabel}>Enter Number of Days</ThemedText>
-              <View style={styles.calcInputWrapper}>
-                <Clock size={16} color="#64748B" style={{ marginRight: 8 }} />
-                <FlatList // A stub flatlist or simple textinput
-                  style={{ display: 'none' }}
-                  data={[]}
-                  renderItem={() => null}
-                />
-                <TextInput
-                  style={styles.calcInput}
-                  keyboardType="numeric"
-                  value={calcDays}
-                  onChangeText={(val: string) => {
-                    setCalcDays(val);
+                    setCalcVisible(false);
                     setCalcResult(null);
                   }}
-                  placeholder="30"
-                />
+                  style={[styles.closeModalBtn, { backgroundColor: '#64748B', marginTop: 12 }]}
+                >
+                  <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Done</ThemedText>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+
+        {/* Custom Actions Sheet Drawer */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={actionsSheetVisible}
+          onRequestClose={() => setActionsSheetVisible(false)}
+        >
+          <TouchableOpacity
+            style={styles.actionsSheetOverlay}
+            activeOpacity={1}
+            onPress={() => setActionsSheetVisible(false)}
+          >
+            <View style={styles.actionsSheetContent}>
+              <View style={styles.actionsSheetHeader}>
+                <View style={styles.actionsSheetIndicator} />
+                <ThemedText style={styles.actionsSheetTitle}>Vehicle Actions</ThemedText>
               </View>
 
-              <TouchableOpacity style={styles.calculateBtn} onPress={handleCalculate}>
-                <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Calculate Fees</ThemedText>
-              </TouchableOpacity>
+              <View style={styles.actionsSheetList}>
+                <TouchableOpacity
+                  style={styles.actionsSheetItem}
+                  onPress={() => {
+                    setActionsSheetVisible(false);
+                    downloadAndSharePDF();
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.actionsSheetIconBox, { backgroundColor: '#EEF2FF' }]}>
+                    <FileText size={18} color="#4F46E5" />
+                  </View>
+                  <ThemedText style={styles.actionsSheetText}>Share Condition Report (PDF)</ThemedText>
+                </TouchableOpacity>
 
-              {calcResult !== null && (
-                <View style={styles.calcResultBox}>
-                  <ThemedText style={styles.calcResultTitle}>Estimated Charges</ThemedText>
-                  <ThemedText style={styles.calcResultValue}>₹{calcResult.toLocaleString('en-IN')}</ThemedText>
-                  <ThemedText style={styles.calcResultSub}>
-                    For {calcDays} Days at ₹{getDailyRate()}/Day
-                  </ThemedText>
-                </View>
-              )}
+                <TouchableOpacity
+                  style={styles.actionsSheetItem}
+                  onPress={() => {
+                    setActionsSheetVisible(false);
+                    router.push({
+                      pathname: '/admin/check-in',
+                      params: { editVehicleId: id },
+                    });
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.actionsSheetIconBox, { backgroundColor: '#ECFDF5' }]}>
+                    <Pencil size={18} color="#059669" />
+                  </View>
+                  <ThemedText style={styles.actionsSheetText}>Edit Vehicle Record</ThemedText>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.actionsSheetItem}
+                  onPress={() => {
+                    setActionsSheetVisible(false);
+                    handlePrint();
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.actionsSheetIconBox, { backgroundColor: '#F5F3FF' }]}>
+                    <Printer size={18} color="#7C3AED" />
+                  </View>
+                  <ThemedText style={styles.actionsSheetText}>Print Thermal Gate Pass</ThemedText>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.actionsSheetItem}
+                  onPress={async () => {
+                    setActionsSheetVisible(false);
+                    const detailStr = `Vehicle: ${vehicle?.brand || ''} ${vehicle?.model || ''}\nNumber: ${vehicle?.vehicleNumber}\nStatus: ${statusBadge.label}\nDays: ${getDurationDays()}\nCharges: ₹${getTotalCharges()}`;
+                    try {
+                      await Sharing.shareAsync({ message: detailStr } as any);
+                    } catch {
+                      Alert.alert('Vehicle Details', detailStr);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.actionsSheetIconBox, { backgroundColor: '#FFF7ED' }]}>
+                    <Share2 size={18} color="#EA580C" />
+                  </View>
+                  <ThemedText style={styles.actionsSheetText}>Share Details Text</ThemedText>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.actionsSheetItem, styles.actionsSheetItemDelete]}
+                  onPress={() => {
+                    setActionsSheetVisible(false);
+                    setTimeout(() => {
+                      handleDelete();
+                    }, 150);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.actionsSheetIconBox, { backgroundColor: '#FEF2F2' }]}>
+                    <Trash2 size={18} color="#EF4444" />
+                  </View>
+                  <ThemedText style={[styles.actionsSheetText, { color: '#EF4444' }]}>Delete Vehicle Record</ThemedText>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.actionsSheetCancel}
+                  onPress={() => setActionsSheetVisible(false)}
+                  activeOpacity={0.8}
+                >
+                  <ThemedText style={styles.actionsSheetCancelText}>Cancel</ThemedText>
+                </TouchableOpacity>
+              </View>
             </View>
-
-            <TouchableOpacity
-              onPress={() => {
-                setCalcVisible(false);
-                setCalcResult(null);
-              }}
-              style={[styles.closeModalBtn, { backgroundColor: '#64748B', marginTop: 12 }]}
-            >
-              <ThemedText style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Close</ThemedText>
-            </TouchableOpacity>
-          </View>
-        </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Edit Vehicle Modal */}
-      {/* Custom Bottom Actions Sheet Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={actionsSheetVisible}
-        onRequestClose={() => setActionsSheetVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.actionsSheetOverlay}
-          activeOpacity={1}
-          onPress={() => setActionsSheetVisible(false)}
-        >
-          <View style={styles.actionsSheetContent}>
-            <View style={styles.actionsSheetHeader}>
-              <View style={styles.actionsSheetIndicator} />
-              <ThemedText style={styles.actionsSheetTitle}>Vehicle Actions</ThemedText>
-            </View>
-
-            <View style={styles.actionsSheetList}>
-              <TouchableOpacity
-                style={styles.actionsSheetItem}
-                onPress={() => {
-                  setActionsSheetVisible(false);
-                  downloadAndSharePDF();
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.actionsSheetIconBox, { backgroundColor: '#EEF2FF' }]}>
-                  <FileText size={18} color="#4F46E5" />
-                </View>
-                <ThemedText style={styles.actionsSheetText}>Share Condition Report PDF</ThemedText>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.actionsSheetItem}
-                onPress={() => {
-                  setActionsSheetVisible(false);
-                  router.push({
-                    pathname: '/admin/check-in',
-                    params: { editVehicleId: id },
-                  });
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.actionsSheetIconBox, { backgroundColor: '#ECFDF5' }]}>
-                  <Pencil size={18} color="#059669" />
-                </View>
-                <ThemedText style={styles.actionsSheetText}>Edit Vehicle Details</ThemedText>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.actionsSheetItem}
-                onPress={() => {
-                  setActionsSheetVisible(false);
-                  handlePrint();
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.actionsSheetIconBox, { backgroundColor: '#F5F3FF' }]}>
-                  <Printer size={18} color="#7C3AED" />
-                </View>
-                <ThemedText style={styles.actionsSheetText}>Print Gatepass Receipt</ThemedText>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.actionsSheetItem}
-                onPress={async () => {
-                  setActionsSheetVisible(false);
-                  const detailStr = `Vehicle: ${vehicle?.brand || ''} ${vehicle?.model || ''}\nNumber: ${vehicle?.vehicleNumber}\nStatus: ${vehicle?.yardStatus}\nDays: ${getDurationDays()}\nCharges: ₹${getTotalCharges()}`;
-                  try {
-                    await Sharing.shareAsync({ message: detailStr } as any);
-                  } catch {
-                    Alert.alert('Vehicle Details', detailStr);
-                  }
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.actionsSheetIconBox, { backgroundColor: '#FFF7ED' }]}>
-                  <Share2 size={18} color="#EA580C" />
-                </View>
-                <ThemedText style={styles.actionsSheetText}>Share Details Text</ThemedText>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.actionsSheetItem, styles.actionsSheetItemDelete]}
-                onPress={() => {
-                  setActionsSheetVisible(false);
-                  setTimeout(() => {
-                    handleDelete();
-                  }, 150);
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.actionsSheetIconBox, { backgroundColor: '#FEF2F2' }]}>
-                  <Trash2 size={18} color="#EF4444" />
-                </View>
-                <ThemedText style={[styles.actionsSheetText, { color: '#EF4444' }]}>Delete Vehicle Record</ThemedText>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.actionsSheetCancel}
-                onPress={() => setActionsSheetVisible(false)}
-                activeOpacity={0.8}
-              >
-                <ThemedText style={styles.actionsSheetCancelText}>Cancel</ThemedText>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Redundant local Edit Modals deleted */}
-    </ThemedView>
+          </TouchableOpacity>
+        </Modal>
+      </ThemedView>
     </SafeAreaView>
   );
 }
 
+// ----------------------------------------------------------------------
+// STYLESHEET
+// ----------------------------------------------------------------------
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    gap: 12,
-  },
-  loadingText: {
-    color: '#64748B',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    padding: 20,
-  },
-  errorText: {
-    color: '#EF4444',
-    fontSize: 15,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  retryBtn: {
-    backgroundColor: '#4F46E5',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
   },
   headerBar: {
     flexDirection: 'row',
@@ -1496,377 +1687,432 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 160,
   },
-  corporateDossierCard: {
-    backgroundColor: '#0F172A',
-    borderRadius: 18,
+
+  // Skeleton Loading Styles
+  skeletonContainer: {
     padding: 16,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: '#1E293B',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 5,
+    gap: 16,
   },
-  dossierTopHeader: {
+  skeletonHeaderCard: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 16,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  skeletonImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    backgroundColor: '#E2E8F0',
+  },
+  skeletonMeta: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  skeletonLine: {
+    backgroundColor: '#E2E8F0',
+    borderRadius: 4,
+  },
+  skeletonGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  skeletonGridBox: {
+    width: '48%',
+    height: 70,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  skeletonCard: {
+    height: 100,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+
+  // Error Container
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryBtn: {
+    backgroundColor: '#4F46E5',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+
+  // Hero Card
+  heroProfileCard: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 12,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  heroPhotoWrapper: {
+    position: 'relative',
+  },
+  heroPhoto: {
+    width: 84,
+    height: 84,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+  },
+  heroPhotoBadge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  heroPhotoBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  heroInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  heroVehicleNumber: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: 0.5,
+  },
+  heroSubText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 2,
+  },
+  heroStatusBadge: {
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 20,
+    marginTop: 8,
+  },
+  heroStatusText: {
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+
+  // 4-Metric Grid
+  quickMetricsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 12,
+  },
+  metricBox: {
+    width: '48.5%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  metricIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  metricLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+  },
+  metricValue: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 2,
+  },
+
+  // Context Banners
+  contextBannerKachha: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  contextBannerShift: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  contextBannerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  contextBannerTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#92400E',
+  },
+  contextBannerSub: {
+    fontSize: 11,
+    color: '#B45309',
+    marginTop: 2,
+  },
+  contextBannerBtnKachha: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#D97706',
+    backgroundColor: '#FEF3C7',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  contextBannerBtnShift: {
+    backgroundColor: '#D97706',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  contextBannerBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+
+  // Accordion Section Cards
+  accordionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 10,
+    overflow: 'hidden',
+  },
+  accordionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1E293B',
-    paddingBottom: 10,
-  },
-  dossierStampBadge: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  dossierStampText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#92400E',
-    letterSpacing: 0.5,
-  },
-  dossierStatusPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  dossierStatusText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  dossierBodyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  dossierThumbnail: {
-    width: 68,
-    height: 68,
-    borderRadius: 12,
-    backgroundColor: '#1E293B',
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  dossierMeta: {
-    flex: 1,
-    gap: 2,
-  },
-  dossierPlateNumber: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  dossierModelName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#94A3B8',
-  },
-  dossierCategory: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  securityGrid: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 14,
-  },
-  securityBadge: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  securityBadgePresent: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#DCFCE7',
-  },
-  securityBadgeAbsent: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FEE2E2',
-  },
-  securityBadgeLabel: {
-    fontSize: 10,
-    color: '#64748B',
-    fontWeight: '700',
-  },
-  securityBadgeValue: {
-    fontSize: 13,
-    fontWeight: '800',
-    marginTop: 2,
-  },
-  textPresent: {
-    color: '#15803D',
-  },
-  textAbsent: {
-    color: '#DC2626',
-  },
-  vehicleThumbnail: {
-    width: 76,
-    height: 76,
-    borderRadius: 12,
+    padding: 14,
     backgroundColor: '#FFFFFF',
   },
-  profileInfo: {
-    flex: 1,
-    gap: 4,
+  accordionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
-  plateNumber: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  modelName: {
-    fontSize: 13,
-    color: '#E0F2FE',
-    fontWeight: '600',
-  },
-  statusBadge: {
-    backgroundColor: '#10B981',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-    marginTop: 4,
-  },
-  statusBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
+  accordionTitle: {
+    fontSize: 15,
     fontWeight: '700',
+    color: '#0F172A',
   },
-  detailsSection: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 16,
-    gap: 14,
-    marginBottom: 16,
+  accordionContent: {
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 10,
   },
+
+  // Detail Rows inside Accordion
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: 7,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    paddingBottom: 8,
-  },
-  sectionCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 16,
-    marginBottom: 16,
-    gap: 14,
-  },
-  sectionHeader: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#1E293B',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    paddingBottom: 8,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  remarksBlock: {
-    marginTop: 4,
-    gap: 4,
-  },
-  remarksLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  remarksValue: {
-    fontSize: 13,
-    color: '#334155',
-    fontWeight: '500',
-  },
-  serialBadge: {
-    backgroundColor: '#FDE047',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  serialBadgeText: {
-    color: '#0F172A',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  conditionBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  conditionBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  bgGood: { backgroundColor: '#DCFCE7' },
-  bgAverage: { backgroundColor: '#FEF3C7' },
-  bgBad: { backgroundColor: '#FEE2E2' },
-  textGood: { color: '#15803D' },
-  textAverage: { color: '#B45309' },
-  textBad: { color: '#B91C1C' },
-  accessoriesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  accessoryCard: {
-    width: '48.5%',
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 4,
-  },
-  accessoryPresent: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#DCFCE7',
-  },
-  accessoryAbsent: {
-    backgroundColor: '#F8FAFC',
-    borderColor: '#E2E8F0',
-  },
-  accessoryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  accessoryLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    maxWidth: '80%',
-  },
-  checkIconBg: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#22C55E',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkIconText: {
-    color: '#FFFFFF',
-    fontSize: 9,
-    fontWeight: '900',
-  },
-  crossIconBg: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#94A3B8',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  crossIconText: {
-    color: '#FFFFFF',
-    fontSize: 9,
-    fontWeight: '900',
-  },
-  accessorySubtext: {
-    fontSize: 10,
-    color: '#15803D',
-    fontWeight: '500',
-    fontStyle: 'italic',
+    borderBottomColor: '#F8FAFC',
   },
   detailLabel: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#64748B',
     fontWeight: '600',
   },
   detailValue: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#0F172A',
-    fontWeight: '700',
-    maxWidth: '60%',
+    fontWeight: '600',
     textAlign: 'right',
   },
-  slabsRow: {
-    flexDirection: 'row',
-    gap: 12,
+
+  // Remarks
+  remarksBlock: {
+    marginTop: 8,
   },
-  slabCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.02,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  slabTitle: {
+  remarksLabel: {
     fontSize: 11,
-    color: '#64748B',
     fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
+    color: '#64748B',
+    marginBottom: 2,
   },
-  slabValue: {
-    fontSize: 18,
+  remarksValue: {
+    fontSize: 13,
+    color: '#1E293B',
+  },
+
+  // Condition Badges
+  conditionBadge: {
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  conditionBadgeText: {
+    fontSize: 11,
     fontWeight: '800',
-    color: '#4F46E5',
-    marginTop: 6,
-    marginBottom: 4,
   },
-  slabSub: {
+  bgGood: { backgroundColor: '#DCFCE7' },
+  textGood: { color: '#15803D' },
+  bgAverage: { backgroundColor: '#FEF3C7' },
+  textAverage: { color: '#B45309' },
+  bgBad: { backgroundColor: '#FEE2E2' },
+  textBad: { color: '#B91C1C' },
+
+  // Compact Accessories List
+  accessorySummaryPill: {
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+  },
+  accessorySummaryText: {
     fontSize: 10,
-    color: '#94A3B8',
-    fontWeight: '600',
+    fontWeight: '700',
+    color: '#475569',
   },
-  actionTabBar: {
+  compactAccessoryList: {
+    gap: 6,
+  },
+  compactAccessoryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
+  },
+  compactAccessoryText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  compactAccessoryStatusPresent: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#15803D',
+  },
+  compactAccessoryStatusAbsent: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#EF4444',
+  },
+
+  // Danger Zone
+  dangerZoneBtn: {
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+
+  // Sticky Bottom Bar
+  stickyBottomBar: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 76,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  primaryStickyBtn: {
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  primaryStickyBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  quickTabBar: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    paddingBottom: 12,
-    zIndex: 10,
-    elevation: 5,
   },
-  tabButton: {
+  quickTabBtn: {
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
   },
-  tabLabelText: {
+  quickTabLabel: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#64748B',
+    color: '#4F46E5',
+    marginTop: 3,
   },
+
+  // Modals
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
     justifyContent: 'flex-end',
   },
   modalContent: {
@@ -1874,40 +2120,16 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
-    maxHeight: '75%',
-    width: '100%',
-  },
-  typeSelectBtn: {
-    flex: 1,
-    height: 40,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-  },
-  typeSelectBtnActive: {
-    borderColor: '#4F46E5',
-    backgroundColor: '#EEF2FF',
-  },
-  typeSelectText: {
-    fontSize: 13,
-    color: '#475569',
-    fontWeight: '600',
-  },
-  typeSelectTextActive: {
-    color: '#4F46E5',
-    fontWeight: '700',
+    maxHeight: '85%',
   },
   modalHeader: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    paddingBottom: 12,
-    marginBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   modalTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '800',
     color: '#0F172A',
   },
@@ -1915,188 +2137,55 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748B',
     marginTop: 2,
-    fontWeight: '600',
   },
-  emptyPhotosContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-    width: '100%',
+  closeIconBtn: {
+    padding: 6,
   },
+
+  // Photo Filter Tabs
+  photoFilterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  photoFilterChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
+  },
+  photoFilterChipActive: {
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#4F46E5',
+  },
+  photoFilterChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  photoFilterChipTextActive: {
+    color: '#4F46E5',
+  },
+
+  // Photo Grid
   gridPhotoWrapper: {
     flex: 1,
-    aspectRatio: 1,
+    height: 120,
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: '#F1F5F9',
     position: 'relative',
+    backgroundColor: '#F1F5F9',
   },
   gridPhoto: {
     width: '100%',
     height: '100%',
-  },
-  photoTypeTag: {
-    position: 'absolute',
-    bottom: 6,
-    left: 6,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  photoTypeTagText: {
-    color: '#FFFFFF',
-    fontSize: 8,
-    fontWeight: '800',
-  },
-  closeModalBtn: {
-    backgroundColor: '#4F46E5',
-    height: 48,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 10,
-  },
-  calcBody: {
-    gap: 14,
-    paddingVertical: 10,
-  },
-  calcLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#475569',
-  },
-  calcInputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 44,
-  },
-  calcInput: {
-    flex: 1,
-    color: '#0F172A',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  calculateBtn: {
-    backgroundColor: '#4F46E5',
-    height: 44,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  calcResultBox: {
-    backgroundColor: '#F0FDF4',
-    borderWidth: 1,
-    borderColor: '#DCFCE7',
-    borderRadius: 12,
-    padding: 14,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  calcResultTitle: {
-    fontSize: 11,
-    color: '#15803D',
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  calcResultValue: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#166534',
-    marginVertical: 4,
-  },
-  calcResultSub: {
-    fontSize: 10,
-    color: '#15803D',
-    fontWeight: '600',
-  },
-  // Kachha Banner
-  kachhaBanner: {
-    position: 'absolute',
-    bottom: 76,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#F59E0B',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    zIndex: 10,
-    elevation: 4,
-  },
-  kachhaBannerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  kachhaDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#FFFFFF',
-  },
-  kachhaBannerTitle: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  kachhaBannerSub: {
-    color: '#FEF3C7',
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  kachhaBannerArrow: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  photoSelectCheckbox: {
-    position: 'absolute',
-    top: 6,
-    left: 6,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  photoSelectCheckboxActive: {
-    backgroundColor: '#22C55E',
-    borderColor: '#FFFFFF',
-  },
-  checkboxTick: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  photoShareMiniBtn: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: 'rgba(79, 70, 229, 0.85)',
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   pdfGridPlaceholder: {
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 12,
+    backgroundColor: '#FEF2F2',
   },
   pdfGridText: {
     fontSize: 10,
@@ -2104,49 +2193,67 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     marginTop: 4,
   },
-  pdfFullscreenWrapper: {
-    flex: 1,
+  photoSelectCheckbox: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
-    width: '100%',
   },
-  pdfFullscreenTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+  photoSelectCheckboxActive: {
+    backgroundColor: '#16A34A',
+    borderColor: '#16A34A',
+  },
+  checkboxTick: {
     color: '#FFFFFF',
-    marginBottom: 6,
+    fontSize: 12,
+    fontWeight: 'bold',
   },
-  pdfFullscreenSubtitle: {
-    fontSize: 13,
-    color: '#94A3B8',
-    textAlign: 'center',
-    marginBottom: 24,
+  photoShareMiniBtn: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  openPdfBtn: {
-    backgroundColor: '#4F46E5',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 10,
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 3,
+  photoTypeTag: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    backgroundColor: 'rgba(15, 23, 42, 0.8)',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 4,
   },
-  openPdfBtnText: {
+  photoTypeTagText: {
     color: '#FFFFFF',
+    fontSize: 8,
     fontWeight: '700',
-    fontSize: 14,
   },
+  emptyPhotosContainer: {
+    padding: 30,
+    alignItems: 'center',
+  },
+
+  // Drawer Actions
   drawerActionsRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
+    gap: 10,
+    marginTop: 16,
   },
   drawerActionBtn: {
     flex: 1,
-    height: 44,
+    paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2156,31 +2263,31 @@ const styles = StyleSheet.create({
   },
   drawerActionBtnSecondary: {
     backgroundColor: '#F1F5F9',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
   drawerActionBtnClose: {
     backgroundColor: '#64748B',
-    maxWidth: 80,
+    flex: 0.7,
   },
   drawerActionBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
     fontWeight: '700',
+    fontSize: 13,
   },
   drawerActionBtnTextSecondary: {
-    color: '#475569',
-    fontSize: 13,
+    color: '#1E293B',
     fontWeight: '700',
+    fontSize: 13,
   },
   drawerActionBtnTextClose: {
     color: '#FFFFFF',
-    fontSize: 13,
     fontWeight: '700',
+    fontSize: 13,
   },
+
+  // Fullscreen Viewer
   fullscreenOverlay: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#000000',
   },
   fullscreenHeader: {
     flexDirection: 'row',
@@ -2188,299 +2295,187 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingTop: 50,
-    paddingBottom: 15,
-    backgroundColor: '#1E293B',
-    borderBottomWidth: 1,
-    borderBottomColor: '#334155',
+    paddingBottom: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+  },
+  fullscreenHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    padding: 8,
+  },
+  fullscreenHeaderBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
   fullscreenTitle: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
   },
-  fullscreenHeaderBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  fullscreenHeaderBtnText: {
-    color: '#38BDF8',
-    fontSize: 14,
-    fontWeight: '700',
-  },
   fullscreenImageContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000000',
   },
   fullscreenImage: {
-    width: '100%',
+    width: width,
     height: '100%',
   },
-  inputLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#475569',
-    marginBottom: 4,
+  pdfFullscreenWrapper: {
+    alignItems: 'center',
+    padding: 24,
   },
-  textEditInput: {
+  pdfFullscreenTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+  pdfFullscreenSubtitle: {
+    color: '#94A3B8',
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  openPdfBtn: {
+    backgroundColor: '#4F46E5',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+  },
+  openPdfBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+
+  // Fee Calculator Modal
+  calcBody: {
+    gap: 12,
+    paddingVertical: 10,
+  },
+  calcLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  calcInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#CBD5E1',
-    borderRadius: 8,
+    borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#0F172A',
-    backgroundColor: '#FFFFFF',
   },
-  modalActionBtn: {
+  calcInput: {
     flex: 1,
-    height: 44,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#0F172A',
+    fontWeight: '700',
   },
+  calculateBtn: {
+    backgroundColor: '#4F46E5',
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  calcResultBox: {
+    backgroundColor: '#EEF2FF',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  calcResultTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#4338CA',
+    textTransform: 'uppercase',
+  },
+  calcResultValue: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#4338CA',
+    marginVertical: 4,
+  },
+  calcResultSub: {
+    fontSize: 11,
+    color: '#6366F1',
+    fontWeight: '600',
+  },
+  closeModalBtn: {
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+
+  // Actions Sheet
   actionsSheetOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
     justifyContent: 'flex-end',
   },
   actionsSheetContent: {
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    padding: 24,
-    width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 10,
+    padding: 20,
   },
   actionsSheetHeader: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   actionsSheetIndicator: {
-    width: 40,
+    width: 36,
     height: 4,
     borderRadius: 2,
     backgroundColor: '#CBD5E1',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   actionsSheetTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '800',
     color: '#0F172A',
   },
   actionsSheetList: {
-    gap: 10,
+    gap: 8,
   },
   actionsSheetItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 14,
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     borderRadius: 12,
     backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+  },
+  actionsSheetItemDelete: {
+    backgroundColor: '#FEF2F2',
   },
   actionsSheetIconBox: {
     width: 36,
     height: 36,
-    borderRadius: 8,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
   },
   actionsSheetText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#334155',
-  },
-  actionsSheetItemDelete: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FEE2E2',
+    color: '#1E293B',
   },
   actionsSheetCancel: {
-    height: 48,
-    borderRadius: 12,
-    justifyContent: 'center',
+    paddingVertical: 14,
     alignItems: 'center',
-    backgroundColor: '#E2E8F0',
-    marginTop: 10,
+    marginTop: 8,
   },
   actionsSheetCancelText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#475569',
-  },
-  pickerBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: '#FFFFFF',
-    height: 44,
-  },
-  pickerBtnText: {
-    fontSize: 14,
-    color: '#0F172A',
-    fontWeight: '600',
-  },
-  lifecycleBadgePill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    marginTop: 4,
-    alignSelf: 'flex-start',
-  },
-  lifecycleBadgePillText: {
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  bgKachhaPill: { backgroundColor: '#FEF3C7' },
-  textKachhaPill: { color: '#B45309' },
-  bgPakkaPill: { backgroundColor: '#DCFCE7' },
-  textPakkaPill: { color: '#15803D' },
-  bgReleasedPill: { backgroundColor: '#E0F2FE' },
-  textReleasedPill: { color: '#0369A1' },
-
-  bannerLeftRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-  },
-  bannerKachha: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFBEB',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    borderRadius: 12,
-    padding: 12,
-    marginTop: 12,
-    marginHorizontal: 16,
-    justifyContent: 'space-between',
-  },
-  badgeKachhaDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#F59E0B',
-  },
-  bannerKachhaTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#92400E',
-  },
-  bannerKachhaSub: {
-    fontSize: 11,
-    color: '#B45309',
-    marginTop: 2,
-    fontWeight: '600',
-  },
-  bannerKachhaBtn: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#D97706',
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-
-  bannerPakka: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDF4',
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-    borderRadius: 12,
-    padding: 12,
-    marginTop: 12,
-    marginHorizontal: 16,
-    justifyContent: 'space-between',
-  },
-  badgePakkaDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#10B981',
-  },
-  bannerPakkaTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#166534',
-  },
-  bannerPakkaSub: {
-    fontSize: 11,
-    color: '#15803D',
-    marginTop: 2,
-    fontWeight: '600',
-  },
-  bannerPakkaReleaseBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#16A34A',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  bannerPakkaReleaseBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-
-  bannerReleased: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0F9FF',
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-    borderRadius: 12,
-    padding: 12,
-    marginTop: 12,
-    marginHorizontal: 16,
-    justifyContent: 'space-between',
-  },
-  badgeReleasedDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#0EA5E9',
-  },
-  bannerReleasedTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#075985',
-  },
-  bannerReleasedSub: {
-    fontSize: 11,
-    color: '#0369A1',
-    marginTop: 2,
-    fontWeight: '600',
-  },
-  bannerReleasedPrintBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0284C7',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  bannerReleasedPrintBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#64748B',
   },
 });
-
