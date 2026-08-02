@@ -17,6 +17,7 @@ class BluetoothPrintService {
   }
 
   private async loadSavedPrinter() {
+    if (typeof window === 'undefined') return;
     try {
       const data = await AsyncStorage.getItem(PRINTER_STORE_KEY);
       if (data) {

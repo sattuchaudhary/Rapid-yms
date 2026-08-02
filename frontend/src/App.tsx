@@ -11,11 +11,15 @@ import { RateMaster } from './components/RateMaster';
 import { SuperAdminDashboard } from './components/SuperAdminDashboard';
 import { StorageManagement } from './components/StorageManagement';
 import { CustomerPortal } from './components/CustomerPortal';
+import { KachhaToPakka } from './components/KachhaToPakka';
+import { CalculateChargesModal } from './components/CalculateChargesModal';
+import { PrintSetupModal } from './components/PrintSetupModal';
+import { NotificationsDrawer } from './components/NotificationsDrawer';
+import { DraftsModal } from './components/DraftsModal';
+import { UserProfileModal } from './components/UserProfileModal';
 import api from './services/api';
-import { Warehouse, LogIn, ShieldAlert, Menu, LayoutDashboard, Plus, Truck, Settings, MoreHorizontal, X, Users, FileText, Database, LogOut, ChevronRight, Shield, Eye, EyeOff } from 'lucide-react';
+import { Warehouse, LogIn, ShieldAlert, Menu, LayoutDashboard, Plus, Truck, Settings, MoreHorizontal, X, Users, FileText, Database, LogOut, ChevronRight, Shield, Eye, EyeOff, Calculator, Printer, Bell, FileCheck, User as UserIcon } from 'lucide-react';
 import { ToastContainer } from './components/ToastContainer';
-
-
 import { useTenantStore } from './store/tenantStore';
 
 const isTabAllowed = (tab: string, role?: string): boolean => {
@@ -47,6 +51,11 @@ export const App: React.FC = () => {
   });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [bottomSheetOpen, setBottomSheetOpen] = useState(false);
+  const [showCalculateModal, setShowCalculateModal] = useState(false);
+  const [showPrintSetupModal, setShowPrintSetupModal] = useState(false);
+  const [showNotificationsDrawer, setShowNotificationsDrawer] = useState(false);
+  const [showDraftsModal, setShowDraftsModal] = useState(false);
+  const [showUserProfileModal, setShowUserProfileModal] = useState(false);
   const { resolvedTenant, resolveTenant, loading: tenantLoading, error: tenantError, isRoot } = useTenantStore();
   const [showCustomerPortal, setShowCustomerPortal] = useState(false);
 
@@ -495,27 +504,77 @@ export const App: React.FC = () => {
 
       {/* Main Panel views */}
       <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
-        {/* Mobile Header Bar */}
-        <header className="md:hidden flex items-center justify-between px-4 py-3 bg-slate-950/95 backdrop-blur-md text-white border-b border-slate-900 shrink-0 shadow-lg z-30 select-none">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white rounded-xl shadow-md shadow-indigo-600/30">
-              <Warehouse className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="font-black text-xs uppercase tracking-wider text-white font-display block leading-tight">
-                {user?.tenant ? user.tenant.yardName : 'YMS ENTERPRISE'}
-              </span>
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">OPERATING SYSTEM</span>
+        {/* Top Header Bar for Desktop & Mobile */}
+        <header className="flex items-center justify-between px-6 py-3 bg-slate-950/95 backdrop-blur-md text-white border-b border-slate-900 shrink-0 shadow-lg z-30 select-none">
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="md:hidden p-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white border border-slate-800"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white rounded-xl shadow-md shadow-indigo-600/30">
+                <Warehouse className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="font-black text-xs uppercase tracking-wider text-white font-display block leading-tight">
+                  {user?.tenant ? user.tenant.yardName : 'YMS ENTERPRISE'}
+                </span>
+                <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest block">OPERATING SYSTEM</span>
+              </div>
             </div>
           </div>
           
+          {/* Quick Tools & Session Toolbar */}
           <div className="flex items-center space-x-2">
-            <div className="text-[9px] font-extrabold text-indigo-300 uppercase tracking-widest bg-indigo-950/60 border border-indigo-800/60 px-2.5 py-1 rounded-full shadow-inner">
-              {user?.role.replace('_', ' ')}
-            </div>
-            <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-violet-600 text-white rounded-xl flex items-center justify-center font-black text-xs shadow-md shadow-indigo-600/20">
-              {user?.name.charAt(0).toUpperCase()}
-            </div>
+            <button
+              onClick={() => setShowCalculateModal(true)}
+              title="Charges Calculator"
+              className="p-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white border border-slate-800/80 transition-colors"
+            >
+              <Calculator className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setShowPrintSetupModal(true)}
+              title="Printer Configuration"
+              className="p-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white border border-slate-800/80 transition-colors"
+            >
+              <Printer className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setShowDraftsModal(true)}
+              title="Saved Drafts"
+              className="p-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white border border-slate-800/80 transition-colors hidden sm:flex"
+            >
+              <FileText className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setShowNotificationsDrawer(true)}
+              title="Notifications"
+              className="p-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white border border-slate-800/80 transition-colors relative"
+            >
+              <Bell className="w-4 h-4" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-indigo-500 rounded-full animate-ping" />
+            </button>
+
+            <div className="h-4 w-px bg-slate-800 mx-1" />
+
+            <button
+              onClick={() => setShowUserProfileModal(true)}
+              className="flex items-center space-x-2.5 p-1.5 rounded-xl bg-slate-900/60 hover:bg-slate-900 border border-slate-800/80 transition-all text-left"
+            >
+              <div className="w-7 h-7 bg-gradient-to-br from-indigo-500 to-violet-600 text-white rounded-lg flex items-center justify-center font-black text-xs shadow-md">
+                {user?.name?.charAt(0).toUpperCase()}
+              </div>
+              <div className="hidden lg:block min-w-0 pr-1">
+                <p className="text-xs font-bold text-slate-100 truncate leading-tight">{user?.name}</p>
+                <p className="text-[9px] font-extrabold text-indigo-400 uppercase tracking-widest leading-none">
+                  {user?.role.replace('_', ' ')}
+                </p>
+              </div>
+            </button>
           </div>
         </header>
 
@@ -525,6 +584,7 @@ export const App: React.FC = () => {
           {currentTab === 'tenants' && <TenantManagement />}
           {currentTab === 'vehicle-entry' && <VehicleEntry />}
           {currentTab === 'vehicles' && <VehicleList />}
+          {currentTab === 'kachha-to-pakka' && <KachhaToPakka />}
           {currentTab === 'staff' && <StaffManagement />}
           {currentTab === 'rates' && <RateMaster />}
           {currentTab === 'reports' && <LossAnalysis />}
@@ -691,6 +751,13 @@ export const App: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Global Web Portal Modals & Drawers */}
+      <CalculateChargesModal isOpen={showCalculateModal} onClose={() => setShowCalculateModal(false)} />
+      <PrintSetupModal isOpen={showPrintSetupModal} onClose={() => setShowPrintSetupModal(false)} />
+      <NotificationsDrawer isOpen={showNotificationsDrawer} onClose={() => setShowNotificationsDrawer(false)} />
+      <DraftsModal isOpen={showDraftsModal} onClose={() => setShowDraftsModal(false)} />
+      <UserProfileModal isOpen={showUserProfileModal} onClose={() => setShowUserProfileModal(false)} />
+
       <ToastContainer />
     </div>
   );

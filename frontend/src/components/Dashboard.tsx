@@ -119,7 +119,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
 
   const fetchStats = async (start?: string, end?: string) => {
     if (start && end && new Date(start) > new Date(end)) {
-      toast.show('Start date cannot be after end date', 'error');
+      toast.error('Start date cannot be after end date');
       return;
     }
     setLoading(true);

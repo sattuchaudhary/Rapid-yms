@@ -1,7 +1,15 @@
+import { Platform } from 'react-native';
 import * as SQLite from 'expo-sqlite';
 
-// Open the database synchronously
-const db = SQLite.openDatabaseSync('yms_offline.db');
+// Open the database synchronously on native platforms
+let db: any = null;
+if (Platform.OS !== 'web') {
+  try {
+    db = SQLite.openDatabaseSync('yms_offline.db');
+  } catch (e) {
+    console.warn('[SQLite] Failed to open native database:', e);
+  }
+}
 
 export interface OfflineJob {
   id: string;
@@ -25,6 +33,7 @@ export interface CachedVehicle {
 
 // Initialize tables
 export const initDatabase = () => {
+  if (!db) return;
   try {
     db.execSync(`
       CREATE TABLE IF NOT EXISTS offline_queue (
@@ -70,6 +79,7 @@ export const initDatabase = () => {
 // Queue operations
 export const queueOfflineJob = (type: 'CHECK_IN' | 'CHECK_OUT' | 'KACHHA_TO_PAKKA' | 'EDIT_VEHICLE', payload: object, photos: any[] = []) => {
   const id = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  if (!db) return id;
   const createdAt = Date.now();
   const payloadStr = JSON.stringify(payload);
   const photosStr = JSON.stringify(photos);
@@ -88,6 +98,7 @@ export const queueOfflineJob = (type: 'CHECK_IN' | 'CHECK_OUT' | 'KACHHA_TO_PAKK
 };
 
 export const getQueuedJobs = (): OfflineJob[] => {
+  if (!db) return [];
   try {
     return db.getAllSync<OfflineJob>('SELECT * FROM offline_queue ORDER BY createdAt ASC');
   } catch (error) {
@@ -97,6 +108,7 @@ export const getQueuedJobs = (): OfflineJob[] => {
 };
 
 export const deleteQueuedJob = (id: string) => {
+  if (!db) return;
   try {
     db.runSync('DELETE FROM offline_queue WHERE id = ?', [id]);
     console.log(`[SQLite] Job deleted from queue: ${id}`);
@@ -107,6 +119,7 @@ export const deleteQueuedJob = (id: string) => {
 
 // Cache operations for vehicles
 export const cacheVehicles = (vehicles: CachedVehicle[]) => {
+  if (!db) return;
   try {
     // Wrap in transaction using SQL batching
     db.execSync('BEGIN TRANSACTION;');
@@ -127,6 +140,7 @@ export const cacheVehicles = (vehicles: CachedVehicle[]) => {
 };
 
 export const searchCachedVehicles = (query: string): CachedVehicle[] => {
+  if (!db) return [];
   try {
     if (!query || !query.trim()) {
       return db.getAllSync<CachedVehicle>('SELECT * FROM vehicle_cache LIMIT 1000');
@@ -153,6 +167,7 @@ export const searchCachedVehicles = (query: string): CachedVehicle[] => {
 };
 
 export const getCachedVehicleByNumber = (vehicleNumber: string): CachedVehicle | null => {
+  if (!db) return null;
   try {
     return db.getFirstSync<CachedVehicle>(
       'SELECT * FROM vehicle_cache WHERE vehicleNumber = ?',
@@ -165,6 +180,7 @@ export const getCachedVehicleByNumber = (vehicleNumber: string): CachedVehicle |
 };
 
 export const getCachedVehicleById = (id: string): CachedVehicle | null => {
+  if (!db) return null;
   try {
     return db.getFirstSync<CachedVehicle>(
       'SELECT * FROM vehicle_cache WHERE id = ?',
@@ -177,6 +193,7 @@ export const getCachedVehicleById = (id: string): CachedVehicle | null => {
 };
 
 export const cacheBanks = (banks: any[]) => {
+  if (!db) return;
   try {
     db.execSync('BEGIN TRANSACTION;');
     db.runSync('DELETE FROM banks_cache'); // Clear existing cache
@@ -195,6 +212,7 @@ export const cacheBanks = (banks: any[]) => {
 };
 
 export const getCachedBanks = (): any[] => {
+  if (!db) return [];
   try {
     const raw = db.getAllSync<{ id: string; name: string; parentId: string | null; isThirdParty: number }>(
       'SELECT * FROM banks_cache ORDER BY name ASC'
@@ -212,6 +230,7 @@ export const getCachedBanks = (): any[] => {
 };
 
 export const clearVehicleCache = () => {
+  if (!db) return;
   try {
     db.runSync('DELETE FROM vehicle_cache');
     console.log('[SQLite] Vehicle cache cleared');
@@ -230,6 +249,7 @@ export interface OfflineStats {
 }
 
 export const getOfflineStats = (): OfflineStats => {
+  if (!db) return { totalVehicles: 0, inYard: 0, released: 0, todayEntry: 0, cashRevenue: 0, upiRevenue: 0 };
   try {
     const totalRow = db.getFirstSync<{ count: number }>(
       "SELECT COUNT(*) as count FROM vehicle_cache"
@@ -306,6 +326,7 @@ export const saveDraft = (
   existingId?: string
 ): string => {
   const id = existingId || ('draft_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36));
+  if (!db) return id;
   const now = Date.now();
   const dataStr = JSON.stringify(data);
 
@@ -327,6 +348,7 @@ export const saveDraft = (
 };
 
 export const getAllDrafts = (): DraftRecord[] => {
+  if (!db) return [];
   try {
     return db.getAllSync<DraftRecord>('SELECT * FROM drafts ORDER BY updatedAt DESC');
   } catch (error) {
@@ -336,6 +358,7 @@ export const getAllDrafts = (): DraftRecord[] => {
 };
 
 export const getDraftById = (id: string): DraftRecord | null => {
+  if (!db) return null;
   try {
     return db.getFirstSync<DraftRecord>('SELECT * FROM drafts WHERE id = ?', [id]);
   } catch (error) {
@@ -345,6 +368,7 @@ export const getDraftById = (id: string): DraftRecord | null => {
 };
 
 export const deleteDraft = (id: string) => {
+  if (!db) return;
   try {
     db.runSync('DELETE FROM drafts WHERE id = ?', [id]);
     console.log(`[SQLite] Deleted draft ${id}`);

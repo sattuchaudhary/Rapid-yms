@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Database,
   X,
+  FileCheck,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -39,6 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, isO
     { id: 'tenants', label: 'Super Admin Console', icon: Warehouse, roles: ['SUPER_ADMIN'] },
     { id: 'vehicle-entry', label: 'Vehicle Entry', icon: PlusCircle, roles: ['TENANT_ADMIN', 'MANAGER', 'SUPERVISOR', 'EXECUTIVE', 'GUARD'] },
     { id: 'vehicles', label: 'Yard Stock', icon: Truck, roles: ['TENANT_ADMIN', 'MANAGER', 'SUPERVISOR', 'EXECUTIVE', 'GUARD'] },
+    { id: 'kachha-to-pakka', label: 'Kachha to Pakka', icon: FileCheck, roles: ['TENANT_ADMIN', 'MANAGER', 'SUPERVISOR', 'EXECUTIVE', 'GUARD'] },
     { id: 'staff', label: 'Staff Management', icon: Users, roles: ['TENANT_ADMIN', 'MANAGER'] },
     { id: 'rates', label: 'Bank Management', icon: Settings, roles: ['TENANT_ADMIN', 'MANAGER'] },
     { id: 'reports', label: 'Reports', icon: FileText, roles: ['TENANT_ADMIN', 'MANAGER', 'SUPERVISOR'] },
@@ -48,7 +50,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, isO
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   return (
-    <div className="hidden md:flex md:flex-col w-64 bg-slate-950 border-r border-slate-800/80 text-slate-100 h-screen select-none shrink-0 relative shadow-2xl">
+    <>
+      {/* Mobile Backdrop Overlay */}
+      {isOpen && (
+        <div
+          onClick={onClose}
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-40 md:hidden animate-fade-in"
+        />
+      )}
+
+      <div className={`fixed inset-y-0 left-0 z-50 md:static md:z-auto flex flex-col w-64 bg-slate-950 border-r border-slate-800/80 text-slate-100 h-screen select-none shrink-0 relative shadow-2xl transition-transform duration-300 ${
+        isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+      }`}>
       {/* Yard Logo & Branding Header */}
       <div className="p-6 border-b border-slate-800/80 flex items-center justify-between bg-slate-900/40 backdrop-blur-md">
         <div className="flex items-center space-x-3">
@@ -176,5 +189,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, isO
         </button>
       </div>
     </div>
-  );
+  </>
+);
 };
