@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken';
 import prisma from '../common/prisma';
 import { AppError } from '../common/error.handler';
 
-const JWT_SECRET  = process.env.JWT_SECRET!;
+const JWT_SECRET = process.env.JWT_SECRET!;
 const JWT_REFRESH = process.env.JWT_REFRESH_SECRET!;
 
 // Generate access token (15 min) + refresh token (7 days)
@@ -41,8 +41,8 @@ export const loginService = async (email: string, password: string, reqHost?: st
     const isPlatformDomain =
       hostWithoutPort.endsWith('.onrender.com') ||
       hostWithoutPort.endsWith('.netlify.app') ||
-      hostWithoutPort.endsWith('.vercel.app') ||
-      hostWithoutPort.endsWith('.railway.app') ||
+      // hostWithoutPort.endsWith('.vercel.app') ||
+      // hostWithoutPort.endsWith('.railway.app') ||
       hostWithoutPort.endsWith('.pages.dev') ||
       hostWithoutPort === 'localhost' ||
       hostWithoutPort.startsWith('127.0.0.1') ||
@@ -103,7 +103,7 @@ export const impersonateService = async (superAdminId: string, targetTenantId: s
   });
 
   if (!targetUser) throw new AppError('No admin found for this yard', 404);
-  
+
   if (targetUser.tenant.status !== 'ACTIVE') {
     throw new AppError('Target yard is suspended', 403);
   }

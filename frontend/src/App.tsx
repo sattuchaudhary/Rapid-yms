@@ -499,11 +499,11 @@ export const App: React.FC = () => {
 
   // Shell Layout when logged in
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 font-sans">
+    <div className="dark flex h-screen w-screen overflow-hidden bg-slate-950 text-slate-100 font-sans">
       <Sidebar currentTab={currentTab} setCurrentTab={setCurrentTab} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main Panel views */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
+      <div className="flex-1 flex flex-col overflow-hidden bg-slate-950 text-slate-100">
         {/* Top Header Bar for Desktop & Mobile */}
         <header className="flex items-center justify-between px-6 py-3 bg-slate-950/95 backdrop-blur-md text-white border-b border-slate-900 shrink-0 shadow-lg z-30 select-none">
           <div className="flex items-center space-x-4">
