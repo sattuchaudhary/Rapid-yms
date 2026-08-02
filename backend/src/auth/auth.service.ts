@@ -34,10 +34,23 @@ export const loginService = async (email: string, password: string, reqHost?: st
 
   // Tenant subdomain / host boundary verification
   if (reqHost && user.role !== 'SUPER_ADMIN') {
-    const parts = reqHost.split(':').shift()?.split('.') || [];
-    if (parts.length > 1) {
+    const hostWithoutPort = reqHost.split(':').shift()?.toLowerCase() || '';
+    const parts = hostWithoutPort.split('.');
+
+    // Ignore root hosting platform domains
+    const isPlatformDomain =
+      hostWithoutPort.endsWith('.onrender.com') ||
+      hostWithoutPort.endsWith('.netlify.app') ||
+      hostWithoutPort.endsWith('.vercel.app') ||
+      hostWithoutPort.endsWith('.railway.app') ||
+      hostWithoutPort.endsWith('.pages.dev') ||
+      hostWithoutPort === 'localhost' ||
+      hostWithoutPort.startsWith('127.0.0.1') ||
+      hostWithoutPort.startsWith('192.168.');
+
+    if (!isPlatformDomain && parts.length > 2) {
       const hostSubdomain = parts[0].toLowerCase();
-      if (hostSubdomain && hostSubdomain !== 'www' && hostSubdomain !== 'localhost') {
+      if (hostSubdomain && hostSubdomain !== 'www') {
         if (user.tenant.subdomain.toLowerCase() !== hostSubdomain) {
           throw new AppError('Access Denied: Your account does not belong to this yard.', 403);
         }
