@@ -107,7 +107,7 @@ export default function CheckInScreen() {
   // Bank Selection State
   const [banks, setBanks] = useState<any[]>([]);
   const [loadingBanks, setLoadingBanks] = useState(false);
-  const [bankCategory, setBankCategory] = useState<'direct' | 'third_party' | ''>('');
+  const [bankCategory, setBankCategory] = useState<'direct' | 'third_party' | 'shift' | ''>('');
   const [selectedThirdPartyId, setSelectedThirdPartyId] = useState('');
   const [selectedGroupName, setSelectedGroupName] = useState('');
   const [bankId, setBankId] = useState('');
@@ -1296,7 +1296,7 @@ export default function CheckInScreen() {
                   activeOpacity={0.8}
                 >
                   <ThemedText style={[styles.pickerBtnText, !bankCategory && { color: '#94A3B8' }]} numberOfLines={1}>
-                    {bankCategory === 'direct' ? 'Direct Bank' : bankCategory === 'third_party' ? 'Third Party' : '-- Select --'}
+                    {bankCategory === 'direct' ? 'Direct Bank' : bankCategory === 'third_party' ? 'Third Party' : bankCategory === 'shift' ? '🚚 Shift Bank' : '-- Select --'}
                   </ThemedText>
                   <ChevronDown size={14} color="#64748B" />
                 </TouchableOpacity>
@@ -1309,7 +1309,7 @@ export default function CheckInScreen() {
                   style={[styles.pickerBtn, !bankCategory && { opacity: 0.5 }]}
                   disabled={!bankCategory}
                   onPress={() => {
-                    if (bankCategory === 'direct') {
+                    if (bankCategory === 'direct' || bankCategory === 'shift') {
                       setPickerMode('direct');
                       setBankSearch('');
                       setBankPickerVisible(true);
@@ -1345,6 +1345,32 @@ export default function CheckInScreen() {
                   </ThemedText>
                   <ChevronDown size={16} color="#64748B" />
                 </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Shift Bank Warning Banner */}
+            {bankCategory === 'shift' && bankName && (
+              <View style={{
+                backgroundColor: '#FFFBEB',
+                borderRadius: 12,
+                padding: 12,
+                marginTop: 4,
+                marginBottom: 4,
+                borderWidth: 1,
+                borderColor: '#FDE68A',
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 8,
+              }}>
+                <ThemedText style={{ fontSize: 18 }}>⚠️</ThemedText>
+                <View style={{ flex: 1 }}>
+                  <ThemedText style={{ fontSize: 12, fontWeight: '800', color: '#92400E' }}>
+                    Non-Paneled Bank Selected
+                  </ThemedText>
+                  <ThemedText style={{ fontSize: 11, color: '#B45309', marginTop: 2 }}>
+                    This vehicle will be auto-flagged as "Shift Pending" and queued for yard transfer.
+                  </ThemedText>
+                </View>
               </View>
             )}
 
@@ -1987,6 +2013,30 @@ export default function CheckInScreen() {
             >
               <Building size={16} color="#4F46E5" style={{ marginRight: 10 }} />
               <ThemedText style={styles.bankOptionName}>Third Party</ThemedText>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.bankOptionRow, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A', borderWidth: 1 }]}
+              onPress={() => {
+                setBankCategory('shift' as any);
+                setBankId('');
+                setBankName('');
+                setSelectedThirdPartyId('');
+                setSelectedGroupName('');
+                setCategoryPickerVisible(false);
+                setTimeout(() => {
+                  setPickerMode('direct');
+                  setBankSearch('');
+                  setBankPickerVisible(true);
+                }, 300);
+              }}
+              activeOpacity={0.7}
+            >
+              <ThemedText style={{ fontSize: 16, marginRight: 10 }}>🚚</ThemedText>
+              <View style={{ flex: 1 }}>
+                <ThemedText style={[styles.bankOptionName, { color: '#92400E', fontWeight: '800' }]}>Shift / Non-Paneled Bank</ThemedText>
+                <ThemedText style={{ fontSize: 10, color: '#B45309', marginTop: 2 }}>Vehicle will be flagged for yard transfer</ThemedText>
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity

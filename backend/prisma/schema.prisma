@@ -74,6 +74,30 @@ enum ReleasePersonType {
   BUYER
 }
 
+enum BankCategory {
+  DIRECT_BANK
+  THIRD_PARTY_BANK
+  SHIFT_BANK
+}
+
+enum ShiftStatus {
+  NONE
+  SHIFT_PENDING
+  SHIFT_INITIATED
+  SHIFT_COMPLETED
+}
+
+enum VehicleMovementType {
+  NORMAL_RELEASE
+  YARD_TRANSFER
+}
+
+enum SettlementType {
+  FREE_TRANSFER
+  ACTUAL_STAY_CHARGE
+  CUSTOM_AMOUNT
+}
+
 // ============================================
 // TENANTS (Yards / Organizations)
 // ============================================
@@ -127,6 +151,7 @@ model Tenant {
   banks                  Bank[]
   vehicleStatusHistories VehicleStatusHistory[]
   parkingTransactions    ParkingTransaction[]
+  shiftHistories         VehicleShiftHistory[]
 
   @@map("tenants")
 }
@@ -155,6 +180,7 @@ model User {
   releases      Release[]              @relation("ApprovedBy")
   auditLogs     AuditLog[]
   statusChanges VehicleStatusHistory[] @relation("StatusChangedBy")
+  shiftHistories VehicleShiftHistory[] @relation("ShiftInitiatedBy")
 
   @@unique([email, tenantId])
   @@map("users")
@@ -205,6 +231,11 @@ model Vehicle {
   // Staff who entered
   enteredById   String?
   
+  // Shift Workflow
+  shiftStatus       ShiftStatus        @default(NONE)
+  shiftBankId       String?
+  shiftCreatedAt    DateTime?
+
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
@@ -219,6 +250,7 @@ model Vehicle {
   bank                Bank?                  @relation("VehicleBank", fields: [bankId], references: [id])
   statusHistory       VehicleStatusHistory[]
   parkingTransactions ParkingTransaction[]
+  shiftHistories      VehicleShiftHistory[]
 
   @@unique([vehicleNumber, tenantId])
   @@index([tenantId, yardStatus])
@@ -409,6 +441,8 @@ model Bank {
   name                    String
   parentId                String?       // Self-relation
   isThirdParty            Boolean       @default(false)
+  bankCategory            BankCategory  @default(DIRECT_BANK)
+  isShiftBank             Boolean       @default(false)
   
   // Parking Configuration
   parkingEnabled          Boolean       @default(true)
@@ -478,6 +512,32 @@ model VehicleStatusHistory {
   changedBy   User?       @relation("StatusChangedBy", fields: [changedById], references: [id])
 
   @@map("vehicle_status_histories")
+}
+
+// ============================================
+// VEHICLE SHIFT HISTORY
+// ============================================
+
+model VehicleShiftHistory {
+  id              String         @id @default(uuid())
+  tenantId        String
+  vehicleId       String
+  fromYardId      String?
+  toYardId        String?
+  destinationYard String?
+  shiftReason     String?
+  settlementType  SettlementType @default(FREE_TRANSFER)
+  parkingCharge   Float          @default(0)
+  stayDays        Int            @default(0)
+  initiatedById   String?
+  shiftDate       DateTime       @default(now())
+  createdAt       DateTime       @default(now())
+
+  tenant          Tenant         @relation(fields: [tenantId], references: [id])
+  vehicle         Vehicle        @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  initiatedBy     User?          @relation("ShiftInitiatedBy", fields: [initiatedById], references: [id])
+
+  @@map("vehicle_shift_histories")
 }
 
 // ============================================

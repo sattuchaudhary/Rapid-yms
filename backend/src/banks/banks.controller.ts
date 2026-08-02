@@ -37,6 +37,8 @@ const parkingConfigSchema = z.object({
 const createBankSchema = z.object({
   name: z.string().min(1, 'Bank or Partner Name is required'),
   isThirdParty: z.boolean().default(false),
+  bankCategory: z.enum(['DIRECT_BANK', 'THIRD_PARTY_BANK', 'SHIFT_BANK']).optional(),
+  isShiftBank: z.boolean().optional(),
   parentId: z.string().nullable().optional(),
   rates: ratesSchema.optional(),
   subBanks: z.array(
@@ -57,6 +59,8 @@ const updateBankSchema = z.object({
   name: z.string().min(1, 'Bank Name is required'),
   parentId: z.string().nullable().optional(),
   isThirdParty: z.boolean().optional(),
+  bankCategory: z.enum(['DIRECT_BANK', 'THIRD_PARTY_BANK', 'SHIFT_BANK']).optional(),
+  isShiftBank: z.boolean().optional(),
   parkingEnabled: z.boolean().optional(),
   kachhaParkingRate: z.number().nonnegative().optional(),
   pakkaParkingRate: z.number().nonnegative().optional(),
@@ -93,6 +97,8 @@ export const createBank = async (req: Request, res: Response, next: NextFunction
         releaseOrderParkingRate: parsed.releaseOrderParkingRate,
         parkingPayer: parsed.parkingPayer,
         parkingWaiverDays: parsed.parkingWaiverDays,
+        bankCategory: parsed.bankCategory,
+        isShiftBank: parsed.isShiftBank,
       }
     );
     res.status(201).json({ success: true, data: bank });
@@ -119,6 +125,8 @@ export const updateBank = async (req: Request, res: Response, next: NextFunction
         releaseOrderParkingRate: parsed.releaseOrderParkingRate,
         parkingPayer: parsed.parkingPayer,
         parkingWaiverDays: parsed.parkingWaiverDays,
+        bankCategory: parsed.bankCategory,
+        isShiftBank: parsed.isShiftBank,
       }
     );
     res.json({ success: true, data: bank });

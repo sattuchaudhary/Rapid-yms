@@ -320,6 +320,17 @@ export const createVehicleEntryService = async (
     dailyRate = dailyRates[data.vehicleType] || 100.0;
   }
 
+  // Check if bank is a Shift / Non-Paneled Bank
+  let isShiftBankCategory = false;
+  if (bankId) {
+    const bankObj = await prisma.bank.findFirst({
+      where: { id: bankId, tenantId },
+    });
+    if (bankObj && (bankObj.bankCategory === 'SHIFT_BANK' || bankObj.isShiftBank)) {
+      isShiftBankCategory = true;
+    }
+  }
+
   // Use transaction to create vehicle, setup checklist, assign slot, and create billing engine stub
   return prisma.$transaction(async (tx) => {
     // 1. Create the vehicle
@@ -346,6 +357,9 @@ export const createVehicleEntryService = async (
         customerSign: data.customerSign,
         yardLocationId: data.yardLocationId || null,
         yardStatus: 'KACHHA', // Default enters as Kachha
+        shiftStatus: isShiftBankCategory ? 'SHIFT_PENDING' : 'NONE',
+        shiftBankId: isShiftBankCategory ? bankId : null,
+        shiftCreatedAt: isShiftBankCategory ? new Date() : null,
       },
     });
 

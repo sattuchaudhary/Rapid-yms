@@ -47,7 +47,7 @@ export default function VehicleListScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'KACHHA' | 'PAKKA' | 'RELEASED'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'KACHHA' | 'PAKKA' | 'RELEASED' | 'SHIFT_PENDING'>('ALL');
 
   const searchReqIdRef = useRef(0);
   const searchTimeoutRef = useRef<any>(null);
@@ -180,6 +180,7 @@ export default function VehicleListScreen() {
       if (statusFilter === 'RELEASED' && v.yardStatus !== 'RELEASED') return false;
       if (statusFilter === 'PAKKA' && v.yardStatus !== 'PAKKA') return false;
       if (statusFilter === 'KACHHA' && v.yardStatus !== 'KACHHA') return false;
+      if (statusFilter === 'SHIFT_PENDING' && (v as any).shiftStatus !== 'SHIFT_PENDING' && (v as any).shiftStatus !== 'SHIFT_INITIATED') return false;
 
       if (!cleanQ) return true;
 
@@ -389,6 +390,19 @@ export default function VehicleListScreen() {
           >
             <ThemedText style={[styles.filterTabButtonText, statusFilter === 'KACHHA' && styles.filterTabButtonTextActive]}>
               Kachha ({stats.kachha})
+            </ThemedText>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.filterTabButton,
+              statusFilter === 'SHIFT_PENDING' && styles.filterTabButtonActive,
+              statusFilter === 'SHIFT_PENDING' && { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' },
+            ]}
+            onPress={() => setStatusFilter('SHIFT_PENDING')}
+          >
+            <ThemedText style={[styles.filterTabButtonText, statusFilter === 'SHIFT_PENDING' && { color: '#B45309', fontWeight: '800' }]}>
+              🚚 Shift Pending
             </ThemedText>
           </TouchableOpacity>
 

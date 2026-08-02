@@ -782,6 +782,45 @@ export default function VehicleDetailsScreen() {
           </TouchableOpacity>
         )}
 
+        {/* Shift Pending Banner */}
+        {vehicle.shiftStatus === 'SHIFT_PENDING' && (
+          <View style={{
+            backgroundColor: '#FFFBEB',
+            borderRadius: 14,
+            padding: 14,
+            marginTop: 10,
+            borderWidth: 1.5,
+            borderColor: '#FDE68A',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <ThemedText style={{ fontSize: 20, marginRight: 10 }}>🚚</ThemedText>
+              <View style={{ flex: 1 }}>
+                <ThemedText style={{ fontSize: 13, fontWeight: '800', color: '#92400E' }}>
+                  Shift Pending — Non-Paneled Bank
+                </ThemedText>
+                <ThemedText style={{ fontSize: 11, color: '#B45309', marginTop: 2 }}>
+                  This vehicle's bank is not paneled with this yard. Awaiting transfer.
+                </ThemedText>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#D97706',
+                borderRadius: 10,
+                paddingVertical: 8,
+                paddingHorizontal: 14,
+              }}
+              onPress={() => router.push({ pathname: '/admin/check-out', params: { plate: vehicle.vehicleNumber } })}
+              activeOpacity={0.85}
+            >
+              <ThemedText style={{ fontSize: 11, fontWeight: '800', color: '#FFFFFF' }}>Shift →</ThemedText>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {vehicle.yardStatus === 'PAKKA' && (
           <View style={styles.bannerPakka}>
             <View style={styles.bannerLeftRow}>

@@ -634,6 +634,26 @@ export default function GuardDashboard() {
           </View>
         </View>
 
+        {/* Card 5: Pending Shift Vehicles */}
+        <TouchableOpacity
+          style={[styles.metricCard, { marginTop: 10, backgroundColor: '#FFFBEB', borderColor: '#FDE68A', borderWidth: 1 }]}
+          onPress={() => router.push('/admin/vehicle-list?filter=SHIFT_PENDING' as any)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.metricHeader}>
+            <ThemedText style={[styles.metricLabel, { color: '#B45309', fontWeight: '800' }]}>🚚 Pending Yard Shifts</ThemedText>
+            <View style={[styles.metricIconBox, { backgroundColor: '#FEF3C7' }]}>
+              <RefreshCw size={16} color="#D97706" />
+            </View>
+          </View>
+          <ThemedText style={[styles.metricVal, { color: '#B45309' }]}>
+            {stats?.shiftPendingCount ?? stats?.kachhaVehicles?.total ?? 0} Vehicles
+          </ThemedText>
+          <ThemedText style={{ fontSize: 11, color: '#92400E', marginTop: 2, fontWeight: '600' }}>
+            Non-paneled bank vehicles queued for transfer →
+          </ThemedText>
+        </TouchableOpacity>
+
         {/* Secondary Tools Horizontal Bar */}
         <ThemedText style={styles.sectionTitle}>Quick Tools</ThemedText>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickToolsRow}>

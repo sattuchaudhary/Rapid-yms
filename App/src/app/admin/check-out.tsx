@@ -78,6 +78,11 @@ export default function ReleaseVehicleScreen() {
   // Kachha Release Reason
   const [kachhaReason, setKachhaReason] = useState('');
 
+  // Non-Paneled Shift States
+  const [destinationYard, setDestinationYard] = useState('');
+  const [shiftSettlement, setShiftSettlement] = useState<'FREE_TRANSFER' | 'ACTUAL_STAY_CHARGE' | 'CUSTOM_AMOUNT'>('FREE_TRANSFER');
+  const [shiftCustomAmount, setShiftCustomAmount] = useState('');
+
   // Document Uploads Uris & Statuses
   const [releaseLetterUri, setReleaseLetterUri] = useState('');
   const [aadharFrontUri, setAadharFrontUri] = useState('');
@@ -1043,15 +1048,115 @@ export default function ReleaseVehicleScreen() {
                             Buyer
                           </ThemedText>
                         </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[
+                            styles.personTypeBtn,
+                            releasePersonType === ('SHIFT' as any) && styles.personTypeBtnActive,
+                            releasePersonType === ('SHIFT' as any) && { backgroundColor: '#D97706' },
+                          ]}
+                          onPress={() => {
+                            setReleasePersonType('SHIFT' as any);
+                            setPaymentAmount('0');
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <ThemedText style={[styles.personTypeBtnText, releasePersonType === ('SHIFT' as any) && styles.personTypeBtnTextActive]}>
+                            🚚 Yard Shift
+                          </ThemedText>
+                        </TouchableOpacity>
                       </View>
                     </View>
+                    {/* Shift Settlement Form — shown when Yard Shift is selected */}
+                    {releasePersonType === ('SHIFT' as any) && (
+                      <View style={{ backgroundColor: '#FFFBEB', borderRadius: 14, padding: 16, marginTop: 12, borderWidth: 1, borderColor: '#FDE68A' }}>
+                        <ThemedText style={{ fontSize: 15, fontWeight: '800', color: '#92400E', marginBottom: 12 }}>🚚 Yard Transfer Details</ThemedText>
+
+                        {/* Destination Yard */}
+                        <ThemedText style={{ fontSize: 12, fontWeight: '700', color: '#78350F', marginBottom: 4 }}>Destination Yard / Location *</ThemedText>
+                        <TextInput
+                          style={{ backgroundColor: '#FFFFFF', borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', padding: 12, fontSize: 14, color: '#1E293B', marginBottom: 12 }}
+                          placeholder="e.g. ABC Yard, Mumbai"
+                          placeholderTextColor="#94A3B8"
+                          value={destinationYard}
+                          onChangeText={setDestinationYard}
+                        />
+
+                        {/* Settlement Type */}
+                        <ThemedText style={{ fontSize: 12, fontWeight: '700', color: '#78350F', marginBottom: 6 }}>Settlement Type *</ThemedText>
+                        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                          {([
+                            { key: 'FREE_TRANSFER', label: 'Free Transfer', emoji: '🆓' },
+                            { key: 'ACTUAL_STAY_CHARGE', label: 'Actual Stay Charge', emoji: '📅' },
+                            { key: 'CUSTOM_AMOUNT', label: 'Custom Amount', emoji: '💰' },
+                          ] as const).map(opt => (
+                            <TouchableOpacity
+                              key={opt.key}
+                              style={{
+                                flex: 1,
+                                minWidth: 90,
+                                paddingVertical: 10,
+                                paddingHorizontal: 8,
+                                borderRadius: 10,
+                                borderWidth: 1.5,
+                                borderColor: shiftSettlement === opt.key ? '#D97706' : '#E2E8F0',
+                                backgroundColor: shiftSettlement === opt.key ? '#FEF3C7' : '#FFFFFF',
+                                alignItems: 'center',
+                              }}
+                              onPress={() => {
+                                setShiftSettlement(opt.key);
+                                if (opt.key === 'FREE_TRANSFER') setPaymentAmount('0');
+                              }}
+                              activeOpacity={0.8}
+                            >
+                              <ThemedText style={{ fontSize: 16 }}>{opt.emoji}</ThemedText>
+                              <ThemedText style={{ fontSize: 10, fontWeight: '700', color: shiftSettlement === opt.key ? '#92400E' : '#64748B', textAlign: 'center', marginTop: 2 }}>
+                                {opt.label}
+                              </ThemedText>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+
+                        {/* Custom Amount Input */}
+                        {shiftSettlement === 'CUSTOM_AMOUNT' && (
+                          <View style={{ marginBottom: 8 }}>
+                            <ThemedText style={{ fontSize: 12, fontWeight: '700', color: '#78350F', marginBottom: 4 }}>Custom Parking Charge (₹)</ThemedText>
+                            <TextInput
+                              style={{ backgroundColor: '#FFFFFF', borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', padding: 12, fontSize: 14, color: '#1E293B' }}
+                              placeholder="Enter amount"
+                              placeholderTextColor="#94A3B8"
+                              keyboardType="numeric"
+                              value={shiftCustomAmount}
+                              onChangeText={(val) => {
+                                setShiftCustomAmount(val);
+                                setPaymentAmount(val);
+                              }}
+                            />
+                          </View>
+                        )}
+
+                        {/* Info Banner */}
+                        <View style={{ flexDirection: 'row', backgroundColor: '#FEF9C3', borderRadius: 8, padding: 10, gap: 8, alignItems: 'center' }}>
+                          <ThemedText style={{ fontSize: 14 }}>ℹ️</ThemedText>
+                          <ThemedText style={{ fontSize: 11, color: '#92400E', flex: 1, fontWeight: '600' }}>
+                            {shiftSettlement === 'FREE_TRANSFER'
+                              ? 'Vehicle will be transferred with no parking charge. The bank is non-paneled.'
+                              : shiftSettlement === 'ACTUAL_STAY_CHARGE'
+                              ? 'Parking will be calculated based on actual days stayed × daily rate.'
+                              : 'A custom parking amount will be charged for this transfer.'}
+                          </ThemedText>
+                        </View>
+                      </View>
+                    )}
 
                     <TouchableOpacity
                       style={styles.wizardNextBtn}
                       onPress={handleStep1Next}
                       activeOpacity={0.85}
                     >
-                      <ThemedText style={styles.wizardNextBtnText}>Next: Recipient & Documents →</ThemedText>
+                      <ThemedText style={styles.wizardNextBtnText}>
+                        {releasePersonType === ('SHIFT' as any) ? 'Next: Confirm Transfer →' : 'Next: Recipient & Documents →'}
+                      </ThemedText>
                     </TouchableOpacity>
                   </>
                 )}

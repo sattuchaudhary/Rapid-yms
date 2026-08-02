@@ -82,7 +82,7 @@ export default function BanksScreen() {
 
   // Add bank modal state
   const [addModalVisible, setAddModalVisible] = useState(false);
-  const [addType, setAddType] = useState<'direct' | 'third_party'>('direct');
+  const [addType, setAddType] = useState<'direct' | 'third_party' | 'shift'>('direct');
   const [newBankName, setNewBankName] = useState('');
   const [subBanks, setSubBanks] = useState([{ name: '', rates: { TW: '50', THREE_W: '100', FW: '150', CV: '400' } }]);
   const [newSubRates, setNewSubRates] = useState({ TW: '50', THREE_W: '100', FW: '150', CV: '400' });
@@ -191,6 +191,8 @@ export default function BanksScreen() {
       const payload: any = {
         name: newBankName.trim(),
         isThirdParty: addType === 'third_party',
+        bankCategory: addType === 'shift' ? 'SHIFT_BANK' : (addType === 'third_party' ? 'THIRD_PARTY_BANK' : 'DIRECT_BANK'),
+        isShiftBank: addType === 'shift',
         parkingWaiverDays: Number(waiverDays || 0),
         parkingPayer: parkingPayer,
       };
@@ -624,7 +626,20 @@ export default function BanksScreen() {
                     activeOpacity={0.7}
                   >
                     <ThemedText style={[styles.typeOptionText, addType === 'third_party' && styles.typeOptionTextSelected]}>
-                      Third Party Group
+                      Third Party
+                    </ThemedText>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeOption,
+                      addType === 'shift' && styles.typeOptionSelected,
+                      addType === 'shift' && { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' },
+                    ]}
+                    onPress={() => setAddType('shift')}
+                    activeOpacity={0.7}
+                  >
+                    <ThemedText style={[styles.typeOptionText, addType === 'shift' && { color: '#B45309', fontWeight: '800' }]}>
+                      🚚 Shift Bank
                     </ThemedText>
                   </TouchableOpacity>
                 </View>

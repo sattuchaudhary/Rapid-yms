@@ -14,8 +14,20 @@ import {
   getVehicleParkingTransactions,
 } from './vehicle.controller';
 import { authenticate } from '../auth/auth.middleware';
+import {
+  getShiftPendingVehicles,
+  calculateStayCharge,
+  initiateVehicleShift,
+  completeVehicleShift,
+} from './vehicleShift.controller';
 
 const router = Router();
+
+// Non-Paneled Shift Endpoints
+router.get('/shift-pending', authenticate, getShiftPendingVehicles);
+router.get('/:id/shift-charge', authenticate, calculateStayCharge);
+router.post('/:id/initiate-shift', authenticate, initiateVehicleShift);
+router.post('/:id/complete-shift', authenticate, completeVehicleShift);
 
 // All vehicle endpoints require authenticated user
 router.get('/', authenticate, getVehicles);

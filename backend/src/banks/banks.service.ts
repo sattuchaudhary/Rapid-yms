@@ -25,6 +25,8 @@ export interface BankParkingConfig {
   releaseOrderParkingRate?: number;
   parkingPayer?: 'CUSTOMER' | 'BANK';
   parkingWaiverDays?: number;
+  bankCategory?: 'DIRECT_BANK' | 'THIRD_PARTY_BANK' | 'SHIFT_BANK';
+  isShiftBank?: boolean;
 }
 
 export type RateVal = number | { dailyRate?: number; kachhaRate?: number; pakkaRate?: number; releaseOrderRate?: number };
@@ -78,6 +80,8 @@ export const createBankService = async (
         tenantId,
         name: name.trim(),
         isThirdParty,
+        bankCategory: parkingConfig?.bankCategory || (isThirdParty ? 'THIRD_PARTY_BANK' : 'DIRECT_BANK'),
+        isShiftBank: parkingConfig?.isShiftBank ?? (parkingConfig?.bankCategory === 'SHIFT_BANK'),
         parentId: parentId || null,
         parkingEnabled: parkingConfig?.parkingEnabled ?? true,
         kachhaParkingRate: parkingConfig?.kachhaParkingRate ?? 0,
@@ -211,6 +215,8 @@ export const updateBankService = async (
     if (parkingConfig.releaseOrderParkingRate !== undefined) updateData.releaseOrderParkingRate = parkingConfig.releaseOrderParkingRate;
     if (parkingConfig.parkingPayer !== undefined) updateData.parkingPayer = parkingConfig.parkingPayer;
     if (parkingConfig.parkingWaiverDays !== undefined) updateData.parkingWaiverDays = parkingConfig.parkingWaiverDays;
+    if (parkingConfig.bankCategory !== undefined) updateData.bankCategory = parkingConfig.bankCategory;
+    if (parkingConfig.isShiftBank !== undefined) updateData.isShiftBank = parkingConfig.isShiftBank;
   }
 
   return prisma.bank.update({
