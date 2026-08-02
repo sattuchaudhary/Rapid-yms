@@ -634,10 +634,10 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
       </div>
 
       {/* Main Workflow Progress Stepper (Eco-themed horizontal path) */}
-      <div className="bg-white border-b border-slate-200/80 px-6 py-4 shadow-sm select-none">
+      <div className="bg-slate-900 border-b border-slate-800 px-6 py-4 shadow-xl select-none text-white">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center space-x-2 shrink-0">
-            <Sparkles className="w-4 h-4 text-emerald-600 animate-pulse" />
+            <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse" />
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Exit Release Workflow</span>
           </div>
           
@@ -659,22 +659,22 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
                   <div className="flex items-center space-x-2 shrink-0">
                     <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[9px] transition-all border ${
                       isActive 
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/25 scale-105'
+                        ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/25 scale-105'
                         : isCompleted
-                        ? 'bg-emerald-100 text-emerald-700 border-emerald-250'
-                        : 'bg-slate-100 text-slate-400 border-slate-200'
+                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                        : 'bg-slate-950 text-slate-500 border-slate-800'
                     }`}>
                       {isCompleted ? '✓' : s.step}
                     </span>
                     <span className={`uppercase tracking-wider ${
-                      isActive ? 'text-emerald-700 font-extrabold' : isCompleted ? 'text-slate-600 font-bold' : 'text-slate-400'
+                      isActive ? 'text-emerald-400 font-extrabold' : isCompleted ? 'text-slate-300 font-bold' : 'text-slate-500'
                     }`}>
                       {s.label}
                     </span>
                   </div>
                   {idx < 6 && (
                     <div className={`h-0.5 min-w-[20px] flex-1 ${
-                      isCompleted ? 'bg-emerald-500' : 'bg-slate-200'
+                      isCompleted ? 'bg-emerald-500' : 'bg-slate-800'
                     }`} />
                   )}
                 </React.Fragment>
@@ -685,10 +685,10 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
       </div>
 
       {/* Main Body Grid */}
-      <div className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 space-y-6 pb-24">
+      <div className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 space-y-6 pb-24 text-white">
         
         {/* Sticky Sub-navigation tabs (Dossier, Financials, Media Gallery) */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 select-none bg-slate-100/50 p-1.5 rounded-2xl border border-slate-200 shadow-inner">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 select-none bg-slate-900 p-1.5 rounded-2xl border border-slate-800 shadow-inner">
           {[
             { id: 'dossier', label: '📋 Dossier & Specs' },
             { id: 'financials', label: '💰 Financials & Releases' },
@@ -699,10 +699,10 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                className={`py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
                   isSelected 
-                    ? 'bg-white text-emerald-800 shadow-sm border border-slate-200/50' 
-                    : 'text-slate-500 hover:text-slate-800 hover:bg-white/40'
+                    ? 'bg-slate-800 text-emerald-400 shadow-sm border border-slate-700' 
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
                 }`}
               >
                 {tab.label}
@@ -715,29 +715,29 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
         {activeTab === 'dossier' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
             {/* Eco Impact Tracker Widget */}
-            <div className="lg:col-span-3 bg-gradient-to-br from-emerald-50 to-teal-50/50 border border-emerald-100 p-5 rounded-2xl flex items-center justify-between gap-4 shadow-sm">
+            <div className="lg:col-span-3 bg-gradient-to-br from-slate-900 to-emerald-950/40 border border-emerald-900/40 p-5 rounded-2xl flex items-center justify-between gap-4 shadow-xl">
               <div className="flex items-center space-x-3.5">
-                <div className="p-3 bg-emerald-600 text-white rounded-2xl shadow-md shadow-emerald-600/10">
+                <div className="p-3 bg-emerald-600 text-white rounded-2xl shadow-md shadow-emerald-600/20">
                   <Leaf className="w-5 h-5 animate-pulse" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-black uppercase text-emerald-800 tracking-wider flex items-center">
+                  <h4 className="text-xs font-black uppercase text-emerald-400 tracking-wider flex items-center">
                     YardPro Paperless Initiative
-                    <span className="ml-2 px-2 py-0.5 rounded bg-emerald-200 text-emerald-850 font-extrabold text-[8px]">ACTIVE</span>
+                    <span className="ml-2 px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-extrabold text-[8px] border border-emerald-500/30">ACTIVE</span>
                   </h4>
-                  <p className="text-[11px] text-emerald-700/90 font-medium mt-0.5">
+                  <p className="text-[11px] text-slate-300 font-medium mt-0.5">
                     By maintaining digital inspection photos, mobile signature authorization, and digital gate pass receipts, this vehicle profile has saved an estimated **0.84 kg of paper wood pulp** and **12.5 Liters of water**.
                   </p>
                 </div>
               </div>
               <div className="hidden md:flex flex-col items-end shrink-0 select-none">
                 <span className="text-[8px] font-bold text-emerald-400 uppercase tracking-widest">Eco-Index Score</span>
-                <span className="text-2xl font-black text-emerald-800 font-mono tracking-tight">98.5% A+</span>
+                <span className="text-2xl font-black text-emerald-400 font-mono tracking-tight">98.5% A+</span>
               </div>
             </div>
 
             {/* Panel 1: Core Specifications & Yard Location */}
-            <div className="bg-white border border-slate-200/80 p-6 rounded-3xl shadow-sm space-y-5 text-left">
+            <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 p-6 rounded-3xl shadow-xl space-y-5 text-left text-white">
               <div className="flex items-center space-x-2 border-b border-slate-100 pb-3">
                 <FileText className="w-4 h-4 text-emerald-600" />
                 <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
