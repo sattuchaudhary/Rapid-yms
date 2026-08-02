@@ -6,8 +6,20 @@ import prisma from '../common/prisma';
 import { sendMailService } from '../common/mail.service';
 import { sendWhatsAppService, sendSMSService } from '../common/whatsapp.service';
 
-const connection = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+
+const connection = new Redis(redisUrl, {
   maxRetriesPerRequest: null,
+  retryStrategy(times) {
+    if (times > 3) return null;
+    return Math.min(times * 500, 2000);
+  },
+});
+
+connection.on('error', (err: any) => {
+  if (err.message?.includes('WRONGPASS') || err.message?.includes('NOAUTH')) {
+    connection.disconnect();
+  }
 });
 
 export const initWorkers = () => {
