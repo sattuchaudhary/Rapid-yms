@@ -350,10 +350,12 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
   ]);
 
   const dailyRevenueToday = revenueTodayPaidAgg._sum.paidAmount || 0;
-  const dailyLossToday = dailyLossAgg._sum.dailyRate || 0;
-
   const dailyRevenueThisMonth = revenueThisMonthAgg._sum.paidAmount || 0;
   const dailyRevenueThisYear = revenueThisYearAgg._sum.paidAmount || 0;
+
+  const maxCapacity = 500;
+  const occupiedSlots = totalVehicles;
+  const occupancyPercentage = Math.min(100, Math.round((occupiedSlots / maxCapacity) * 100));
 
   // Load Rate Master rules for exact Bank + Vehicle Type rates
   const tenantRates = await prisma.parkingRate.findMany({
