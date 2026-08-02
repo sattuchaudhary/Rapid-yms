@@ -6,6 +6,8 @@ import { compressImage } from '../utils/imageCompressor';
 import { UnifiedReleaseModal } from './UnifiedReleaseModal';
 import {
   ChevronLeft,
+  ChevronDown,
+  ChevronUp,
   X,
   Edit,
   Trash2,
@@ -29,7 +31,12 @@ import {
   MessageSquare,
   Mail,
   Sparkles,
-  Leaf
+  Leaf,
+  Car,
+  Building,
+  RefreshCw,
+  Shield,
+  Calculator
 } from 'lucide-react';
 
 interface VehicleDetailsDrawerProps {
@@ -49,9 +56,29 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
   // Local state for loaded vehicle (so updates reflect immediately inside the drawer)
   const [vehicleDetails, setVehicleDetails] = useState<any>(vehicle);
   const [billingInfo, setBillingInfo] = useState<any | null>(null);
-  
+
   // Tab control state
   const [activeTab, setActiveTab] = useState<'dossier' | 'financials' | 'media'>('dossier');
+
+  // Accordion Sections State (Matching Mobile App)
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    overview: true,       // Default open
+    repoDetails: true,
+    remarks: true,
+    checklist: true,
+    billing: true,
+    photos: true,
+    advanced: false,
+  });
+
+  const toggleSection = (key: string) => {
+    setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // Fee Estimator Modal State
+  const [calcVisible, setCalcVisible] = useState(false);
+  const [calcDays, setCalcDays] = useState('30');
+  const [calcResult, setCalcResult] = useState<number | null>(null);
 
   // Sharing dropdown state
   const [isShareDropdownOpen, setIsShareDropdownOpen] = useState(false);
@@ -505,7 +532,7 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
   const getWorkflowStep = () => {
     const status = vehicleDetails.yardStatus;
     const relStatus = vehicleDetails.release?.releaseStatus;
-    
+
     if (status === 'KACHHA') return 1;
     if (status === 'PAKKA' && !vehicleDetails.release) return 2;
     if (relStatus === 'REQUESTED') return 3;
@@ -516,865 +543,736 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
     return 2;
   };
 
-  const currentStep = getWorkflowStep();
-
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950 text-slate-100 flex flex-col select-none overflow-y-auto animate-fade-in font-sans">
-      
-      {/* Premium Sticky Eco Gradient Header */}
-      <div className="bg-gradient-to-r from-emerald-950 via-teal-905 to-slate-900 text-white px-4 py-3 sm:px-6 sm:py-4 sticky top-0 z-40 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 shadow-lg border-b border-emerald-900/30">
-        <div className="flex items-center justify-between sm:justify-start space-x-4 w-full sm:w-auto">
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={onClose}
-              className="p-2 rounded-xl bg-emerald-900/40 hover:bg-emerald-900/60 text-emerald-300 hover:text-white transition-all flex items-center space-x-1.5 border border-emerald-800/30 text-xs font-semibold uppercase tracking-wider"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">Stock Console</span>
-            </button>
-            
-            <div className="h-6 w-px bg-emerald-800/50 hidden sm:block"></div>
-            
-            <div>
-              <div className="flex items-center space-x-2">
-                <h3 className="text-base sm:text-lg font-black uppercase tracking-tight font-mono text-emerald-50">{vehicleDetails.vehicleNumber}</h3>
-                <span className={`px-2 py-0.5 rounded-full font-bold text-[8px] sm:text-[9px] uppercase tracking-wider ${
-                  vehicleDetails.yardStatus === 'KACHHA'
-                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                    : vehicleDetails.yardStatus === 'PAKKA'
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                    : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                }`}>
-                  {vehicleDetails.yardStatus}
-                </span>
-              </div>
-              <p className="text-[10px] sm:text-[11px] text-emerald-300/80 font-medium mt-0.5">
-                {vehicleDetails.brand || 'Unknown'} {vehicleDetails.model || ''} — Slot: <strong className="text-white font-mono">{vehicleDetails.yardLocation?.slot || 'Unallocated'}</strong>
-              </p>
-            </div>
-          </div>
-          
+    <div className="fixed inset-y-0 right-0 left-0 md:left-64 z-40 bg-slate-50 text-slate-800 flex flex-col select-none overflow-y-auto animate-fade-in font-sans">
+
+      {/* Top Header Bar (Matching Mobile App Header) */}
+      <div className="bg-white text-slate-900 px-4 py-3.5 sm:px-6 sticky top-0 z-40 flex items-center justify-between shadow-sm border-b border-slate-200">
+        <div className="flex items-center space-x-3">
           <button
             onClick={onClose}
-            className="sm:hidden p-2 rounded-xl bg-emerald-900/40 text-emerald-300 hover:text-white border border-emerald-800/30 transition-colors"
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all border border-slate-200 cursor-pointer"
+            title="Back to Stock"
           >
-            <X className="w-4 h-4" />
+            <ChevronLeft className="w-5 h-5" />
           </button>
+          <div>
+            <h3 className="text-base sm:text-lg font-black uppercase text-slate-900 tracking-tight font-sans">Vehicle Operations Profile</h3>
+            <p className="text-[11px] text-slate-500 font-medium font-mono">{vehicleDetails.vehicleNumber}</p>
+          </div>
         </div>
-        
-        {/* Dynamic Actions */}
-        <div className="flex items-center justify-end space-x-2 w-full sm:w-auto border-t border-emerald-900/30 pt-2 sm:pt-0 sm:border-t-0">
-          {/* Digital Share Button */}
+
+        <div className="flex items-center space-x-2">
+          {/* Paperless Share Dropdown */}
           <div className="relative">
             <button
               onClick={() => setIsShareDropdownOpen(!isShareDropdownOpen)}
-              className="p-2 rounded-xl bg-emerald-800/40 hover:bg-emerald-800/60 text-emerald-300 hover:text-white border border-emerald-800/30 transition-all flex items-center space-x-1.5 text-xs font-bold uppercase"
+              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all flex items-center space-x-1 text-xs font-bold uppercase cursor-pointer"
             >
               <Share2 className="w-4 h-4" />
-              <span className="hidden md:inline">Share Paperless</span>
+              <span className="hidden md:inline">Share</span>
             </button>
-            
+
             {isShareDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-white text-slate-800 shadow-xl border border-slate-100 py-2.5 z-50 animate-scale-in">
-                <div className="px-4 py-1.5 border-b border-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center space-x-1">
-                  <Leaf className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Choose Paperless Share</span>
-                </div>
+              <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-white text-slate-800 shadow-xl border border-slate-200 py-2 z-50">
                 <button
                   onClick={handleCopyLink}
-                  className="w-full text-left px-4 py-2 hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center space-x-2 transition-colors"
+                  className="w-full text-left px-4 py-2 hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center space-x-2 cursor-pointer"
                 >
                   <Copy className="w-4 h-4 text-slate-400" />
                   <span>Copy Secure Share Link</span>
                 </button>
                 <button
                   onClick={handleShareWhatsApp}
-                  className="w-full text-left px-4 py-2 hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center space-x-2 transition-colors"
+                  className="w-full text-left px-4 py-2 hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center space-x-2 cursor-pointer"
                 >
                   <MessageSquare className="w-4 h-4 text-emerald-500" />
                   <span>Share via WhatsApp</span>
                 </button>
                 <button
                   onClick={handleShareEmail}
-                  className="w-full text-left px-4 py-2 hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center space-x-2 transition-colors"
+                  className="w-full text-left px-4 py-2 hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center space-x-2 cursor-pointer"
                 >
                   <Mail className="w-4 h-4 text-indigo-500" />
-                  <span>Share via Email / SMS</span>
+                  <span>Share via Email</span>
                 </button>
               </div>
             )}
           </div>
 
           {(user?.role === 'TENANT_ADMIN' || user?.role === 'MANAGER' || user?.role === 'SUPER_ADMIN') && (
-            <>
-              <button
-                onClick={handleOpenEditModal}
-                className="px-3 py-2 rounded-xl bg-emerald-800/40 hover:bg-emerald-850 text-emerald-300 hover:text-white border border-emerald-800/30 transition-all flex items-center space-x-1.5 text-[10px] font-bold uppercase tracking-wider"
-              >
-                <Edit className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Edit Profile</span>
-              </button>
-              <button
-                onClick={handleDeleteVehicle}
-                className="px-3 py-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-white border border-rose-900/20 transition-all flex items-center space-x-1.5 text-[10px] font-bold uppercase tracking-wider"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Delete</span>
-              </button>
-            </>
+            <button
+              onClick={handleOpenEditModal}
+              className="p-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-all text-xs font-bold uppercase flex items-center space-x-1 cursor-pointer"
+            >
+              <Edit className="w-4 h-4" />
+              <span className="hidden sm:inline">Edit</span>
+            </button>
           )}
 
           <button
             onClick={onClose}
-            className="hidden sm:block p-2 rounded-xl bg-emerald-900/40 hover:bg-emerald-900/60 text-emerald-300 hover:text-white border border-emerald-800/30 transition-colors"
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
       </div>
 
-      {/* Main Workflow Progress Stepper (Eco-themed horizontal path) */}
-      <div className="bg-slate-900 border-b border-slate-800 px-6 py-4 shadow-xl select-none text-white">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center space-x-2 shrink-0">
-            <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse" />
-            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Exit Release Workflow</span>
-          </div>
-          
-          <div className="flex items-center justify-between w-full overflow-x-auto gap-2 md:gap-4 pb-2 md:pb-0 scrollbar-none font-semibold text-[10px]">
-            {[
-              { step: 1, label: 'Kachha Entry' },
-              { step: 2, label: 'Pakka Yard Storage' },
-              { step: 3, label: 'Release Requested' },
-              { step: 4, label: 'Approved' },
-              { step: 5, label: 'Payment Done' },
-              { step: 6, label: 'Gate Pass Issued' },
-              { step: 7, label: 'Exited Yard' },
-            ].map((s, idx) => {
-              const isActive = currentStep === s.step;
-              const isCompleted = currentStep > s.step;
-              
-              return (
-                <React.Fragment key={s.step}>
-                  <div className="flex items-center space-x-2 shrink-0">
-                    <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[9px] transition-all border ${
-                      isActive 
-                        ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/25 scale-105'
-                        : isCompleted
-                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                        : 'bg-slate-950 text-slate-500 border-slate-800'
-                    }`}>
-                      {isCompleted ? '✓' : s.step}
-                    </span>
-                    <span className={`uppercase tracking-wider ${
-                      isActive ? 'text-emerald-400 font-extrabold' : isCompleted ? 'text-slate-300 font-bold' : 'text-slate-500'
-                    }`}>
-                      {s.label}
-                    </span>
-                  </div>
-                  {idx < 6 && (
-                    <div className={`h-0.5 min-w-[20px] flex-1 ${
-                      isCompleted ? 'bg-emerald-500' : 'bg-slate-800'
-                    }`} />
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+      {/* Main Scrollable Body Content */}
+      <div className="flex-1 max-w-4xl mx-auto w-full p-4 sm:p-6 space-y-5 pb-28 text-slate-800">
 
-      {/* Main Body Grid */}
-      <div className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 space-y-6 pb-24 text-white">
-        
-        {/* Sticky Sub-navigation tabs (Dossier, Financials, Media Gallery) */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 select-none bg-slate-900 p-1.5 rounded-2xl border border-slate-800 shadow-inner">
-          {[
-            { id: 'dossier', label: '📋 Dossier & Specs' },
-            { id: 'financials', label: '💰 Financials & Releases' },
-            { id: 'media', label: '📷 Gallery & Checklists' }
-          ].map((tab) => {
-            const isSelected = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
-                  isSelected 
-                    ? 'bg-slate-800 text-emerald-400 shadow-sm border border-slate-700' 
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
-                }`}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+        {/* 1. PREMIUM VEHICLE HERO CARD */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden p-5 flex flex-col sm:flex-row gap-5 items-start sm:items-center">
+          {/* Photo Box with Image Count Badge */}
+          <div
+            onClick={() => vehicleDetails.photos?.length && setActiveLightboxPhoto(vehicleDetails.photos[0].s3Url)}
+            className="relative w-full sm:w-44 aspect-video sm:aspect-square rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 cursor-pointer group shadow-inner"
+          >
+            {vehicleDetails.photos && vehicleDetails.photos.length > 0 ? (
+              <img
+                src={vehicleDetails.photos[0].s3Url}
+                alt={vehicleDetails.vehicleNumber}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                <Car className="w-10 h-10 mb-1" />
+                <span className="text-[10px] font-bold uppercase">No Photo</span>
+              </div>
+            )}
+            {vehicleDetails.photos && vehicleDetails.photos.length > 0 && (
+              <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-xs text-white text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                <Camera className="w-3 h-3" />
+                <span>{vehicleDetails.photos.length} Photos</span>
+              </div>
+            )}
+          </div>
 
-        {/* Dynamic Tab Switcher */}
-        {activeTab === 'dossier' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
-            {/* Eco Impact Tracker Widget */}
-            <div className="lg:col-span-3 bg-gradient-to-br from-slate-900 to-emerald-950/40 border border-emerald-900/40 p-5 rounded-2xl flex items-center justify-between gap-4 shadow-xl">
-              <div className="flex items-center space-x-3.5">
-                <div className="p-3 bg-emerald-600 text-white rounded-2xl shadow-md shadow-emerald-600/20">
-                  <Leaf className="w-5 h-5 animate-pulse" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-black uppercase text-emerald-400 tracking-wider flex items-center">
-                    YardPro Paperless Initiative
-                    <span className="ml-2 px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-extrabold text-[8px] border border-emerald-500/30">ACTIVE</span>
-                  </h4>
-                  <p className="text-[11px] text-slate-300 font-medium mt-0.5">
-                    By maintaining digital inspection photos, mobile signature authorization, and digital gate pass receipts, this vehicle profile has saved an estimated **0.84 kg of paper wood pulp** and **12.5 Liters of water**.
-                  </p>
-                </div>
-              </div>
-              <div className="hidden md:flex flex-col items-end shrink-0 select-none">
-                <span className="text-[8px] font-bold text-emerald-400 uppercase tracking-widest">Eco-Index Score</span>
-                <span className="text-2xl font-black text-emerald-400 font-mono tracking-tight">98.5% A+</span>
-              </div>
+          {/* Vehicle Main Information Header */}
+          <div className="flex-1 space-y-2 text-left">
+            <div className="flex items-center flex-wrap gap-2">
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight font-mono uppercase">
+                {vehicleDetails.vehicleNumber}
+              </h2>
+              <span className={`px-2.5 py-0.5 rounded-full font-extrabold text-[9px] uppercase tracking-wider ${vehicleDetails.yardStatus === 'KACHHA'
+                  ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                  : vehicleDetails.yardStatus === 'PAKKA'
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                    : 'bg-indigo-100 text-indigo-800 border border-indigo-300'
+                }`}>
+                {vehicleDetails.yardStatus}
+              </span>
             </div>
 
-            {/* Panel 1: Core Specifications & Yard Location */}
-            <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 p-6 rounded-3xl shadow-xl space-y-5 text-left text-white">
-              <div className="flex items-center space-x-2 border-b border-slate-100 pb-3">
-                <FileText className="w-4 h-4 text-emerald-600" />
-                <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
-                  Asset Details & Yard Spot
-                </h4>
-              </div>
+            <p className="text-xs sm:text-sm font-semibold text-slate-600">
+              {vehicleDetails.vehicleType === 'TW'
+                ? 'Two Wheeler (2W)'
+                : vehicleDetails.vehicleType === 'THREE_W'
+                  ? 'Three Wheeler (3W)'
+                  : vehicleDetails.vehicleType === 'CV'
+                    ? 'Commercial Vehicle (CV)'
+                    : 'Four Wheeler (FW)'}
+              {' • '}{vehicleDetails.brand || 'Unknown'} {vehicleDetails.model || ''}
+            </p>
 
-              <div className="grid grid-cols-2 gap-4 text-xs font-semibold text-slate-600">
+            <div className="flex items-center flex-wrap gap-2 pt-1 text-xs">
+              <span className="bg-slate-100 text-slate-700 font-bold px-2.5 py-1 rounded-lg border border-slate-200/80 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                Slot: {vehicleDetails.yardLocation?.slot || 'Unallocated'} ({vehicleDetails.yardLocation?.zone || 'A'})
+              </span>
+              <span className="bg-emerald-50 text-emerald-800 font-bold px-2.5 py-1 rounded-lg border border-emerald-200/60 flex items-center gap-1.5 font-mono">
+                <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                {billingInfo ? `${billingInfo.totalDays} Days in Yard` : 'Active'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* 2. DASHBOARD METRICS CARDS GRID (2x2 Equal Side-by-Side Grid) */}
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm text-left space-y-1">
+            <div className="flex items-center space-x-2">
+              <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
+                <Clock className="w-4 h-4" />
+              </div>
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Parking Duration</span>
+            </div>
+            <div className="text-base sm:text-lg font-black text-slate-900 pt-0.5">
+              {billingInfo ? `${billingInfo.totalDays} Days` : '1 Day'}
+            </div>
+            <p className="text-[10px] text-slate-500 font-semibold">
+              In-Gate: {new Date(vehicleDetails.entryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+            </p>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm text-left space-y-1">
+            <div className="flex items-center space-x-2">
+              <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+                <DollarSign className="w-4 h-4" />
+              </div>
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Outstanding Due</span>
+            </div>
+            <div className="text-base sm:text-lg font-black text-slate-900 font-mono pt-0.5">
+              {"\u20B9"}{billingInfo?.totalAmount?.toLocaleString('en-IN') || 0}
+            </div>
+            <p className="text-[10px] text-slate-500 font-semibold">
+              Rate: {"\u20B9"}{billingInfo?.dailyRate || 150}/day
+            </p>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm text-left space-y-1">
+            <div className="flex items-center space-x-2">
+              <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                <Car className="w-4 h-4" />
+              </div>
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Yard Slot</span>
+            </div>
+            <div className="text-base sm:text-lg font-black text-slate-900 pt-0.5">
+              {vehicleDetails.yardLocation ? `${vehicleDetails.yardLocation.zone}-${vehicleDetails.yardLocation.slot}` : 'Unassigned'}
+            </div>
+            <p className="text-[10px] text-slate-500 font-semibold">Possession Zone</p>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm text-left space-y-1">
+            <div className="flex items-center space-x-2">
+              <div className="p-1.5 bg-slate-100 text-slate-600 rounded-lg">
+                <Building className="w-4 h-4" />
+              </div>
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Bank / Financer</span>
+            </div>
+            <div className="text-base sm:text-lg font-black text-slate-900 truncate pt-0.5">
+              {vehicleDetails.bankName || 'Direct'}
+            </div>
+            <p className="text-[10px] text-slate-500 font-semibold">
+              {vehicleDetails.bank?.isThirdParty ? 'Third Party Partner' : 'Direct Bank'}
+            </p>
+          </div>
+        </div>
+
+        {/* 3. CONTEXTUAL OPERATOR ACTION BANNERS */}
+        {vehicleDetails.shiftStatus === 'SHIFT_PENDING' && (
+          <div className="bg-amber-50 border border-amber-300 p-4 rounded-2xl flex items-center justify-between gap-3 text-left">
+            <div className="flex items-center space-x-3">
+              <RefreshCw className="w-5 h-5 text-amber-700 shrink-0" />
+              <div>
+                <h4 className="text-xs font-bold text-amber-900 uppercase">Shift Pending — Non-Paneled Bank</h4>
+                <p className="text-[11px] text-amber-800">Bank is not paneled. Queued for transfer checkout.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsReleaseModalOpen(true)}
+              className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-extrabold px-3 py-1.5 rounded-xl cursor-pointer shrink-0"
+            >
+              Transfer →
+            </button>
+          </div>
+        )}
+
+        {vehicleDetails.yardStatus === 'KACHHA' && vehicleDetails.shiftStatus !== 'SHIFT_PENDING' && (
+          <div className="bg-amber-50 border border-amber-300 p-4 rounded-2xl flex items-center justify-between gap-3 text-left">
+            <div className="flex items-center space-x-3">
+              <Shield className="w-5 h-5 text-amber-700 shrink-0" />
+              <div>
+                <h4 className="text-xs font-bold text-amber-900 uppercase">Verification & Repo Kit Pending</h4>
+                <p className="text-[11px] text-amber-800">Submit 4 mandatory photos & repo date to activate Pakka storage billing.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setExpandedSections(prev => ({ ...prev, billing: true }));
+                const el = document.getElementById('repokit-section');
+                el?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-extrabold px-3 py-1.5 rounded-xl cursor-pointer shrink-0"
+            >
+              Verify →
+            </button>
+          </div>
+        )}
+
+        {/* 4. SMART ACCORDION SECTIONS */}
+
+        {/* Section A: Overview & Specifications */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden text-left">
+          <button
+            onClick={() => toggleSection('overview')}
+            className="w-full p-4 sm:p-5 flex items-center justify-between text-left cursor-pointer select-none"
+          >
+            <div className="flex items-center space-x-3">
+              <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+                <Car className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-extrabold text-slate-900">Overview & Specifications</h4>
+                <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                  {vehicleDetails.brand || 'Vehicle'} {vehicleDetails.model || ''} • Color: {vehicleDetails.color || 'N/A'}
+                </p>
+              </div>
+            </div>
+            <div className="p-1 text-slate-400">
+              {expandedSections.overview ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </div>
+          </button>
+
+          {expandedSections.overview && (
+            <div className="px-5 pb-5 border-t border-slate-100 pt-4 space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">Chassis Number</span>
-                  <span className="font-mono text-slate-850 font-bold block mt-0.5 tracking-tight uppercase">{vehicleDetails.chassisNumber || 'N/A'}</span>
+                  <span className="text-slate-400 block font-bold text-[10px] uppercase">Entry Date & Time</span>
+                  <span className="text-slate-900 font-bold block mt-0.5">
+                    {new Date(vehicleDetails.entryDate).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">Engine Number</span>
-                  <span className="font-mono text-slate-850 font-bold block mt-0.5 tracking-tight uppercase">{vehicleDetails.engineNumber || 'N/A'}</span>
+                  <span className="text-slate-400 block font-bold text-[10px] uppercase">Vehicle Category</span>
+                  <span className="text-slate-900 font-bold block mt-0.5 uppercase">{vehicleDetails.vehicleType}</span>
                 </div>
                 <div>
-                  <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">Vehicle Category</span>
-                  <span className="text-slate-850 font-bold block mt-0.5 uppercase">{vehicleDetails.vehicleType}</span>
+                  <span className="text-slate-400 block font-bold text-[10px] uppercase">Color / Variant</span>
+                  <span className="text-slate-900 font-bold block mt-0.5">{vehicleDetails.color || 'N/A'}</span>
                 </div>
                 <div>
-                  <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">Body Color / Variant</span>
-                  <span className="text-slate-850 font-bold block mt-0.5 uppercase">{vehicleDetails.color || 'N/A'}</span>
+                  <span className="text-slate-400 block font-bold text-[10px] uppercase">Yard Serial Number</span>
+                  <span className="text-slate-900 font-bold block mt-0.5 font-mono">
+                    {vehicleDetails.serialNumber ? `#${vehicleDetails.serialNumber}` : 'N/A'}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">Finance Bank Client</span>
-                  <span className="text-emerald-700 font-extrabold block mt-0.5 uppercase">{vehicleDetails.bankName}</span>
+                  <span className="text-slate-400 block font-bold text-[10px] uppercase">Chassis Number</span>
+                  <span className="text-slate-900 font-bold block mt-0.5 font-mono uppercase">{vehicleDetails.chassisNumber || 'N/A'}</span>
                 </div>
                 <div>
-                  <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">Repo Partner Agency</span>
-                  <span className="text-slate-850 font-bold block mt-0.5 uppercase">{vehicleDetails.repoAgency || 'Swift Agency'}</span>
+                  <span className="text-slate-400 block font-bold text-[10px] uppercase">Engine Number</span>
+                  <span className="text-slate-900 font-bold block mt-0.5 font-mono uppercase">{vehicleDetails.engineNumber || 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Section B: Customer & Repo Details */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden text-left">
+          <button
+            onClick={() => toggleSection('repoDetails')}
+            className="w-full p-4 sm:p-5 flex items-center justify-between text-left cursor-pointer select-none"
+          >
+            <div className="flex items-center space-x-3">
+              <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+                <User className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-extrabold text-slate-900">Customer & Repo Details</h4>
+                <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                  Bank: {vehicleDetails.bankName || 'Direct'} • Customer: {vehicleDetails.customerName || 'N/A'}
+                </p>
+              </div>
+            </div>
+            <div className="p-1 text-slate-400">
+              {expandedSections.repoDetails ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </div>
+          </button>
+
+          {expandedSections.repoDetails && (
+            <div className="px-5 pb-5 border-t border-slate-100 pt-4 space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-slate-400 block font-bold text-[10px] uppercase">Customer Name</span>
+                  <span className="text-slate-900 font-bold block mt-0.5">{vehicleDetails.customerName || 'N/A'}</span>
                 </div>
                 <div>
-                  <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">Repo Action Date</span>
-                  <span className="text-slate-850 block mt-0.5">
+                  <span className="text-slate-400 block font-bold text-[10px] uppercase">Customer Phone</span>
+                  <span className="text-indigo-600 font-bold block mt-0.5 font-mono flex items-center gap-1">
+                    <Phone className="w-3.5 h-3.5" />
+                    {vehicleDetails.customerPhone || 'N/A'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-bold text-[10px] uppercase">Financer / Bank</span>
+                  <span className="text-slate-900 font-bold block mt-0.5">{vehicleDetails.bankName || 'N/A'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-bold text-[10px] uppercase">Repo Agency</span>
+                  <span className="text-slate-900 font-bold block mt-0.5">{vehicleDetails.repoAgency || 'Swift Agency'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-bold text-[10px] uppercase">Repo Action Date</span>
+                  <span className="text-slate-900 font-bold block mt-0.5">
                     {new Date(vehicleDetails.repoDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">Gate Check-in Staff</span>
-                  <span className="text-emerald-650 font-extrabold block mt-0.5">
-                    {vehicleDetails.enteredBy?.name || 'Gate Operator'}
-                  </span>
-                </div>
-                
-                <div className="col-span-2 border-t border-slate-100 pt-3 flex items-center justify-between">
-                  <div>
-                    <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">Allocated Yard Location</span>
-                    <span className="text-xs font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-100/50 px-3 py-1 rounded-xl inline-block mt-1.5">
-                      Slot {vehicleDetails.yardLocation?.slot || 'Unallocated'} (Zone {vehicleDetails.yardLocation?.zone || 'A'})
-                    </span>
-                  </div>
-                  {vehicleDetails.repoKitDate && (
-                    <div className="text-right">
-                      <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">Repo Kit Sync Date</span>
-                      <span className="text-xs font-bold text-slate-700 mt-1 block font-mono">
-                        {new Date(vehicleDetails.repoKitDate).toLocaleDateString('en-IN')}
-                      </span>
-                    </div>
-                  )}
+                  <span className="text-slate-400 block font-bold text-[10px] uppercase">Gate Operator</span>
+                  <span className="text-slate-900 font-bold block mt-0.5">{vehicleDetails.enteredBy?.name || 'Gate Staff'}</span>
                 </div>
               </div>
             </div>
+          )}
+        </div>
 
-            {/* Panel 2: Ownership & Possession Dossier */}
-            <div className="bg-white border border-slate-200/80 p-6 rounded-3xl shadow-sm space-y-5 text-left">
-              <div className="flex items-center space-x-2 border-b border-slate-100 pb-3">
-                <User className="w-4 h-4 text-emerald-600" />
-                <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
-                  Ownership & Possession Dossier
-                </h4>
+        {/* Section C: Vehicle Condition & Remarks */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden text-left">
+          <button
+            onClick={() => toggleSection('remarks')}
+            className="w-full p-4 sm:p-5 flex items-center justify-between text-left cursor-pointer select-none"
+          >
+            <div className="flex items-center space-x-3">
+              <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+                <FileText className="w-5 h-5" />
               </div>
-              
-              <div className="space-y-4 text-xs font-semibold">
-                <div>
-                  <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">Borrower / Primary Customer</span>
-                  <span className="text-slate-850 text-sm font-bold block mt-0.5">{vehicleDetails.customerName || 'No Name Provided'}</span>
-                </div>
-                
-                <div>
-                  <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">Contact Phone</span>
-                  <span className="text-slate-700 font-mono block mt-0.5 flex items-center space-x-1.5">
-                    <Phone className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{vehicleDetails.customerPhone || 'N/A'}</span>
-                  </span>
-                </div>
-                
-                <div className="h-px bg-slate-100"></div>
-
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">Loan Agreement No</span>
-                    <span className="text-slate-850 font-mono block uppercase mt-0.5">
-                      {(() => {
-                        const item = vehicleDetails.inventory?.find((i: any) => i.itemName.toLowerCase() === 'agreement no');
-                        return item?.remarks || 'N/A';
-                      })()}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">Odometer Reading</span>
-                    <span className="text-slate-850 font-mono block mt-0.5">
-                      {(() => {
-                        const item = vehicleDetails.inventory?.find((i: any) => i.itemName.toLowerCase() === 'mileage');
-                        return item ? `${item.remarks} KM` : 'N/A';
-                      })()}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">Place of Possession</span>
-                    <span className="text-slate-800 block mt-0.5 uppercase">
-                      {(() => {
-                        const item = vehicleDetails.inventory?.find((i: any) => i.itemName.toLowerCase() === 'place');
-                        return item?.remarks || 'N/A';
-                      })()}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">Time of Possession</span>
-                    <span className="text-slate-800 font-mono block mt-0.5 uppercase">
-                      {(() => {
-                        const item = vehicleDetails.inventory?.find((i: any) => i.itemName.toLowerCase() === 'time of possession');
-                        return item?.remarks || 'N/A';
-                      })()}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Panel 3: Digital Signature / Gate Acknowledgement */}
-            <div className="bg-white border border-slate-200/80 p-6 rounded-3xl shadow-sm space-y-4 text-left flex flex-col justify-between">
               <div>
-                <div className="flex items-center space-x-2 border-b border-slate-100 pb-3">
-                  <UserCheck className="w-4 h-4 text-emerald-600" />
-                  <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
-                    Gate In Signature
-                  </h4>
-                </div>
-                
-                <p className="text-[10px] text-slate-400 font-medium leading-relaxed mt-2.5">
-                  Secure cryptographic mobile screen signature captured at the time of entry to authorize inventory possession list digitally without papers.
+                <h4 className="text-sm font-extrabold text-slate-900">Condition Report & Remarks</h4>
+                <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                  Body: {(() => {
+                    const inv = vehicleDetails.inventory?.find((i: any) => i.itemName === 'Body Condition');
+                    return inv?.remarks || 'Bad';
+                  })()} • Yard Remarks Recorded
+                </p>
+              </div>
+            </div>
+            <div className="p-1 text-slate-400">
+              {expandedSections.remarks ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </div>
+          </button>
+
+          {expandedSections.remarks && (
+            <div className="px-5 pb-5 border-t border-slate-100 pt-4 space-y-4 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-bold text-xs">Body Condition</span>
+                {(() => {
+                  const cond = vehicleDetails.inventory?.find((i: any) => i.itemName === 'Body Condition')?.remarks || 'Bad';
+                  return (
+                    <span className={`px-3 py-1 rounded-full font-black text-xs uppercase tracking-wider ${cond === 'Good'
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : cond === 'Average'
+                          ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                          : 'bg-rose-100 text-rose-800 border border-rose-300'
+                      }`}>
+                      {cond}
+                    </span>
+                  );
+                })()}
+              </div>
+
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/70">
+                <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Yard Remarks</span>
+                <p className="text-slate-800 font-semibold text-xs">
+                  {(() => {
+                    const inv = vehicleDetails.inventory?.find((i: any) => i.itemName === 'Yard Remarks');
+                    return inv?.remarks || 'No specific remarks recorded.';
+                  })()}
                 </p>
               </div>
 
-              <div className="mt-4">
-                {vehicleDetails.customerSign ? (
-                  <div className="relative border border-slate-200 bg-slate-50 p-4 rounded-2xl flex items-center justify-center overflow-hidden aspect-[3/1] shadow-inner mt-1 group">
-                    <img
-                      src={vehicleDetails.customerSign}
-                      alt="Customer Signature"
-                      className="max-h-full object-contain select-none contrast-125 hover:scale-105 transition-transform duration-300"
-                    />
-                    <div className="absolute bottom-1 right-2 text-[7px] font-mono text-emerald-600 uppercase tracking-widest pointer-events-none">
-                      🔒 Secured Digital Signature
-                    </div>
-                  </div>
-                ) : (
-                  <div className="py-8 border border-dashed border-slate-200 text-center rounded-2xl text-[10px] text-slate-400 font-medium italic mt-1 bg-slate-50/50">
-                    No digital signature captured on gate entry.
-                  </div>
-                )}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/70">
+                <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Customer Remarks</span>
+                <p className="text-slate-800 font-semibold text-xs">
+                  {(() => {
+                    const inv = vehicleDetails.inventory?.find((i: any) => i.itemName === 'Customer Remarks');
+                    return inv?.remarks || 'No customer notes recorded.';
+                  })()}
+                </p>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {activeTab === 'financials' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in text-left">
-            {/* Top overview metrics */}
-            <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white border border-slate-200/80 p-5 rounded-2xl shadow-sm flex items-center space-x-4">
-                <div className="p-3 bg-emerald-50 text-emerald-700 rounded-xl">
-                  <Layers className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="text-[9px] text-slate-400 uppercase font-bold block">Current Parking Spot</span>
-                  <span className="text-xs font-extrabold text-slate-800">
-                    Slot {vehicleDetails.yardLocation?.slot || 'N/A'} (Zone {vehicleDetails.yardLocation?.zone || 'A'})
-                  </span>
-                </div>
+        {/* Section D: Visual Accessories Checklist */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden text-left">
+          <button
+            onClick={() => toggleSection('checklist')}
+            className="w-full p-4 sm:p-5 flex items-center justify-between text-left cursor-pointer select-none"
+          >
+            <div className="flex items-center space-x-3">
+              <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+                <FileCheck className="w-5 h-5" />
               </div>
-
-              <div className="bg-white border border-slate-200/80 p-5 rounded-2xl shadow-sm flex items-center space-x-4">
-                <div className="p-3 bg-emerald-50 text-emerald-700 rounded-xl">
-                  <Calendar className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="text-[9px] text-slate-400 uppercase font-bold block">In-Gate Date</span>
-                  <span className="text-xs font-extrabold text-slate-800">
-                    {new Date(vehicleDetails.entryDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </span>
-                </div>
-              </div>
-
-              <div className="bg-white border border-slate-200/80 p-5 rounded-2xl shadow-sm flex items-center space-x-4">
-                <div className="p-3 bg-emerald-50 text-emerald-700 rounded-xl">
-                  <Clock className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="text-[9px] text-slate-400 uppercase font-bold block">Parked Duration</span>
-                  <span className="text-xs font-extrabold text-slate-800">
-                    {billingInfo ? `${billingInfo.totalDays} Days Active` : 'N/A'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="bg-white border border-slate-200/80 p-5 rounded-2xl shadow-sm flex items-center space-x-4">
-                <div className="p-3 bg-emerald-50 text-emerald-700 rounded-xl">
-                  <DollarSign className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="text-[9px] text-slate-400 uppercase font-bold block">Dynamic Amount Due</span>
-                  <span className="text-xs font-extrabold text-slate-800 font-mono">
-                    {"\u20B9"}{billingInfo?.totalAmount?.toLocaleString('en-IN') || 0}
-                  </span>
-                </div>
+              <div>
+                <h4 className="text-sm font-extrabold text-slate-900">Accessories Checklist</h4>
+                <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                  15 Inspection Parameters Checked at Gate Entry
+                </p>
               </div>
             </div>
+            <div className="p-1 text-slate-400">
+              {expandedSections.checklist ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </div>
+          </button>
 
-            {/* Billing Engine Panel */}
-            <div className="bg-gradient-to-br from-emerald-950 to-slate-900 text-white p-6 rounded-3xl shadow-lg space-y-6 flex flex-col justify-between">
-              <div className="space-y-4">
-                <div className="flex items-center space-x-2 border-b border-emerald-900 pb-3">
-                  <Award className="w-4 h-4 text-emerald-400" />
-                  <h4 className="text-xs font-black text-emerald-100 uppercase tracking-wider">
-                    Billing Settlement Engine
-                  </h4>
+          {expandedSections.checklist && (
+            <div className="px-5 pb-5 border-t border-slate-100 pt-4">
+              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                <table className="w-full text-left text-xs text-slate-700">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[10px] uppercase font-bold">
+                    <tr>
+                      <th className="p-3">Item Name</th>
+                      <th className="p-3">Status</th>
+                      <th className="p-3">Remarks / Tyre Make</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white font-medium">
+                    {(vehicleDetails.inventory || []).filter((i: any) => !['Body Condition', 'Yard Remarks', 'Customer Remarks'].includes(i.itemName)).map((item: any) => (
+                      <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="p-3 font-bold text-slate-900">{item.itemName}</td>
+                        <td className="p-3">
+                          <span className={`px-2 py-0.5 rounded font-extrabold text-[9px] uppercase tracking-wider ${item.isPresent
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              : 'bg-rose-100 text-rose-800 border border-rose-200'
+                            }`}>
+                            {item.isPresent ? 'YES' : 'NO'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-slate-500 font-mono text-[11px]">
+                          {item.remarks || '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Section E: Billing & Daily Rates */}
+        <div id="repokit-section" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden text-left">
+          <button
+            onClick={() => toggleSection('billing')}
+            className="w-full p-4 sm:p-5 flex items-center justify-between text-left cursor-pointer select-none"
+          >
+            <div className="flex items-center space-x-3">
+              <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                <DollarSign className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-extrabold text-slate-900">Billing & Dynamic Rates</h4>
+                <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                  {"\u20B9"}{billingInfo?.totalAmount?.toLocaleString('en-IN') || 0} Total Due • {billingInfo?.totalDays || 1} Days Stay
+                </p>
+              </div>
+            </div>
+            <div className="p-1 text-slate-400">
+              {expandedSections.billing ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </div>
+          </button>
+
+          {expandedSections.billing && (
+            <div className="px-5 pb-5 border-t border-slate-100 pt-4 space-y-4">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2.5 text-xs font-semibold">
+                <div className="flex justify-between text-slate-600">
+                  <span>Daily Base Parking Rate</span>
+                  <span className="text-slate-900 font-bold font-mono">{"\u20B9"}{billingInfo?.dailyRate || 150} / day</span>
                 </div>
-                
-                {billingInfo ? (
-                  <div className="space-y-3.5 text-xs font-semibold text-emerald-250">
-                    <div className="flex justify-between">
-                      <span className="text-emerald-400">Daily Base Parking Rate</span>
-                      <span className="text-white font-bold font-mono">{"\u20B9"}{billingInfo.dailyRate} / day</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-emerald-400">Total Parked Duration</span>
-                      <span className="text-white font-bold font-mono">{billingInfo.totalDays} Days</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-emerald-400">Bank Client Share ({billingInfo.bankPayableDays} Days)</span>
-                      <span className="text-white font-bold font-mono">{"\u20B9"}{billingInfo.bankPayable}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-emerald-400">Customer Share ({billingInfo.customerPayableDays} Days)</span>
-                      <span className="text-amber-400 font-bold font-mono">{"\u20B9"}{billingInfo.customerPayable}</span>
-                    </div>
-                    
-                    <div className="border-t border-emerald-900/60 pt-3 flex justify-between font-black text-sm text-white">
-                      <span>Total Dynamic Due</span>
-                      <span className="text-base text-emerald-400 font-mono font-black">{"\u20B9"}{billingInfo.totalAmount}</span>
-                    </div>
-                    
-                    <div className="flex justify-between text-[10px] font-bold border-t border-emerald-900/60 pt-3">
-                      <span className="text-emerald-400">Payment status</span>
-                      <span className={`px-2.5 py-0.5 rounded font-black text-[9px] uppercase tracking-wider ${
-                        billingInfo.paymentStatus === 'PAID' 
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
-                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                      }`}>
-                        {billingInfo.paymentStatus} ({"\u20B9"}{billingInfo.paidAmount} Paid)
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-emerald-400 font-medium italic">Calculating billing metrics dynamically...</p>
-                )}
+                <div className="flex justify-between text-slate-600">
+                  <span>Total Parked Duration</span>
+                  <span className="text-slate-900 font-bold font-mono">{billingInfo?.totalDays || 1} Days</span>
+                </div>
+                <div className="border-t border-slate-200 pt-2.5 flex justify-between font-black text-sm text-slate-900">
+                  <span>Total Accrued Amount</span>
+                  <span className="text-indigo-600 font-mono text-base font-black">{"\u20B9"}{billingInfo?.totalAmount?.toLocaleString('en-IN') || 0}</span>
+                </div>
               </div>
 
               {/* Repo Kit Upload Form for KACHHA vehicles */}
               {vehicleDetails.yardStatus === 'KACHHA' && (
-                <div className="mt-4 border border-dashed border-emerald-850 bg-emerald-950/50 p-4 rounded-2xl space-y-4">
-                  <div className="border-b border-emerald-900/60 pb-2">
-                    <h5 className="text-xs font-black uppercase text-emerald-50 tracking-wider flex items-center">
-                      <Camera className="w-4 h-4 mr-1.5 text-amber-400" />
+                <div className="border border-dashed border-amber-300 bg-amber-50/70 p-4 rounded-2xl space-y-4 text-left">
+                  <div className="border-b border-amber-200 pb-2">
+                    <h5 className="text-xs font-bold uppercase text-amber-900 flex items-center">
+                      <Camera className="w-4 h-4 mr-1.5 text-amber-600" />
                       Repo Kit Verification
                     </h5>
-                    <p className="text-[8px] text-emerald-300/80 mt-0.5">Mandatory files and activation date required to activate Pakka storage billing.</p>
+                    <p className="text-[10px] text-amber-800 mt-0.5 font-medium">Upload 4 mandatory photos & repo date to activate Pakka storage billing.</p>
                   </div>
 
                   <form onSubmit={handleTransitionToPakkaWithDocs} className="space-y-3.5">
                     <div className="space-y-1">
-                      <label className="text-[9px] font-bold text-emerald-300 uppercase tracking-wider block">Pakka Activation Date (Date of Repo Kit submission)</label>
+                      <label className="text-[10px] font-bold text-slate-700 uppercase block">Pakka Activation Date</label>
                       <input
                         type="date"
                         required
                         value={repoKitDateInput}
                         onChange={(e) => setRepoKitDateInput(e.target.value)}
-                        className="w-full bg-slate-900/50 text-white px-3 py-2 rounded-xl border border-emerald-900 focus:outline-none focus:border-emerald-500 text-xs font-bold font-mono"
+                        className="w-full bg-white text-slate-900 px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold font-mono"
                       />
                     </div>
 
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-emerald-300 uppercase tracking-wider block">Upload Mandatory Photos (4/4 Required)</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {[
-                          { key: 'pre_intimation', label: 'Pre Intimation' },
-                          { key: 'post_intimation', label: 'Post Intimation' },
-                          { key: 'yard_inventory', label: 'Yard Inventory' },
-                          { key: 'bank_inventory', label: 'Bank Inventory' },
-                        ].map((doc) => {
-                          const isUploaded = !!repoKitPhotos[doc.key];
-                          const isUploading = !!uploadingRepoKitPhoto[doc.key];
-                          
-                          return (
-                            <div key={doc.key} className="relative">
-                              <button
-                                type="button"
-                                disabled={isUploading}
-                                onClick={() => document.getElementById(`repokit-upload-${doc.key}`)?.click()}
-                                className={`w-full aspect-[4/3] rounded-xl border border-dashed flex flex-col items-center justify-center text-center p-2 transition-all ${
-                                  isUploaded
-                                    ? 'border-emerald-500 bg-emerald-950/20 text-emerald-300'
-                                    : 'border-emerald-900 bg-slate-900/30 text-emerald-400 hover:text-white hover:bg-slate-900/50'
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { key: 'pre_intimation', label: 'Pre Intimation' },
+                        { key: 'post_intimation', label: 'Post Intimation' },
+                        { key: 'yard_inventory', label: 'Yard Inventory' },
+                        { key: 'bank_inventory', label: 'Bank Inventory' },
+                      ].map((doc) => {
+                        const isUploaded = !!repoKitPhotos[doc.key];
+                        const isUploading = !!uploadingRepoKitPhoto[doc.key];
+                        return (
+                          <div key={doc.key} className="relative">
+                            <button
+                              type="button"
+                              disabled={isUploading}
+                              onClick={() => document.getElementById(`repokit-upload-${doc.key}`)?.click()}
+                              className={`w-full aspect-[4/3] rounded-xl border border-dashed flex flex-col items-center justify-center text-center p-2 transition-all cursor-pointer ${isUploaded ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
                                 } text-[9px] font-bold uppercase`}
-                              >
-                                {isUploading ? (
-                                  <>
-                                    <div className="w-4 h-4 border-2 border-emerald-450 border-t-transparent rounded-full animate-spin mb-1"></div>
-                                    <span className="text-[7px]">Uploading...</span>
-                                  </>
-                                ) : isUploaded ? (
-                                  <>
-                                    <img
-                                      src={repoKitPhotos[doc.key]}
-                                      alt={doc.label}
-                                      className="w-full h-full object-cover rounded-lg absolute inset-0 opacity-40 z-0 pointer-events-none"
-                                    />
-                                    <span className="z-10 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-500/35 text-[8px] text-emerald-300 font-extrabold flex items-center">
-                                      ✓ {doc.label}
-                                    </span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Camera className="w-4 h-4 mb-1 text-emerald-550" />
-                                    <span>{doc.label}</span>
-                                  </>
-                                )}
-                              </button>
-                              <input
-                                id={`repokit-upload-${doc.key}`}
-                                type="file"
-                                accept="image/*"
-                                capture="environment"
-                                className="hidden"
-                                onChange={(e) => handleUploadRepoKitPhoto(doc.key, e)}
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
+                            >
+                              {isUploading ? (
+                                <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                              ) : isUploaded ? (
+                                <span className="text-emerald-700 font-bold">✓ {doc.label}</span>
+                              ) : (
+                                <>
+                                  <Camera className="w-4 h-4 mb-1 text-slate-400" />
+                                  <span>{doc.label}</span>
+                                </>
+                              )}
+                            </button>
+                            <input
+                              id={`repokit-upload-${doc.key}`}
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => handleUploadRepoKitPhoto(doc.key, e)}
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
 
                     <button
                       type="submit"
                       disabled={Object.values(repoKitPhotos).some((url) => !url)}
-                      className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 text-slate-950 disabled:text-slate-500 font-black py-2.5 rounded-xl text-[10px] shadow-md transition-all uppercase tracking-widest flex items-center justify-center space-x-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 text-white disabled:text-slate-400 font-black py-2.5 rounded-xl text-xs uppercase tracking-wider cursor-pointer"
                     >
-                      <span>Activate Pakka Billing</span>
+                      Activate Pakka Billing
                     </button>
                   </form>
                 </div>
               )}
             </div>
+          )}
+        </div>
 
-            {/* Workflow & Release Controls console */}
-            <div className="lg:col-span-2 bg-white border border-slate-200/80 p-6 rounded-3xl shadow-sm space-y-6 flex flex-col justify-between">
+      </div>
+
+      {/* OPERATIONAL STICKY BOTTOM ACTION BAR */}
+      <div className="fixed bottom-0 right-0 left-0 md:left-64 bg-white border-t border-slate-200 px-4 py-3 shadow-xl z-40 flex items-center justify-between gap-2">
+        <div className="flex items-center space-x-1.5">
+          <button
+            onClick={() => {
+              setExpandedSections(prev => ({ ...prev, photos: true }));
+              setActiveLightboxPhoto(vehicleDetails.photos?.[0]?.s3Url || null);
+            }}
+            className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center space-x-1 border border-slate-200 cursor-pointer"
+          >
+            <Camera className="w-4 h-4 text-indigo-600" />
+            <span className="hidden sm:inline">Photos</span>
+            <span className="text-[10px] text-slate-400 font-mono">({vehicleDetails.photos?.length || 0})</span>
+          </button>
+
+          <button
+            onClick={() => setCalcVisible(true)}
+            className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center space-x-1 border border-slate-200 cursor-pointer"
+          >
+            <Calculator className="w-4 h-4 text-emerald-600" />
+            <span className="hidden sm:inline">Estimator</span>
+          </button>
+
+          <button
+            onClick={handlePrintTicket}
+            className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center space-x-1 border border-slate-200 cursor-pointer"
+          >
+            <Printer className="w-4 h-4 text-slate-600" />
+            <span className="hidden sm:inline">PDF</span>
+          </button>
+        </div>
+
+        {/* Primary Workflow CTA */}
+        <button
+          onClick={() => {
+            if (vehicleDetails.yardStatus === 'KACHHA') {
+              setExpandedSections(prev => ({ ...prev, billing: true }));
+            } else {
+              setIsReleaseModalOpen(true);
+            }
+          }}
+          className="flex-1 max-w-xs bg-indigo-600 hover:bg-indigo-700 text-white font-black py-2.5 px-4 rounded-xl text-xs uppercase tracking-wider shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+        >
+          <span>
+            {vehicleDetails.yardStatus === 'KACHHA' ? 'Verify Repo Kit →' : 'Check Out / Release →'}
+          </span>
+        </button>
+      </div>
+
+      {/* FEE ESTIMATOR CALCULATOR POPUP MODAL */}
+      {calcVisible && (
+        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl p-6 w-full max-w-md space-y-4 text-left">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
-                <div className="flex items-center space-x-2 border-b border-slate-100 pb-3">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                  <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
-                    Check-out Operations & Release Actions
-                  </h4>
-                </div>
-
-                <p className="text-[11px] text-slate-400 font-medium leading-relaxed mt-2.5">
-                  Follow yard exit validation steps strictly. Digital confirmations automatically release parking slot allocations in database instantly.
-                </p>
-
-                {/* Stepper dynamic message */}
-                <div className="mt-4 space-y-4">
-                  {/* Unified Release Desk Trigger - for active vehicles */}
-                  {(vehicleDetails.yardStatus === 'KACHHA' || vehicleDetails.yardStatus === 'PAKKA') && !vehicleDetails.release?.releaseStatus && (
-                    <div className="bg-gradient-to-r from-amber-500/5 to-slate-50 border border-amber-200 p-5 rounded-2xl space-y-3">
-                      <div className="flex items-center space-x-2">
-                        <ShieldCheck className="w-4 h-4 text-amber-600" />
-                        <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Quick Exit Checkout</span>
-                      </div>
-                      <p className="text-[10px] text-slate-500 font-semibold leading-relaxed">
-                        Open the Unified Vehicle Release Desk to settle parking tariffs, upload compliance proofs, and instantly generate a gate-out clearance for this vehicle.
-                      </p>
-                      <button
-                        onClick={() => setIsReleaseModalOpen(true)}
-                        className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-3 rounded-xl shadow-lg shadow-amber-500/10 text-xs uppercase tracking-widest transition-all active:scale-98 flex items-center justify-center space-x-2 cursor-pointer"
-                      >
-                        <ShieldCheck className="w-4 h-4" />
-                        <span>Open Unified Release Desk</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {/* In-progress release stages info display */}
-                  {vehicleDetails.release?.releaseStatus && vehicleDetails.release?.releaseStatus !== 'RELEASED' && (
-                    <div className="bg-gradient-to-r from-emerald-500/5 to-slate-50 border border-emerald-200 p-5 rounded-2xl space-y-3">
-                      <div className="flex items-center space-x-2">
-                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                        <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
-                          Release In Progress — {vehicleDetails.release?.releaseStatus}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-slate-500 font-semibold leading-relaxed">
-                        This vehicle has an active release process. Current stage: <strong>{vehicleDetails.release?.releaseStatus}</strong>. 
-                        Use the Unified Release Desk to complete the checkout.
-                      </p>
-                      <button
-                        onClick={() => setIsReleaseModalOpen(true)}
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 rounded-xl shadow-md text-xs uppercase tracking-widest transition-all active:scale-98 flex items-center justify-center space-x-2 cursor-pointer"
-                      >
-                        <ShieldCheck className="w-4 h-4" />
-                        <span>Continue Release Process</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Historical released copy (Released state) */}
-                  {vehicleDetails.release?.releaseStatus === 'RELEASED' && (
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-xs font-semibold text-slate-650 bg-emerald-50/20 border border-emerald-250 p-4 rounded-xl gap-3">
-                      <div className="flex items-center space-x-2">
-                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                        <span>Stage: **Released** (Cleared Yard Exit & Delivery Handover Completed successfully)</span>
-                      </div>
-                      <button
-                        onClick={handlePrintTicket}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2.5 rounded-xl shadow-md transition-all text-xs flex items-center space-x-1.5 uppercase tracking-wider shrink-0"
-                      >
-                        <Printer className="w-4 h-4" />
-                        <span>Print Ticket Copy</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <h3 className="text-base font-bold text-slate-900">Parking Fee Estimator</h3>
+                <p className="text-xs text-slate-500 font-medium">Daily Rate: {"\u20B9"}{billingInfo?.dailyRate || 150}/Day</p>
               </div>
-
-              {/* Eco warning about physical print */}
-              <div className="border-t border-slate-100 pt-3 flex items-center space-x-2 text-[10px] text-emerald-650 font-bold font-mono">
-                <Leaf className="w-4 h-4" />
-                <span>Legacy paper printing is enabled for audit, but digital share should be preferred. 🌿</span>
-              </div>
+              <button onClick={() => setCalcVisible(false)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-          </div>
-        )}
 
-        {activeTab === 'media' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in text-left">
-            {/* Gallery Photo upload Panel */}
-            <div className="bg-white border border-slate-200/80 p-6 rounded-3xl shadow-sm space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
-                <div className="flex items-center space-x-2">
-                  <Camera className="w-4 h-4 text-emerald-600" />
-                  <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
-                    In-Yard Inspections Gallery ({vehicleDetails.photos?.length || 0})
-                  </h4>
-                </div>
-                
-                {/* Dynamic photo uploads */}
-                {(user?.role === 'TENANT_ADMIN' || user?.role === 'MANAGER' || user?.role === 'SUPER_ADMIN') && (() => {
-                  const uploadedAngles = vehicleDetails.photos?.map((p: any) => p.photoType.toLowerCase()) || [];
-                  const missingAngles = ['front', 'back', 'left', 'right', 'dashboard', 'engine', 'chassis'].filter(angle => !uploadedAngles.includes(angle));
-                  
-                  return missingAngles.length > 0 ? (
-                    <div className="flex items-center space-x-2">
-                      <select
-                        value={selectedUploadAngle}
-                        onChange={(e) => setSelectedUploadAngle(e.target.value)}
-                        className="text-[9px] font-bold text-slate-655 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none"
-                      >
-                        <option value="">Select Angle</option>
-                        {missingAngles.map(angle => (
-                          <option key={angle} value={angle}>{angle.toUpperCase()} View</option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        disabled={!selectedUploadAngle || uploadingGalleryPhoto}
-                        onClick={() => document.getElementById('gallery-photo-capture-drawer')?.click()}
-                        className="bg-emerald-650 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[9px] uppercase tracking-wider transition-all flex items-center space-x-1 disabled:opacity-40"
-                      >
-                        {uploadingGalleryPhoto ? (
-                          <>
-                            <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
-                            <span>Uploading...</span>
-                          </>
-                        ) : (
-                          <span>📷 Capture</span>
-                        )}
-                      </button>
-                      <input
-                        id="gallery-photo-capture-drawer"
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={handleCaptureGalleryPhoto}
-                      />
-                    </div>
-                  ) : null;
-                })()}
-              </div>
+            <div className="space-y-3">
+              <label className="text-xs font-bold text-slate-700 uppercase block">Enter Number of Days</label>
+              <input
+                type="number"
+                value={calcDays}
+                onChange={(e) => {
+                  setCalcDays(e.target.value);
+                  setCalcResult(null);
+                }}
+                className="w-full bg-slate-50 text-slate-900 font-mono font-bold text-sm px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:border-indigo-600"
+                placeholder="30"
+              />
 
-              {vehicleDetails.photos && vehicleDetails.photos.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {vehicleDetails.photos.map((photo: any) => {
-                    const isBlob = photo.s3Url?.startsWith('blob:');
-                    return (
-                      <div 
-                        key={photo.id} 
-                        onClick={() => !isBlob && setActiveLightboxPhoto(photo.s3Url)}
-                        className={`group relative aspect-video rounded-xl overflow-hidden border border-slate-200 bg-slate-50 shadow-sm transition-all ${
-                          isBlob ? 'cursor-not-allowed' : 'cursor-pointer hover:shadow hover:border-slate-350'
-                        }`}
-                      >
-                        {/* Hover photo delete */}
-                        {(user?.role === 'TENANT_ADMIN' || user?.role === 'MANAGER' || user?.role === 'SUPER_ADMIN') && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeletePhoto(photo.id);
-                            }}
-                            className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 hover:bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition-all duration-200 shadow z-20"
-                            title="Delete Inspection Photo"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+              <button
+                onClick={() => {
+                  const days = parseInt(calcDays);
+                  if (isNaN(days) || days <= 0) return;
+                  const rate = billingInfo?.dailyRate || 150;
+                  setCalcResult(days * rate);
+                }}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-2.5 rounded-xl text-xs uppercase tracking-wider cursor-pointer"
+              >
+                Calculate Fees
+              </button>
 
-                        {isBlob ? (
-                          <div className="w-full h-full flex flex-col items-center justify-center p-2 text-slate-450 bg-slate-100 text-center select-none space-y-1">
-                            <AlertTriangle className="w-4 h-4 text-amber-500 animate-bounce" />
-                            <span className="text-[8px] font-bold text-slate-700 uppercase">Upload Offline</span>
-                            <span className="text-[6px] text-slate-400 leading-tight">Image failed cloud sync due to network at entry time.</span>
-                          </div>
-                        ) : (
-                          <img
-                            src={photo.s3Url}
-                            alt={photo.photoType}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                          />
-                        )}
-                        <div className="absolute inset-x-0 bottom-0 bg-black/60 p-1 text-[8px] font-mono font-bold text-white text-center uppercase tracking-wider group-hover:bg-emerald-950/80 transition-colors">
-                          {photo.photoType} View
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="py-12 text-center text-slate-400 font-semibold italic text-xs border border-dashed border-slate-200 rounded-2xl bg-slate-50/20">
-                  No inspection photos uploaded during gate entry check-in.
+              {calcResult !== null && (
+                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl text-center space-y-1">
+                  <span className="text-[10px] font-extrabold text-emerald-800 uppercase block">Estimated Parking Fee</span>
+                  <span className="text-2xl font-black text-emerald-700 font-mono">{"\u20B9"}{calcResult.toLocaleString('en-IN')}</span>
+                  <span className="text-[10px] text-emerald-600 font-semibold block">For {calcDays} Days at {"\u20B9"}{billingInfo?.dailyRate || 150}/day</span>
                 </div>
               )}
             </div>
 
-            {/* Inventory Checklist Table Panel */}
-            <div className="bg-white border border-slate-200/80 p-6 rounded-3xl shadow-sm space-y-4">
-              <div className="flex items-center space-x-2 border-b border-slate-100 pb-3">
-                <FileCheck className="w-4 h-4 text-emerald-600" />
-                <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
-                  Official Checklist & Quality Condition
-                </h4>
-              </div>
-              
-              {(() => {
-                const filtered = vehicleDetails.inventory?.filter(
-                  (i: any) => !['agreement no', 'mileage', 'place', 'time of possession'].includes(i.itemName.toLowerCase())
-                ) || [];
-                
-                return filtered.length > 0 ? (
-                  <div className="border border-slate-150 rounded-2xl overflow-hidden max-h-[300px] overflow-y-auto shadow-inner bg-slate-50/10">
-                    <table className="w-full text-left text-[10px] text-slate-600 font-semibold">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-150 text-slate-400 uppercase font-bold tracking-wider text-[8px] sticky top-0">
-                          <th className="p-3 font-semibold">Verification Item</th>
-                          <th className="p-3 font-semibold">Condition Status</th>
-                          <th className="p-3 font-semibold">Remarks / Detailed Damage</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 bg-white">
-                        {filtered.map((item: any) => (
-                          <tr key={item.id} className="hover:bg-slate-55/30 transition-colors">
-                            <td className="p-3 font-bold text-slate-750">{item.itemName}</td>
-                            <td className="p-3">
-                              <span className={`px-2 py-0.5 rounded font-extrabold text-[8px] uppercase tracking-wider ${
-                                item.isPresent 
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
-                                  : 'bg-rose-50 text-rose-700 border border-rose-100'
-                              }`}>
-                                {item.isPresent ? 'Present' : 'Missing / Damage'}
-                              </span>
-                            </td>
-                            <td className="p-3 font-mono text-[9px] text-slate-500 uppercase">
-                              {item.remarks || <span className="text-slate-350 italic font-sans lowercase">No notes</span>}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="py-12 text-center text-slate-400 font-semibold italic text-xs border border-dashed border-slate-200 rounded-2xl bg-slate-50/20">
-                    No quality inventory checklist parameters available.
-                  </div>
-                );
-              })()}
-            </div>
+            <button
+              onClick={() => setCalcVisible(false)}
+              className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-xs uppercase cursor-pointer"
+            >
+              Done
+            </button>
           </div>
-        )}
-
-      </div>
+        </div>
+      )}
 
       {/* High Resolution Lightbox Modal Preview Overlay */}
       {activeLightboxPhoto && (
-        <div 
+        <div
           className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out animate-fade-in"
           onClick={() => setActiveLightboxPhoto(null)}
         >
           <div className="relative max-w-5xl max-h-[90vh] overflow-hidden rounded-3xl border border-white/10 shadow-2xl">
-            <img 
-              src={activeLightboxPhoto} 
-              alt="Inspection details high resolution zoom" 
+            <img
+              src={activeLightboxPhoto}
+              alt="Inspection details high resolution zoom"
               className="w-full h-full object-contain max-h-[85vh]"
             />
-            <button 
+            <button
               className="absolute top-4 right-4 p-2.5 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors border border-white/10"
               onClick={() => setActiveLightboxPhoto(null)}
             >
@@ -1388,7 +1286,7 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
       {isEditModalOpen && (
         <div className="fixed inset-0 z-[110] bg-black/55 backdrop-blur-sm flex items-center justify-center p-4 select-none animate-fade-in">
           <div className="bg-white rounded-3xl border border-slate-250 shadow-2xl w-full max-w-2xl overflow-hidden animate-scale-in flex flex-col max-h-[90vh]">
-            
+
             {/* Modal Header */}
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
               <div className="text-left">
@@ -1405,7 +1303,7 @@ export const VehicleDetailsDrawer: React.FC<VehicleDetailsDrawerProps> = ({
 
             {/* Modal Scrollable Body */}
             <form onSubmit={handleSaveEdit} className="p-6 space-y-4 overflow-y-auto flex-1 text-left">
-              
+
               {/* Section 1: Customer Ownership */}
               <div className="space-y-3">
                 <h4 className="text-[9px] font-extrabold text-emerald-600 uppercase tracking-widest border-b border-emerald-100 pb-1">1. Borrower Ownership Details</h4>

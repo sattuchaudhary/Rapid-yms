@@ -359,7 +359,7 @@ export const UnifiedReleaseModal: React.FC<UnifiedReleaseModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md select-none font-sans animate-fade-in">
+    <div className="fixed inset-y-0 right-0 left-0 md:left-64 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md select-none font-sans animate-fade-in">
       <div
         className="bg-slate-950 text-white rounded-3xl border border-slate-800 shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-scale-in"
         onClick={e => e.stopPropagation()}
@@ -395,7 +395,7 @@ export const UnifiedReleaseModal: React.FC<UnifiedReleaseModalProps> = ({
                 <KeyRound className="w-8 h-8" />
               </div>
               <div className="text-center space-y-1.5">
-                <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider">
+                <h4 className="text-sm font-extrabold text-white uppercase tracking-wider">
                   Search Parking Yard Inventory
                 </h4>
                 <p className="text-xs text-slate-400 font-semibold leading-relaxed">

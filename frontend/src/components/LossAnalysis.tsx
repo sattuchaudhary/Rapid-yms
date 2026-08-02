@@ -371,13 +371,13 @@ export const LossAnalysis: React.FC = () => {
       </div>
 
       {/* Modern High-End Tab Switcher */}
-      <div className="flex bg-white/80 p-1.5 rounded-2xl border border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.01)] max-w-2xl select-none select-none">
+      <div className="flex bg-slate-900/80 p-1.5 rounded-2xl border border-slate-800 shadow-xl max-w-2xl select-none">
         <button
           onClick={() => setActiveTab('pl')}
           className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             activeTab === 'pl'
-              ? 'bg-slate-900 text-white shadow-md font-black scale-[1.02]'
-              : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100/50'
+              ? 'bg-indigo-600 text-white shadow-md font-black scale-[1.02]'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
           }`}
         >
           <Coins className="w-3.5 h-3.5" />
@@ -387,14 +387,14 @@ export const LossAnalysis: React.FC = () => {
           onClick={() => setActiveTab('reconcile')}
           className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer relative ${
             activeTab === 'reconcile'
-              ? 'bg-slate-900 text-white shadow-md font-black scale-[1.02]'
-              : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100/50'
+              ? 'bg-indigo-600 text-white shadow-md font-black scale-[1.02]'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
           }`}
         >
           <Receipt className="w-3.5 h-3.5" />
           <span>Payout Reconciliation</span>
           {pendingSettlements.length > 0 && activeTab !== 'reconcile' && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center border border-white animate-pulse">
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center border border-slate-900 animate-pulse">
               {pendingSettlements.length}
             </span>
           )}
@@ -403,8 +403,8 @@ export const LossAnalysis: React.FC = () => {
           onClick={() => setActiveTab('kaccha')}
           className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             activeTab === 'kaccha'
-              ? 'bg-slate-900 text-white shadow-md font-black scale-[1.02]'
-              : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100/50'
+              ? 'bg-indigo-600 text-white shadow-md font-black scale-[1.02]'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
           }`}
         >
           <TrendingDown className="w-3.5 h-3.5" />

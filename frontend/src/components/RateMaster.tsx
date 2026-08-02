@@ -23,6 +23,10 @@ interface Bank {
   id: string;
   name: string;
   isThirdParty: boolean;
+  bankCategory?: 'DIRECT_BANK' | 'THIRD_PARTY_BANK' | 'SHIFT_BANK';
+  isShiftBank?: boolean;
+  parkingWaiverDays?: number;
+  parkingPayer?: 'CUSTOMER' | 'BANK';
   parentId: string | null;
   parent?: {
     id: string;
@@ -60,7 +64,9 @@ export const RateMaster: React.FC = () => {
   // --- NEW WORKFLOW STATES: POPUP CREATION MODAL ---
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createStep, setCreateStep] = useState<1 | 2>(1);
-  const [partnerType, setPartnerType] = useState<'direct' | 'third_party' | null>(null);
+  const [partnerType, setPartnerType] = useState<'direct' | 'third_party' | 'shift' | null>(null);
+  const [waiverDays, setWaiverDays] = useState<number | ''>(2);
+  const [parkingPayer, setParkingPayer] = useState<'CUSTOMER' | 'BANK'>('CUSTOMER');
 
   // Direct Bank Form States (Prefilled with empty strings)
   const [directName, setDirectName] = useState('');
@@ -160,6 +166,10 @@ export const RateMaster: React.FC = () => {
       const res = await api.post('/banks', {
         name: directName.trim(),
         isThirdParty: false,
+        bankCategory: partnerType === 'shift' ? 'SHIFT_BANK' : 'DIRECT_BANK',
+        isShiftBank: partnerType === 'shift',
+        parkingWaiverDays: Number(waiverDays || 0),
+        parkingPayer: parkingPayer,
         rates: {
           TW: Number(TW),
           THREE_W: Number(THREE_W),
@@ -451,40 +461,40 @@ export const RateMaster: React.FC = () => {
               <span className="text-xs font-extrabold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full">Active</span>
             </div>
           </div>
-          <div className="p-4 bg-indigo-50 group-hover:bg-indigo-100/80 rounded-2xl transition-colors duration-300 z-10">
-            <Building2 className="w-7 h-7 text-indigo-600" />
+          <div className="p-4 bg-indigo-500/10 group-hover:bg-indigo-500/20 rounded-2xl transition-colors duration-300 z-10">
+            <Building2 className="w-7 h-7 text-indigo-400" />
           </div>
-          <div className="absolute right-0 bottom-0 w-32 h-32 bg-indigo-100/30 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-500"></div>
+          <div className="absolute right-0 bottom-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-500"></div>
         </div>
 
         {/* Third Party Networks Card */}
-        <div className="relative overflow-hidden bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between group hover:shadow-md transition-all duration-300">
+        <div className="relative overflow-hidden bg-slate-900/60 backdrop-blur-md p-6 rounded-3xl border border-slate-800/80 shadow-xl flex items-center justify-between group hover:border-slate-700 transition-all duration-300">
           <div className="space-y-1.5 z-10">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Third-Party Channels</span>
             <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-extrabold text-slate-800 tracking-tight">{totalThirdPartyCount}</span>
-              <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Networks</span>
+              <span className="text-4xl font-black text-white tracking-tight font-display">{totalThirdPartyCount}</span>
+              <span className="text-xs font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">Networks</span>
             </div>
           </div>
-          <div className="p-4 bg-amber-50 group-hover:bg-amber-100/80 rounded-2xl transition-colors duration-300 z-10">
-            <Layers className="w-7 h-7 text-amber-600" />
+          <div className="p-4 bg-amber-500/10 group-hover:bg-amber-500/20 rounded-2xl transition-colors duration-300 z-10">
+            <Layers className="w-7 h-7 text-amber-400" />
           </div>
-          <div className="absolute right-0 bottom-0 w-32 h-32 bg-amber-100/30 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-500"></div>
+          <div className="absolute right-0 bottom-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-500"></div>
         </div>
 
         {/* Total Rates Configured Card */}
-        <div className="relative overflow-hidden bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between group hover:shadow-md transition-all duration-300">
+        <div className="relative overflow-hidden bg-slate-900/60 backdrop-blur-md p-6 rounded-3xl border border-slate-800/80 shadow-xl flex items-center justify-between group hover:border-slate-700 transition-all duration-300">
           <div className="space-y-1.5 z-10">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Sub-Banks Managed</span>
             <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-extrabold text-slate-800 tracking-tight">{totalSubBanksCount}</span>
-              <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Nested</span>
+              <span className="text-4xl font-black text-white tracking-tight font-display">{totalSubBanksCount}</span>
+              <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">Nested</span>
             </div>
           </div>
-          <div className="p-4 bg-emerald-50 group-hover:bg-emerald-100/80 rounded-2xl transition-colors duration-300 z-10">
-            <Coins className="w-7 h-7 text-emerald-600" />
+          <div className="p-4 bg-emerald-500/10 group-hover:bg-emerald-500/20 rounded-2xl transition-colors duration-300 z-10">
+            <Coins className="w-7 h-7 text-emerald-400" />
           </div>
-          <div className="absolute right-0 bottom-0 w-32 h-32 bg-emerald-100/30 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-500"></div>
+          <div className="absolute right-0 bottom-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-500"></div>
         </div>
       </div>
 
@@ -492,21 +502,21 @@ export const RateMaster: React.FC = () => {
       <div className="space-y-6 select-none">
         
         {loading ? (
-          <div className="bg-white rounded-3xl border border-slate-200 p-16 text-center text-slate-400 font-bold shadow-sm select-none animate-pulse">
+          <div className="bg-slate-900 rounded-3xl border border-slate-800 p-16 text-center text-slate-400 font-bold shadow-sm select-none animate-pulse">
             Syncing live finance channels registry...
           </div>
         ) : banks.length === 0 ? (
-          <div className="bg-white rounded-3xl border border-slate-200 p-16 text-center text-slate-400 font-bold shadow-sm select-none">
+          <div className="bg-slate-900 rounded-3xl border border-slate-800 p-16 text-center text-slate-400 font-bold shadow-sm select-none">
             No financial networks registered. Click the **"Create Bank / Partner"** button above to get started.
           </div>
         ) : (
           <div className="space-y-6">
             {/* Desktop Table View */}
-            <div className="hidden md:block bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden animate-fade-in">
+            <div className="hidden md:block bg-slate-900/80 backdrop-blur-md rounded-3xl border border-slate-800 shadow-xl overflow-hidden animate-fade-in">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs select-none">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200/80 text-slate-450 font-extrabold uppercase tracking-widest text-[9px]">
+                    <tr className="bg-slate-950 border-b border-slate-800 text-slate-400 font-extrabold uppercase tracking-widest text-[9px]">
                       <th className="p-3.5 pl-6 w-[30%]">Bank Name / Partner</th>
                       <th className="p-3.5 w-[15%]">Type</th>
                       <th className="p-3.5 text-center w-[10%]">2W Rate</th>
@@ -516,46 +526,57 @@ export const RateMaster: React.FC = () => {
                       <th className="p-3.5 text-right pr-6 w-[15%]">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-650 font-semibold">
+                  <tbody className="divide-y divide-slate-800 text-slate-200 font-semibold">
                     
                     {/* DIRECT BANKS ROWS */}
                     {mainDirectBanks.map(directBank => (
-                      <tr key={directBank.id} className="hover:bg-slate-50/40 transition-colors duration-200 group">
-                        <td className="p-3.5 pl-6 font-extrabold text-slate-800 text-xs">
+                      <tr key={directBank.id} className="hover:bg-slate-800/50 transition-colors duration-200 group">
+                        <td className="p-3.5 pl-6 font-extrabold text-white text-xs">
                           <div className="flex items-center gap-2">
-                            <Building2 className="w-4 h-4 text-indigo-500" />
+                            <Building2 className="w-4 h-4 text-indigo-400" />
                             <span className="tracking-tight">{directBank.name}</span>
                           </div>
                         </td>
                         <td className="p-3.5">
-                          <span className="bg-indigo-50 text-indigo-600 font-extrabold uppercase tracking-widest text-[8px] px-2 py-0.5 rounded">
-                            Direct Bank
-                          </span>
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className={`font-extrabold uppercase tracking-widest text-[8px] px-2 py-0.5 rounded border ${
+                              directBank.bankCategory === 'SHIFT_BANK' || directBank.isShiftBank
+                                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                : 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30'
+                            }`}>
+                              {directBank.bankCategory === 'SHIFT_BANK' || directBank.isShiftBank ? 'Shift Bank' : 'Direct Bank'}
+                            </span>
+                            {directBank.parkingWaiverDays ? (
+                              <span className="bg-amber-500/15 text-amber-400 border border-amber-500/30 font-extrabold text-[8px] px-1.5 py-0.5 rounded">
+                                Waiver: {directBank.parkingWaiverDays}D
+                              </span>
+                            ) : null}
+                          </div>
                         </td>
-                        <td className="p-3.5 text-center font-extrabold text-indigo-650 text-xs">
+                        <td className="p-3.5 text-center font-extrabold text-indigo-400 font-mono text-xs">
                           {getRateValue(directBank.id, 'TW') !== null ? `\u20B9${getRateValue(directBank.id, 'TW')}` : '—'}
                         </td>
-                        <td className="p-3.5 text-center font-extrabold text-indigo-650 text-xs">
+                        <td className="p-3.5 text-center font-extrabold text-indigo-400 font-mono text-xs">
                           {getRateValue(directBank.id, 'THREE_W') !== null ? `\u20B9${getRateValue(directBank.id, 'THREE_W')}` : '—'}
                         </td>
-                        <td className="p-3.5 text-center font-extrabold text-indigo-650 text-xs">
+                        <td className="p-3.5 text-center font-extrabold text-indigo-400 font-mono text-xs">
                           {getRateValue(directBank.id, 'FW') !== null ? `\u20B9${getRateValue(directBank.id, 'FW')}` : '—'}
                         </td>
-                        <td className="p-3.5 text-center font-extrabold text-indigo-650 text-xs">
+                        <td className="p-3.5 text-center font-extrabold text-indigo-400 font-mono text-xs">
                           {getRateValue(directBank.id, 'CV') !== null ? `\u20B9${getRateValue(directBank.id, 'CV')}` : '—'}
                         </td>
                         <td className="p-3.5 text-right pr-6">
                           <div className="flex items-center justify-end gap-1">
                             <button
                               onClick={() => handleOpenEditModal(directBank)}
-                              className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-indigo-600 transition-colors"
+                              className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-400 transition-colors cursor-pointer"
                               title="Configure Rates"
                             >
                               <Settings2 className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleDeleteBank(directBank.id, directBank.name)}
-                              className="p-1 hover:bg-rose-50 rounded text-slate-500 hover:text-rose-600 transition-colors"
+                              className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-rose-400 transition-colors cursor-pointer"
                               title="Delete Bank"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -575,23 +596,23 @@ export const RateMaster: React.FC = () => {
                           {/* Parent Row */}
                           <tr
                             onClick={() => toggleExpand(thirdParty.id)}
-                            className="hover:bg-slate-50/40 transition-colors duration-200 cursor-pointer bg-slate-50/20"
+                            className="hover:bg-slate-800/60 transition-colors duration-200 cursor-pointer bg-slate-950/40"
                           >
-                            <td className="p-3.5 pl-6 font-extrabold text-slate-800 text-xs">
+                            <td className="p-3.5 pl-6 font-extrabold text-white text-xs">
                               <div className="flex items-center gap-2">
-                                <div className="text-slate-400 group-hover:text-slate-600 transition-colors shrink-0">
+                                <div className="text-slate-400 group-hover:text-white transition-colors shrink-0">
                                   {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                                 </div>
-                                <Layers className="w-4 h-4 text-amber-500 shrink-0" />
+                                <Layers className="w-4 h-4 text-amber-400 shrink-0" />
                                 <span className="tracking-tight">{thirdParty.name}</span>
                               </div>
                             </td>
                             <td className="p-3.5">
-                              <span className="bg-amber-50 text-amber-600 font-extrabold uppercase tracking-widest text-[8px] px-2 py-0.5 rounded">
+                              <span className="bg-amber-500/15 text-amber-400 border border-amber-500/30 font-extrabold uppercase tracking-widest text-[8px] px-2 py-0.5 rounded">
                                 Third Party
                               </span>
                             </td>
-                            <td colSpan={4} className="p-3.5 text-slate-455 text-[10px] font-bold italic tracking-wide">
+                            <td colSpan={4} className="p-3.5 text-slate-400 text-[10px] font-bold italic tracking-wide">
                               {subs.length > 0 
                                 ? `${subs.length} active sub-banks registered under channel (click row to expand)` 
                                 : 'No sub-banks registered under this network'}
@@ -600,14 +621,14 @@ export const RateMaster: React.FC = () => {
                               <div className="flex items-center justify-end gap-1">
                                 <button
                                   onClick={() => handleOpenAddSubModal(thirdParty)}
-                                  className="p-1 hover:bg-slate-150 rounded text-slate-500 hover:text-amber-600 transition-colors"
+                                  className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-amber-400 transition-colors cursor-pointer"
                                   title="Add Sub-Bank to Network"
                                 >
                                   <Plus className="w-4 h-4" />
                                 </button>
                                 <button
                                   onClick={() => handleDeleteBank(thirdParty.id, thirdParty.name)}
-                                  className="p-1 hover:bg-rose-50 rounded text-slate-500 hover:text-rose-600 transition-colors"
+                                  className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-rose-400 transition-colors cursor-pointer"
                                   title="Delete Network"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -618,39 +639,39 @@ export const RateMaster: React.FC = () => {
 
                           {/* Nested Sub Banks Rows */}
                           {isExpanded && subs.map(subBank => (
-                            <tr key={subBank.id} className="bg-slate-50/5 border-l-4 border-amber-400 hover:bg-slate-50/25 transition-colors duration-150">
-                              <td className="p-3 pl-12 font-bold text-slate-700 text-xs tracking-tight">
+                            <tr key={subBank.id} className="bg-slate-950/60 border-l-4 border-amber-400 hover:bg-slate-800/40 transition-colors duration-150">
+                              <td className="p-3 pl-12 font-bold text-slate-300 text-xs tracking-tight">
                                 <span>{subBank.name}</span>
                               </td>
                               <td className="p-3">
-                                <span className="bg-emerald-50 text-emerald-600 font-extrabold uppercase tracking-widest text-[7px] px-1.5 py-0.5 rounded">
+                                <span className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-extrabold uppercase tracking-widest text-[7px] px-1.5 py-0.5 rounded">
                                   Sub-bank
                                 </span>
                               </td>
-                              <td className="p-3 text-center font-bold text-emerald-600 text-xs">
+                              <td className="p-3 text-center font-bold text-emerald-400 font-mono text-xs">
                                 {getRateValue(subBank.id, 'TW') !== null ? `\u20B9${getRateValue(subBank.id, 'TW')}` : '—'}
                               </td>
-                              <td className="p-3 text-center font-bold text-emerald-600 text-xs">
+                              <td className="p-3 text-center font-bold text-emerald-400 font-mono text-xs">
                                 {getRateValue(subBank.id, 'THREE_W') !== null ? `\u20B9${getRateValue(subBank.id, 'THREE_W')}` : '—'}
                               </td>
-                              <td className="p-3 text-center font-bold text-emerald-600 text-xs">
+                              <td className="p-3 text-center font-bold text-emerald-400 font-mono text-xs">
                                 {getRateValue(subBank.id, 'FW') !== null ? `\u20B9${getRateValue(subBank.id, 'FW')}` : '—'}
                               </td>
-                              <td className="p-3 text-center font-bold text-emerald-600 text-xs">
+                              <td className="p-3 text-center font-bold text-emerald-400 font-mono text-xs">
                                 {getRateValue(subBank.id, 'CV') !== null ? `\u20B9${getRateValue(subBank.id, 'CV')}` : '—'}
                               </td>
                               <td className="p-3 text-right pr-6">
                                 <div className="flex items-center justify-end gap-1">
                                   <button
                                     onClick={() => handleOpenEditModal(subBank)}
-                                    className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-emerald-600 transition-colors"
+                                    className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-emerald-400 transition-colors cursor-pointer"
                                     title="Configure Rates"
                                   >
                                     <Settings2 className="w-4 h-4" />
                                   </button>
                                   <button
                                     onClick={() => handleDeleteBank(subBank.id, subBank.name)}
-                                    className="p-1 hover:bg-rose-50 rounded text-slate-500 hover:text-rose-600 transition-colors"
+                                    className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-rose-400 transition-colors cursor-pointer"
                                     title="Delete Sub Bank"
                                   >
                                     <Trash2 className="w-4 h-4" />
@@ -750,7 +771,6 @@ export const RateMaster: React.FC = () => {
                   <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block pl-1">
                     Third-Party Partners / Networks
                   </span>
-
                   {thirdPartyPartners.map(thirdParty => {
                     const subs = getSubBanks(thirdParty.id);
                     const isExpanded = expandedBanks[thirdParty.id];
@@ -904,7 +924,7 @@ export const RateMaster: React.FC = () => {
                   <p className="text-sm text-slate-400 font-semibold">Select the type of financing channel you are establishing.</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
                   {/* Option A: Direct Bank */}
                   <button
                     type="button"
@@ -912,18 +932,18 @@ export const RateMaster: React.FC = () => {
                       setPartnerType('direct');
                       setCreateStep(2);
                     }}
-                    className="p-6 rounded-3xl border-2 border-slate-150 hover:border-indigo-600 bg-white text-left transition-all duration-300 group hover:shadow-xl hover:shadow-indigo-600/5 space-y-4"
+                    className="p-5 rounded-3xl border-2 border-slate-700 hover:border-indigo-500 bg-slate-900 text-left transition-all duration-300 group hover:shadow-xl hover:shadow-indigo-500/10 space-y-3"
                   >
-                    <div className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl w-fit group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
-                      <Building2 className="w-8 h-8" />
+                    <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-2xl w-fit group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
+                      <Building2 className="w-6 h-6" />
                     </div>
                     <div className="space-y-1">
-                      <h4 className="font-extrabold text-slate-800 text-lg flex items-center gap-1.5">
+                      <h4 className="font-extrabold text-white text-base flex items-center gap-1.5">
                         <span>Direct Bank</span>
-                        <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity translate-x-0 group-hover:translate-x-1 duration-300" />
+                        <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity translate-x-0 group-hover:translate-x-1 duration-300 text-indigo-400" />
                       </h4>
-                      <p className="text-xs text-slate-455 font-medium leading-relaxed">
-                        Create a single bank system (e.g. State Bank of India) with dedicated daily rates defined directly.
+                      <p className="text-[11px] text-slate-400 font-medium leading-relaxed">
+                        Single paneled bank (e.g. SBI, HDFC) with custom vehicle rates.
                       </p>
                     </div>
                   </button>
@@ -935,18 +955,41 @@ export const RateMaster: React.FC = () => {
                       setPartnerType('third_party');
                       setCreateStep(2);
                     }}
-                    className="p-6 rounded-3xl border-2 border-slate-150 hover:border-amber-600 bg-white text-left transition-all duration-300 group hover:shadow-xl hover:shadow-amber-600/5 space-y-4"
+                    className="p-5 rounded-3xl border-2 border-slate-700 hover:border-amber-500 bg-slate-900 text-left transition-all duration-300 group hover:shadow-xl hover:shadow-amber-500/10 space-y-3"
                   >
-                    <div className="p-4 bg-amber-50 text-amber-600 rounded-2xl w-fit group-hover:bg-amber-600 group-hover:text-white transition-all duration-300">
-                      <Layers className="w-8 h-8" />
+                    <div className="p-3 bg-amber-500/10 text-amber-400 rounded-2xl w-fit group-hover:bg-amber-600 group-hover:text-white transition-all duration-300">
+                      <Layers className="w-6 h-6" />
                     </div>
                     <div className="space-y-1">
-                      <h4 className="font-extrabold text-slate-800 text-lg flex items-center gap-1.5">
+                      <h4 className="font-extrabold text-white text-base flex items-center gap-1.5">
                         <span>Third-Party Network</span>
-                        <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity translate-x-0 group-hover:translate-x-1 duration-300" />
+                        <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity translate-x-0 group-hover:translate-x-1 duration-300 text-amber-400" />
                       </h4>
-                      <p className="text-xs text-slate-455 font-medium leading-relaxed">
-                        Create a central grouping channel (e.g. Samil Repo) that manages multiple sub-banks with custom pricing scales.
+                      <p className="text-[11px] text-slate-400 font-medium leading-relaxed">
+                        Sourcing agency network (e.g. Samil Repo) managing sub-banks.
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Option C: Shift Bank / Non-Paneled */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPartnerType('shift');
+                      setCreateStep(2);
+                    }}
+                    className="p-5 rounded-3xl border-2 border-slate-700 hover:border-emerald-500 bg-slate-900 text-left transition-all duration-300 group hover:shadow-xl hover:shadow-emerald-500/10 space-y-3"
+                  >
+                    <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-2xl w-fit group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
+                      <Coins className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="font-extrabold text-white text-base flex items-center gap-1.5">
+                        <span>Shift / Non-Paneled</span>
+                        <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity translate-x-0 group-hover:translate-x-1 duration-300 text-emerald-400" />
+                      </h4>
+                      <p className="text-[11px] text-slate-400 font-medium leading-relaxed">
+                        Non-paneled transfer bank with grace period & waiver rules.
                       </p>
                     </div>
                   </button>
@@ -981,8 +1024,34 @@ export const RateMaster: React.FC = () => {
                       value={directName}
                       onChange={(e) => setDirectName(e.target.value)}
                       placeholder="e.g. State Bank of India"
-                      className="w-full text-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-600 transition-colors shadow-sm"
+                      className="w-full text-white bg-slate-900 px-4 py-2.5 rounded-xl border border-slate-800 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors shadow-sm"
                     />
+                  </div>
+
+                  {/* Grace Period & Fee Payer controls */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Grace Period (Waiver Days)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={waiverDays}
+                        onChange={(e) => setWaiverDays(e.target.value === '' ? '' : Number(e.target.value))}
+                        placeholder="e.g. 2"
+                        className="w-full text-white bg-slate-900 px-4 py-2 rounded-xl border border-slate-800 text-xs font-semibold focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Parking Fee Payer</label>
+                      <select
+                        value={parkingPayer}
+                        onChange={(e) => setParkingPayer(e.target.value as 'CUSTOMER' | 'BANK')}
+                        className="w-full text-white bg-slate-900 px-4 py-2 rounded-xl border border-slate-800 text-xs font-semibold focus:outline-none focus:border-indigo-500 cursor-pointer"
+                      >
+                        <option value="CUSTOMER">CUSTOMER (Customer Pays)</option>
+                        <option value="BANK">BANK (Direct Financer Bill)</option>
+                      </select>
+                    </div>
                   </div>
 
                   {/* Pricing Fields Grid (Prefilled with empty string/null) */}
@@ -1382,64 +1451,64 @@ export const RateMaster: React.FC = () => {
               <div className="space-y-4">
                 {/* TW */}
                 <div className="flex items-center justify-between gap-4">
-                  <label className="text-xs font-bold text-slate-600">{getVehicleTypeName('TW')}</label>
+                  <label className="text-xs font-bold text-slate-600">2W – Two Wheeler</label>
                   <div className="relative w-32 shrink-0">
-                    <span className="absolute left-3.5 top-2 text-slate-455 text-xs font-bold">{"\u20B9"}</span>
+                    <span className="absolute left-3.5 top-2 text-slate-400 text-xs font-bold">{"\u20B9"}</span>
                     <input
                       type="number"
                       min="0"
                       required
                       value={editingRates.TW}
                       onChange={(e) => setEditingRates({ ...editingRates, TW: e.target.value === '' ? '' : Number(e.target.value) })}
-                      className="w-full text-right text-slate-850 pl-6 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs font-extrabold focus:outline-none focus:border-indigo-600 bg-white"
+                      className="w-full text-right text-slate-800 pl-6 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs font-extrabold focus:outline-none focus:border-indigo-600 bg-white"
                     />
                   </div>
                 </div>
 
                 {/* THREE_W */}
                 <div className="flex items-center justify-between gap-4">
-                  <label className="text-xs font-bold text-slate-600">{getVehicleTypeName('THREE_W')}</label>
+                  <label className="text-xs font-bold text-slate-600">3W – Auto/Cargo</label>
                   <div className="relative w-32 shrink-0">
-                    <span className="absolute left-3.5 top-2 text-slate-455 text-xs font-bold">{"\u20B9"}</span>
+                    <span className="absolute left-3.5 top-2 text-slate-400 text-xs font-bold">{"\u20B9"}</span>
                     <input
                       type="number"
                       min="0"
                       required
                       value={editingRates.THREE_W}
                       onChange={(e) => setEditingRates({ ...editingRates, THREE_W: e.target.value === '' ? '' : Number(e.target.value) })}
-                      className="w-full text-right text-slate-850 pl-6 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs font-extrabold focus:outline-none focus:border-indigo-600 bg-white"
+                      className="w-full text-right text-slate-800 pl-6 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs font-extrabold focus:outline-none focus:border-indigo-600 bg-white"
                     />
                   </div>
                 </div>
 
                 {/* FW */}
                 <div className="flex items-center justify-between gap-4">
-                  <label className="text-xs font-bold text-slate-600">{getVehicleTypeName('FW')}</label>
+                  <label className="text-xs font-bold text-slate-600">4W – Sedan/SUV</label>
                   <div className="relative w-32 shrink-0">
-                    <span className="absolute left-3.5 top-2 text-slate-455 text-xs font-bold">{"\u20B9"}</span>
+                    <span className="absolute left-3.5 top-2 text-slate-400 text-xs font-bold">{"\u20B9"}</span>
                     <input
                       type="number"
                       min="0"
                       required
                       value={editingRates.FW}
                       onChange={(e) => setEditingRates({ ...editingRates, FW: e.target.value === '' ? '' : Number(e.target.value) })}
-                      className="w-full text-right text-slate-850 pl-6 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs font-extrabold focus:outline-none focus:border-indigo-600 bg-white"
+                      className="w-full text-right text-slate-800 pl-6 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs font-extrabold focus:outline-none focus:border-indigo-600 bg-white"
                     />
                   </div>
                 </div>
 
                 {/* CV */}
                 <div className="flex items-center justify-between gap-4">
-                  <label className="text-xs font-bold text-slate-600">{getVehicleTypeName('CV')}</label>
+                  <label className="text-xs font-bold text-slate-600">CV – Commercial</label>
                   <div className="relative w-32 shrink-0">
-                    <span className="absolute left-3.5 top-2 text-slate-455 text-xs font-bold">{"\u20B9"}</span>
+                    <span className="absolute left-3.5 top-2 text-slate-400 text-xs font-bold">{"\u20B9"}</span>
                     <input
                       type="number"
                       min="0"
                       required
                       value={editingRates.CV}
                       onChange={(e) => setEditingRates({ ...editingRates, CV: e.target.value === '' ? '' : Number(e.target.value) })}
-                      className="w-full text-right text-slate-850 pl-6 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs font-extrabold focus:outline-none focus:border-indigo-600 bg-white"
+                      className="w-full text-right text-slate-800 pl-6 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs font-extrabold focus:outline-none focus:border-indigo-600 bg-white"
                     />
                   </div>
                 </div>

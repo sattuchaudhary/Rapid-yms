@@ -11,9 +11,26 @@ import {
   CheckCircle2,
   MapPin,
   Warehouse,
+  Save,
+  FileText,
+  ChevronRight,
+  ChevronLeft,
+  Plus,
+  Trash2,
+  Building,
+  Clock,
+  Calendar,
+  User,
+  Phone,
+  Shield,
+  Activity,
+  Sparkles,
+  Car,
+  Info,
 } from 'lucide-react';
 import { compressImage } from '../utils/imageCompressor';
 import { useToastStore } from '../store/toastStore';
+
 
 
 interface InventoryItemConfig {
@@ -179,9 +196,44 @@ export const VehicleEntry: React.FC = () => {
   const [loadingSlots, setLoadingSlots] = useState(true);
   const [banks, setBanks] = useState<any[]>([]);
   const [loadingBanks, setLoadingBanks] = useState(true);
-  const [bankCategory, setBankCategory] = useState<'direct' | 'third_party' | ''>('');
+  const [bankCategory, setBankCategory] = useState<'direct' | 'shift' | 'third_party' | ''>('');
   const [selectedThirdPartyId, setSelectedThirdPartyId] = useState<string>('');
+  const [bodyCondition, setBodyCondition] = useState<'Good' | 'Average' | 'Bad'>('Bad');
+  const [yardRemarks, setYardRemarks] = useState('');
+  const [customerRemarks, setCustomerRemarks] = useState('');
+  const [repoAgentName, setRepoAgentName] = useState('');
+  const [repoAgencyName, setRepoAgencyName] = useState('');
   const toast = useToastStore();
+
+  const handleSaveDraft = () => {
+    if (!formData.vehicleNumber && !formData.bankName) {
+      toast.error('Please enter at least vehicle number or bank name to save draft');
+      return;
+    }
+    const draft = {
+      id: `draft_${Date.now()}`,
+      savedAt: new Date().toISOString(),
+      formData,
+      photos,
+      checklist,
+      bankCategory,
+      selectedThirdPartyId,
+      bodyCondition,
+      yardRemarks,
+      customerRemarks,
+      repoAgentName,
+      repoAgencyName,
+    };
+    try {
+      const existing = JSON.parse(localStorage.getItem('yms_offline_drafts') || '[]');
+      const updated = [draft, ...existing];
+      localStorage.setItem('yms_offline_drafts', JSON.stringify(updated));
+      toast.success('Vehicle entry saved to drafts!');
+    } catch (e) {
+      toast.error('Failed to save draft');
+    }
+  };
+
 
 
   // Form State
@@ -232,17 +284,24 @@ export const VehicleEntry: React.FC = () => {
   const [uploadingGatePhotos, setUploadingGatePhotos] = useState<Record<string, boolean>>({});
   const [gatePreviews, setGatePreviews] = useState<Record<string, string>>({});
 
-  // Checklist State dynamically generated from constants
-  const [checklist, setChecklist] = useState<any[]>(
-    [...LEFT_INVENTORY_ITEMS, ...RIGHT_INVENTORY_ITEMS].map(item => ({
-      itemName: item.name,
-      keyName: item.key,
-      isPresent: item.name === 'Battery' || item.name === 'Mirrors', // Some sensible defaults
-      remarks: '',
-      isCondition: item.isCondition,
-      isText: item.isText
-    }))
-  );
+  // Checklist State (Gurgaon Parking Yard Standard Checklist)
+  const [checklist, setChecklist] = useState<any[]>([
+    { itemName: 'RC-Original', isPresent: false, remarks: '' },
+    { itemName: 'key', isPresent: false, remarks: '' },
+    { itemName: 'Battery', isPresent: false, remarks: '' },
+    { itemName: 'Horn', isPresent: false, remarks: '' },
+    { itemName: 'Front Tyre', isPresent: false, make: '', remarks: '' },
+    { itemName: 'Back Tyre', isPresent: false, make: '', remarks: '' },
+    { itemName: 'Spare Tyre', isPresent: false, remarks: '' },
+    { itemName: 'Tool Kit', isPresent: false, remarks: '' },
+    { itemName: 'Side Mirror (Left)', isPresent: false, remarks: '' },
+    { itemName: 'Side Mirror (Right)', isPresent: false, remarks: '' },
+    { itemName: 'Light Front', isPresent: false, remarks: '' },
+    { itemName: 'Light Back', isPresent: false, remarks: '' },
+    { itemName: 'Light Indicator', isPresent: false, remarks: '' },
+    { itemName: 'Music System', isPresent: false, remarks: '' },
+    { itemName: 'Meter Running Condition', isPresent: false, remarks: '' },
+  ]);
 
   // Customer Signature state
   const [signatureName, setSignatureName] = useState('');
@@ -512,15 +571,23 @@ export const VehicleEntry: React.FC = () => {
     setSubmitting(true);
     try {
       const { agreementNo, mileage, placeOfPossession, timeOfPossession, ...coreFormData } = formData;
+      const combinedRepoAgency = (repoAgencyName || repoAgentName)
+        ? `Agency: ${repoAgencyName || formData.repoAgency} | Agent: ${repoAgentName || 'NA'} | Place: ${placeOfPossession}`
+        : formData.repoAgency;
+
       const extraInventoryItems = [
         { itemName: 'Agreement No', isPresent: !!agreementNo, remarks: agreementNo },
         { itemName: 'Mileage', isPresent: !!mileage, remarks: mileage },
         { itemName: 'Place', isPresent: !!placeOfPossession, remarks: placeOfPossession },
         { itemName: 'Time of Possession', isPresent: !!timeOfPossession, remarks: timeOfPossession },
+        { itemName: 'Body Condition', isPresent: true, remarks: bodyCondition },
+        { itemName: 'Yard Remarks', isPresent: !!yardRemarks, remarks: yardRemarks },
+        { itemName: 'Customer Remarks', isPresent: !!customerRemarks, remarks: customerRemarks },
       ];
 
       const payload = {
         ...coreFormData,
+        repoAgency: combinedRepoAgency,
         customerSign: signatureName ? `https://yms-signatures.s3.amazonaws.com/${signatureName.toLowerCase().replace(' ', '_')}.png` : undefined,
         inventory: [...checklist, ...extraInventoryItems],
       };
@@ -549,7 +616,7 @@ export const VehicleEntry: React.FC = () => {
         );
 
         setCreatedVehicle(vehicle);
-        setStep(5); // Proceed to success screen
+        setStep(4); // Proceed to Status screen (Step 4)
       }
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Failed to submit vehicle entry');
@@ -559,32 +626,35 @@ export const VehicleEntry: React.FC = () => {
   };
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-slate-950 space-y-6 md:space-y-8 flex-1 overflow-y-auto">
-      {/* Page Title */}
-      <div className="no-print">
-        <h2 className="text-2xl font-black text-white tracking-wide font-display">New Vehicle Gate Entry</h2>
-        <p className="text-xs text-slate-400 font-semibold mt-0.5">Record repo details, verify inventory checklist, and capture condition photos</p>
+    <div className="p-4 sm:p-6 md:p-8 pb-20 md:pb-28 bg-slate-100/70 min-h-screen space-y-6 flex-1 overflow-y-auto font-sans">
+      {/* Page Title Header */}
+      <div className="no-print max-w-4xl mx-auto flex items-center justify-between">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+            <span>{step === 4 ? 'Status Screen' : 'New Vehicle Entry'}</span>
+          </h2>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">Gurugram Yard Standard Vehicle In-Yard Gate Pass Entry</p>
+        </div>
       </div>
 
-      {step < 5 && (
-        <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl border border-slate-800/80 shadow-2xl p-6 max-w-4xl mx-auto text-white">
-          {/* Step Indicator */}
-          <div className="relative mb-10 select-none no-print max-w-2xl mx-auto pb-4">
+      {step < 4 && (
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 sm:p-8 mb-12 max-w-4xl mx-auto text-slate-800">
+          {/* Progress Wizard Steps Indicator (Matching Mobile App) */}
+          <div className="relative mb-8 select-none no-print max-w-xl mx-auto pb-2">
             {/* Background connecting progress line */}
-            <div className="absolute top-4.5 left-[10%] right-[10%] h-0.5 bg-slate-100 z-0">
+            <div className="absolute top-4 left-[12%] right-[12%] h-1 bg-slate-200 z-0 rounded-full">
               <div 
-                className="h-full bg-indigo-600 transition-all duration-500 rounded-full"
-                style={{ width: `${((step - 1) / 3) * 100}%` }}
+                className="h-full bg-indigo-600 transition-all duration-300 rounded-full"
+                style={{ width: `${((step - 1) / 2) * 100}%` }}
               />
             </div>
             
             {/* Step Nodes */}
             <div className="relative flex justify-between z-10">
               {[
-                { num: 1, label: 'Details', icon: Truck },
-                { num: 2, label: 'Inventory', icon: CheckSquare },
-                { num: 3, label: 'Media', icon: Camera },
-                { num: 4, label: 'Signature', icon: PenTool },
+                { num: 1, label: 'Basic Info', icon: FileText },
+                { num: 2, label: 'Photos', icon: Camera },
+                { num: 3, label: 'Review', icon: CheckSquare },
               ].map((s) => {
                 const isPast = step > s.num;
                 const isCurrent = step === s.num;
@@ -595,22 +665,20 @@ export const VehicleEntry: React.FC = () => {
                     type="button"
                     disabled={s.num > step}
                     onClick={() => setStep(s.num)}
-                    className="flex flex-col items-center gap-2 focus:outline-none cursor-pointer group animate-fade-in"
+                    className="flex flex-col items-center gap-1.5 focus:outline-none cursor-pointer group"
                   >
                     <div
-                      className={`w-9.5 h-9.5 rounded-full flex items-center justify-center border transition-all duration-300 active:scale-95 ${
-                        isPast
-                          ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-600/10'
-                          : isCurrent
-                          ? 'bg-white border-indigo-600 text-indigo-600 shadow-lg shadow-indigo-600/10 font-black'
-                          : 'bg-slate-50 border-slate-200 text-slate-400'
+                      className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all duration-200 active:scale-95 ${
+                        isPast || isCurrent
+                          ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
+                          : 'bg-white border-slate-300 text-slate-400'
                       }`}
                     >
-                      {isPast ? <CheckCircle2 className="w-4.5 h-4.5" /> : <Icon className="w-4 h-4" />}
+                      {isPast ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
                     </div>
                     <span 
-                      className={`text-[9px] font-black uppercase tracking-wider ${
-                        isCurrent ? 'text-indigo-600 font-extrabold' : 'text-slate-400 font-bold'
+                      className={`text-[10px] font-black uppercase tracking-wider ${
+                        isCurrent ? 'text-indigo-600 font-extrabold' : 'text-slate-500 font-bold'
                       }`}
                     >
                       {s.label}
@@ -621,618 +689,391 @@ export const VehicleEntry: React.FC = () => {
             </div>
           </div>
 
-          {/* STEP 1: VEHICLE DETAILS */}
+          {/* STEP 1: VEHICLE INFORMATION */}
           {step === 1 && (
-            <div className="space-y-8 animate-fade-in">
-              {/* Question 1: Bank Category Selection */}
-              <div className="space-y-3">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-                  Select Bank Category / Type *
-                </label>
-                <div className="grid grid-cols-2 gap-4 max-w-md">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBankCategory('direct');
-                      setSelectedThirdPartyId('');
-                      setFormData(prev => ({ ...prev, bankId: '', bankName: '' }));
-                    }}
-                    className={`p-4 rounded-2xl border-2 text-center transition-all duration-200 flex flex-col items-center justify-center space-y-2 ${bankCategory === 'direct'
-                      ? 'border-primary bg-primary/5 text-primary shadow-sm'
-                      : 'border-slate-200 hover:border-slate-300 text-slate-600 bg-white'
-                      }`}
-                  >
-                    <Truck className="w-6 h-6" />
-                    <span className="text-sm font-bold">Direct Bank</span>
-                  </button>
+            <div className="space-y-6 animate-fade-in font-sans text-slate-800">
+              <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">Vehicle Information</h3>
 
+              {/* Vehicle Reg No at the very top */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Vehicle Reg No *</label>
                   <button
                     type="button"
                     onClick={() => {
-                      setBankCategory('third_party');
-                      setSelectedThirdPartyId('');
-                      setFormData(prev => ({ ...prev, bankId: '', bankName: '' }));
+                      const samplePlates = ['MH12PQ9876', 'DL03CAY4321', 'HR26BQ8811', 'KA03MM5566', 'MH14EU2045'];
+                      const plate = samplePlates[Math.floor(Math.random() * samplePlates.length)];
+                      setFormData(prev => ({ ...prev, vehicleNumber: plate }));
+                      toast.success(`Plate scanned: ${plate}`);
                     }}
-                    className={`p-4 rounded-2xl border-2 text-center transition-all duration-200 flex flex-col items-center justify-center space-y-2 ${bankCategory === 'third_party'
-                      ? 'border-primary bg-primary/5 text-primary shadow-sm'
-                      : 'border-slate-200 hover:border-slate-300 text-slate-600 bg-white'
-                      }`}
+                    className="text-[11px] font-bold text-indigo-600 hover:underline flex items-center space-x-1 cursor-pointer"
                   >
-                    <Warehouse className="w-6 h-6" />
-                    <span className="text-sm font-bold">Third Party</span>
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Scan Plate</span>
                   </button>
                 </div>
+                <input
+                  type="text"
+                  name="vehicleNumber"
+                  value={formData.vehicleNumber}
+                  onChange={(e) => setFormData({ ...formData, vehicleNumber: e.target.value.toUpperCase() })}
+                  placeholder="e.g. MH-12-PQ-1234"
+                  className="w-full text-slate-900 bg-white px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 text-sm font-semibold uppercase shadow-sm"
+                />
               </div>
 
-              {/* Question 2: Bank Selection (Searchable A-Z) */}
-              {bankCategory === 'direct' && (
-                <div className="space-y-2 max-w-md animate-slide-up">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-                    Select Direct Bank Partner *
-                  </label>
-                  {loadingBanks ? (
-                    <div className="w-full bg-slate-50 text-slate-400 px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold animate-pulse">
-                      Loading Banks...
-                    </div>
-                  ) : (
+              {/* Bank Category & Select Bank Side-by-Side Dropdowns */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Bank Category *</label>
+                  <select
+                    value={bankCategory}
+                    onChange={(e) => {
+                      const cat = e.target.value as any;
+                      setBankCategory(cat);
+                      setSelectedThirdPartyId('');
+                      if (cat === 'shift') {
+                        setFormData(prev => ({ ...prev, bankId: 'non_paneled_shift', bankName: 'Non-Paneled (Yard Shift)' }));
+                      } else {
+                        setFormData(prev => ({ ...prev, bankId: '', bankName: '' }));
+                      }
+                    }}
+                    className="w-full text-slate-800 bg-white px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 text-xs font-bold shadow-sm cursor-pointer"
+                  >
+                    <option value="">-- Select --</option>
+                    <option value="direct">Direct Bank</option>
+                    <option value="third_party">Third Party</option>
+                    <option value="shift">🚚 Shift Bank</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Select Bank/Group *</label>
+                  {bankCategory === 'direct' && (
                     <SearchableDropdown
                       options={banks
                         .filter((b) => !b.isThirdParty && !b.parentId)
                         .sort((a, b) => a.name.localeCompare(b.name))}
                       value={formData.bankId}
-                      onChange={(id, name) => {
-                        setFormData((prev) => ({ ...prev, bankId: id, bankName: name }));
-                      }}
-                      placeholder="-- Search & Select Direct Bank --"
+                      onChange={(id, name) => setFormData((prev) => ({ ...prev, bankId: id, bankName: name }))}
+                      placeholder="-- Select Bank --"
                     />
                   )}
-                </div>
-              )}
-
-              {bankCategory === 'third_party' && (
-                <div className="space-y-4 max-w-md animate-slide-up">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-                      Select Third Party Group *
-                    </label>
-                    {loadingBanks ? (
-                      <div className="w-full bg-slate-50 text-slate-400 px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold animate-pulse">
-                        Loading groups...
-                      </div>
-                    ) : (
-                      <SearchableDropdown
-                        options={banks
-                          .filter((b) => b.isThirdParty)
-                          .sort((a, b) => a.name.localeCompare(b.name))}
-                        value={selectedThirdPartyId}
-                        onChange={(id) => {
-                          setSelectedThirdPartyId(id);
-                          setFormData((prev) => ({ ...prev, bankId: '', bankName: '' }));
-                        }}
-                        placeholder="-- Search & Select Third Party Group --"
-                      />
-                    )}
-                  </div>
-
-                  {selectedThirdPartyId && (
-                    <div className="space-y-2 animate-slide-up">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-                        Select Sub-Bank under Group *
-                      </label>
-                      <SearchableDropdown
-                        options={banks
-                          .filter((b) => b.parentId === selectedThirdPartyId)
-                          .sort((a, b) => a.name.localeCompare(b.name))}
-                        value={formData.bankId}
-                        onChange={(id, name) => {
-                          setFormData((prev) => ({ ...prev, bankId: id, bankName: name }));
-                        }}
-                        placeholder="-- Search & Select Sub-Bank --"
-                      />
+                  {bankCategory === 'third_party' && (
+                    <SearchableDropdown
+                      options={banks
+                        .filter((b) => b.isThirdParty)
+                        .sort((a, b) => a.name.localeCompare(b.name))}
+                      value={selectedThirdPartyId}
+                      onChange={(id, name) => {
+                        setSelectedThirdPartyId(id);
+                        setFormData((prev) => ({ ...prev, bankId: '', bankName: '' }));
+                      }}
+                      placeholder="-- Select Group --"
+                    />
+                  )}
+                  {bankCategory === 'shift' && (
+                    <input
+                      type="text"
+                      disabled
+                      value="Non-Paneled (Yard Shift)"
+                      className="w-full bg-slate-100 text-slate-600 px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold shadow-sm"
+                    />
+                  )}
+                  {!bankCategory && (
+                    <div className="w-full bg-slate-50 text-slate-400 px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold select-none">
+                      -- Select Bank Category First --
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Sub-Bank Dropdown if Third Party */}
+              {bankCategory === 'third_party' && selectedThirdPartyId && (
+                <div className="space-y-1.5 animate-slide-up">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Select Sub-Bank *</label>
+                  <SearchableDropdown
+                    options={banks
+                      .filter((b) => b.parentId === selectedThirdPartyId)
+                      .sort((a, b) => a.name.localeCompare(b.name))}
+                    value={formData.bankId}
+                    onChange={(id, name) => setFormData((prev) => ({ ...prev, bankId: id, bankName: name }))}
+                    placeholder="-- Select Sub-Bank --"
+                  />
+                </div>
               )}
 
-              {/* FORM FIELDS - Revealed smoothly once Bank is selected */}
-              {formData.bankId && (
-                <div className="space-y-8 animate-slide-up">
-                  {/* Core & Mandatory Fields */}
-                  <div className="bg-primary/5 p-6 rounded-2xl border border-primary/10 space-y-4 shadow-sm">
-                    <h4 className="text-xs font-bold text-primary uppercase tracking-wider border-b border-primary/10 pb-2">
-                      Core & Mandatory Information
-                    </h4>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                          Vehicle Registration Number *
-                        </label>
-                        <input
-                          type="text"
-                          name="vehicleNumber"
-                          value={formData.vehicleNumber}
-                          onChange={(e) =>
-                            setFormData({ ...formData, vehicleNumber: e.target.value.toUpperCase() })
-                          }
-                          placeholder="e.g. MH12PQ8899"
-                          className="w-full text-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm font-semibold uppercase shadow-sm bg-white"
-                        />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                          Vehicle Type *
-                        </label>
-                        <select
-                          name="vehicleType"
-                          value={formData.vehicleType}
-                          onChange={handleChange}
-                          className="w-full text-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm font-semibold shadow-sm bg-white"
-                        >
-                          <option value="">-- Select Vehicle Type --</option>
-                          <option value="TW">2-Wheeler (TW)</option>
-                          <option value="THREE_W">3-Wheeler (THREE_W)</option>
-                          <option value="FW">4-Wheeler (FW)</option>
-                          <option value="CV">Commercial Vehicle (CV)</option>
-                        </select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <div className="flex justify-between items-center">
-                          <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                            Place of Possession *
-                          </label>
-                          <button
-                            type="button"
-                            onClick={autoDetectCity}
-                            disabled={detectingCity}
-                            className="text-[10px] font-bold text-primary hover:underline flex items-center space-x-1 bg-transparent border-0 p-0 cursor-pointer"
-                          >
-                            <MapPin className="w-3 h-3" />
-                            <span>{detectingCity ? 'Detecting...' : 'Detect City'}</span>
-                          </button>
-                        </div>
-                        <input
-                          type="text"
-                          name="placeOfPossession"
-                          value={formData.placeOfPossession}
-                          onChange={handleChange}
-                          placeholder="e.g. Pune, Mumbai"
-                          className="w-full text-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm font-semibold shadow-sm bg-white"
-                        />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                          Agreement No / Loan No
-                        </label>
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="text"
-                            name="agreementNo"
-                            value={formData.agreementNo}
-                            onChange={handleChange}
-                            placeholder="e.g. AGR-12345"
-                            className="flex-1 text-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm font-semibold shadow-sm bg-white"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setFormData({ ...formData, agreementNo: 'NA' })}
-                            className="bg-white hover:bg-slate-50 text-slate-700 font-bold px-4 py-2.5 rounded-xl border border-slate-200 transition-colors text-sm shadow-sm hover:border-slate-300"
-                          >
-                            NA
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                          Engine Number
-                        </label>
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="text"
-                            name="engineNumber"
-                            value={formData.engineNumber}
-                            onChange={handleChange}
-                            placeholder="Enter engine ID"
-                            className="flex-1 text-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm font-semibold shadow-sm bg-white"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setFormData({ ...formData, engineNumber: 'NA' })}
-                            className="bg-white hover:bg-slate-50 text-slate-700 font-bold px-4 py-2.5 rounded-xl border border-slate-200 transition-colors text-sm shadow-sm hover:border-slate-300"
-                          >
-                            NA
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                          Chassis Number
-                        </label>
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="text"
-                            name="chassisNumber"
-                            value={formData.chassisNumber}
-                            onChange={handleChange}
-                            placeholder="Enter chassis ID"
-                            className="flex-1 text-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm font-semibold shadow-sm bg-white"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setFormData({ ...formData, chassisNumber: 'NA' })}
-                            className="bg-white hover:bg-slate-50 text-slate-700 font-bold px-4 py-2.5 rounded-xl border border-slate-200 transition-colors text-sm shadow-sm hover:border-slate-300"
-                          >
-                            NA
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+              {/* Shift Bank Warning Banner */}
+              {bankCategory === 'shift' && (
+                <div className="bg-amber-50 rounded-xl p-3 border border-amber-200 flex items-start space-x-2 text-amber-900 text-xs shadow-sm">
+                  <span className="text-base leading-none">⚠️</span>
+                  <div>
+                    <span className="font-bold block text-amber-950">Non-Paneled Bank Selected</span>
+                    <span className="text-[11px] text-amber-800">This vehicle will be auto-flagged as "Shift Pending" and queued for yard transfer.</span>
                   </div>
+                </div>
+              )}
 
-                  {/* General Specifications, Repo & Yard Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-slide-up">
-                    {/* Section A: Specifications */}
-                    <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 space-y-4 shadow-sm bg-white">
-                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider border-b border-slate-200 pb-2">
-                        Specifications
-                      </h4>
+              {/* Vehicle Category Dropdown */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Vehicle Category *</label>
+                <select
+                  name="vehicleType"
+                  value={formData.vehicleType}
+                  onChange={handleChange}
+                  className="w-full text-slate-800 bg-white px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 text-xs font-bold shadow-sm cursor-pointer"
+                >
+                  <option value="">-- Select Vehicle Category --</option>
+                  <option value="TW">2 Wheeler (TW)</option>
+                  <option value="THREE_W">3 Wheeler (THREE_W)</option>
+                  <option value="FW">4 Wheeler (FW)</option>
+                  <option value="CV">Commercial (CV)</option>
+                </select>
+              </div>
 
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                          Brand
-                        </label>
-                        <input
-                          type="text"
-                          name="brand"
-                          value={formData.brand}
-                          onChange={handleChange}
-                          placeholder="e.g. Hyundai"
-                          className="w-full text-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs font-semibold shadow-sm bg-white"
-                        />
-                      </div>
+              {/* Customer Name */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Customer Name *</label>
+                <input
+                  type="text"
+                  name="customerName"
+                  value={formData.customerName}
+                  onChange={handleChange}
+                  placeholder="Enter customer name"
+                  className="w-full text-slate-900 bg-white px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 text-xs font-semibold shadow-sm"
+                />
+              </div>
 
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                          Model
-                        </label>
-                        <input
-                          type="text"
-                          name="model"
-                          value={formData.model}
-                          onChange={handleChange}
-                          placeholder="e.g. Creta"
-                          className="w-full text-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs font-semibold shadow-sm bg-white"
-                        />
-                      </div>
+              {/* Customer Mob NO */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Customer Mob NO</label>
+                <input
+                  type="text"
+                  name="customerPhone"
+                  value={formData.customerPhone}
+                  onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value.replace(/[^0-9]/g, '') })}
+                  placeholder="Enter customer mobile number"
+                  maxLength={10}
+                  className="w-full text-slate-900 bg-white px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 text-xs font-semibold shadow-sm"
+                />
+              </div>
 
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                          Color
-                        </label>
-                        <input
-                          type="text"
-                          name="color"
-                          value={formData.color}
-                          onChange={handleChange}
-                          placeholder="e.g. White"
-                          className="w-full text-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs font-semibold shadow-sm bg-white"
-                        />
-                      </div>
+              {/* Grid for Make & Model */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Vehicle Make</label>
+                  <input
+                    type="text"
+                    name="brand"
+                    value={formData.brand}
+                    onChange={handleChange}
+                    placeholder="e.g. Tata Motors, Maruti Suzuki"
+                    className="w-full text-slate-900 bg-white px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 text-xs font-semibold shadow-sm"
+                  />
+                </div>
 
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                          Mileage
-                        </label>
-                        <input
-                          type="text"
-                          name="mileage"
-                          value={formData.mileage}
-                          onChange={handleChange}
-                          placeholder="e.g. 15000 km"
-                          className="w-full text-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs font-semibold shadow-sm bg-white"
-                        />
-                      </div>
-                    </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Model Name</label>
+                  <input
+                    type="text"
+                    name="model"
+                    value={formData.model}
+                    onChange={handleChange}
+                    placeholder="e.g. Swift, Nexon"
+                    className="w-full text-slate-900 bg-white px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 text-xs font-semibold shadow-sm"
+                  />
+                </div>
+              </div>
 
-                    {/* Section B: Repo Details */}
-                    <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 space-y-4 shadow-sm bg-white">
-                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider border-b border-slate-200 pb-2">
-                        Repo Details
-                      </h4>
-
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                          Repo Agency
-                        </label>
-                        <input
-                          type="text"
-                          name="repoAgency"
-                          value={formData.repoAgency}
-                          onChange={handleChange}
-                          placeholder="Enter agency name"
-                          className="w-full text-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs font-semibold shadow-sm bg-white"
-                        />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                          Repo Date
-                        </label>
-                        <input
-                          type="date"
-                          name="repoDate"
-                          value={formData.repoDate}
-                          onChange={handleChange}
-                          className="w-full text-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs font-semibold shadow-sm bg-white"
-                        />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                          Time of Possession
-                        </label>
-                        <input
-                          type="time"
-                          name="timeOfPossession"
-                          value={formData.timeOfPossession}
-                          onChange={handleChange}
-                          className="w-full text-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs font-semibold shadow-sm bg-white"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Section C: Yard & Handover Settings */}
-                    <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 space-y-4 shadow-sm bg-white">
-                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider border-b border-slate-200 pb-2">
-                        Yard & Handover Settings
-                      </h4>
-
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                          Entry Date
-                        </label>
-                        <input
-                          type="date"
-                          name="entryDate"
-                          value={formData.entryDate}
-                          onChange={handleChange}
-                          className="w-full text-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs font-semibold shadow-sm bg-white"
-                        />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                          Yard Slot Allocation
-                        </label>
-                        <select
-                          name="yardLocationId"
-                          value={formData.yardLocationId}
-                          onChange={handleChange}
-                          disabled={loadingSlots}
-                          className="w-full text-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs font-semibold shadow-sm bg-white"
-                        >
-                          <option value="">-- Select Empty Yard Slot --</option>
-                          {slots.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              Zone {s.zone} - Slot {s.slot}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                          Customer / Driver Name
-                        </label>
-                        <input
-                          type="text"
-                          name="customerName"
-                          value={formData.customerName}
-                          onChange={handleChange}
-                          placeholder="Enter customer/driver name"
-                          className="w-full text-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs font-semibold shadow-sm bg-white"
-                        />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                          Customer Phone
-                        </label>
-                        <input
-                          type="text"
-                          name="customerPhone"
-                          value={formData.customerPhone}
-                          onChange={handleChange}
-                          placeholder="Enter contact number"
-                          className="w-full text-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs font-semibold shadow-sm bg-white"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Navigation Button */}
-                  <div className="flex justify-end pt-4 border-t border-slate-100">
+              {/* Grid for Chassis & Engine NO */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Chassis NO</label>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="text"
+                      name="chassisNumber"
+                      value={formData.chassisNumber}
+                      onChange={handleChange}
+                      placeholder="Enter chassis number"
+                      className="flex-1 text-slate-900 bg-white px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 text-xs font-semibold uppercase shadow-sm"
+                    />
                     <button
                       type="button"
-                      onClick={() => {
-                        if (!formData.vehicleNumber) {
-                          toast.error('Vehicle Registration Number is mandatory!');
-                          return;
-                        }
-                        if (!formData.bankId) {
-                          toast.error('Bank Partner is mandatory!');
-                          return;
-                        }
-                        if (!formData.vehicleType) {
-                          toast.error('Vehicle Type is mandatory! Please select one.');
-                          return;
-                        }
-                        if (!formData.placeOfPossession) {
-                          toast.error('Place of Possession is mandatory!');
-                          return;
-                        }
-                        setStep(2);
-                      }}
-                      className="bg-primary hover:bg-primary/95 text-white font-bold px-6 py-2.5 rounded-xl shadow-md shadow-primary/10 transition-all text-sm flex items-center space-x-2 shadow-lg"
+                      onClick={() => setFormData({ ...formData, chassisNumber: 'NA' })}
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl border border-slate-300 text-xs transition-colors shadow-sm cursor-pointer"
                     >
-                      <span>Continue to Inventory Checklist</span>
-                      <CheckSquare className="w-4 h-4" />
+                      NA
                     </button>
                   </div>
                 </div>
-              )}
-            </div>
-          )}
 
-          {/* STEP 2: INVENTORY CHECKLIST (Restructured as step 2) */}
-          {step === 2 && (
-            <div className="space-y-6 animate-fade-in">
-              <div className="border border-slate-100 rounded-xl overflow-hidden shadow-sm bg-white">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 uppercase font-bold tracking-wider">
-                      <th className="p-4 font-semibold">Inventory Item</th>
-                      <th className="p-4 font-semibold">Present at Entry</th>
-                      <th className="p-4 font-semibold">Remarks / Condition Details</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-600 font-medium">
-                    {checklist.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/40">
-                        <td className="p-4 font-bold text-slate-700">{item.itemName}</td>
-                        <td className="p-4">
-                          {item.isText ? (
-                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                              Text Entry Only
-                            </span>
-                          ) : item.isCondition ? (
-                            <div className="flex bg-slate-100 p-0.5 rounded-lg w-fit select-none">
-                              <button
-                                type="button"
-                                onClick={() => handleChecklistChange(idx, 'isPresent', true)}
-                                className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${item.isPresent ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                                  }`}
-                              >
-                                Good
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleChecklistChange(idx, 'isPresent', false)}
-                                className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${!item.isPresent ? 'bg-rose-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                                  }`}
-                              >
-                                Bad
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex bg-slate-100 p-0.5 rounded-lg w-fit select-none">
-                              <button
-                                type="button"
-                                onClick={() => handleChecklistChange(idx, 'isPresent', true)}
-                                className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${item.isPresent ? 'bg-primary text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                                  }`}
-                              >
-                                Yes
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleChecklistChange(idx, 'isPresent', false)}
-                                className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${!item.isPresent ? 'bg-slate-300 text-slate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                                  }`}
-                              >
-                                No
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-4">
-                          <input
-                            type="text"
-                            value={item.remarks}
-                            onChange={(e) => handleChecklistChange(idx, 'remarks', e.target.value)}
-                            placeholder={item.isText ? 'Enter details...' : 'e.g. Scratched, missing'}
-                            className="w-full text-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-xs font-semibold shadow-sm"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="flex justify-between pt-6 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="border border-slate-200 text-slate-500 font-bold px-5 py-2.5 rounded-xl hover:bg-slate-50 text-sm transition-colors"
-                >
-                  Back
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStep(3)}
-                  className="bg-primary hover:bg-primary/95 text-white font-bold px-6 py-2.5 rounded-xl shadow-md shadow-primary/10 transition-all text-sm flex items-center space-x-2"
-                >
-                  <span>Continue to Media Capture</span>
-                  <Camera className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 3: MEDIA CAPTURE (Restructured as step 3) */}
-          {step === 3 && (
-            <div className="space-y-8 animate-fade-in">
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start space-x-3 text-amber-800 shadow-sm">
-                <MapPin className="w-5 h-5 shrink-0 mt-0.5" />
-                <div className="text-xs font-medium space-y-1">
-                  <p className="font-bold">Media Capture & Verification</p>
-                  <p>
-                    Please upload the required customer picture along with the vehicle. Optional video or secondary companion details can be captured here.
-                  </p>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Engine No</label>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="text"
+                      name="engineNumber"
+                      value={formData.engineNumber}
+                      onChange={handleChange}
+                      placeholder="Enter engine number"
+                      className="flex-1 text-slate-900 bg-white px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 text-xs font-semibold uppercase shadow-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, engineNumber: 'NA' })}
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl border border-slate-300 text-xs transition-colors shadow-sm cursor-pointer"
+                    >
+                      NA
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
+              {/* Place & Date Time */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Place of Possession</label>
+                    <button
+                      type="button"
+                      onClick={autoDetectCity}
+                      disabled={detectingCity}
+                      className="text-[11px] font-bold text-indigo-600 hover:underline flex items-center space-x-1 cursor-pointer"
+                    >
+                      <MapPin className="w-3.5 h-3.5" />
+                      <span>{detectingCity ? 'Detecting...' : 'Detect City'}</span>
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    name="placeOfPossession"
+                    value={formData.placeOfPossession}
+                    onChange={handleChange}
+                    placeholder="e.g. Gurugram, Delhi"
+                    className="w-full text-slate-900 bg-white px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 text-xs font-semibold shadow-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Entry Date & Time *</label>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="date"
+                      name="entryDate"
+                      value={formData.entryDate}
+                      onChange={handleChange}
+                      className="flex-1 text-slate-900 bg-white px-3 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:border-indigo-600 text-xs font-semibold shadow-sm"
+                    />
+                    <input
+                      type="time"
+                      name="timeOfPossession"
+                      value={formData.timeOfPossession}
+                      onChange={handleChange}
+                      className="w-28 text-slate-900 bg-white px-3 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:border-indigo-600 text-xs font-semibold shadow-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Repo Agent & Repo Agency Name */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Repo Agent Name</label>
+                  <input
+                    type="text"
+                    value={repoAgentName}
+                    onChange={(e) => setRepoAgentName(e.target.value)}
+                    placeholder="Enter repo agent name"
+                    className="w-full text-slate-900 bg-white px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 text-xs font-semibold shadow-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Repo Agency Name</label>
+                  <input
+                    type="text"
+                    value={repoAgencyName}
+                    onChange={(e) => {
+                      setRepoAgencyName(e.target.value);
+                      setFormData(prev => ({ ...prev, repoAgency: e.target.value }));
+                    }}
+                    placeholder="Enter repo agency name"
+                    className="w-full text-slate-900 bg-white px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 text-xs font-semibold shadow-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Navigation Footer */}
+              <div className="flex justify-between items-center pt-6 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl border border-slate-300 transition-all text-xs flex items-center space-x-2 cursor-pointer shadow-sm"
+                >
+                  <Save className="w-4 h-4 text-amber-600" />
+                  <span>Save Draft</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!formData.vehicleNumber) {
+                      toast.error('Vehicle Registration Number is mandatory!');
+                      return;
+                    }
+                    if (!formData.bankId) {
+                      toast.error('Bank Partner is mandatory!');
+                      return;
+                    }
+                    if (!formData.vehicleType) {
+                      toast.error('Vehicle Category is mandatory!');
+                      return;
+                    }
+                    setStep(2);
+                  }}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-md transition-all text-xs flex items-center space-x-2 cursor-pointer"
+                >
+                  <span>Next: Inspection Photos</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 2: INSPECTION PHOTOS */}
+          {step === 2 && (
+            <div className="space-y-6 animate-fade-in font-sans text-slate-800">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Inspection Photos</h3>
+                <p className="text-xs text-slate-500 font-medium">Capture required photos and add any extra viewpoints as needed.</p>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                 {[
-                  { key: 'customer', label: 'Customer with Vehicle Photo *', type: 'image' },
-                  { key: 'witness', label: 'Witness / Companion Photo', type: 'image' },
-                  { key: 'gate_overview', label: 'Gate Overview Photo', type: 'image' },
-                  { key: 'video', label: 'Vehicle Video (Optional)', type: 'video' },
+                  { key: 'front', label: 'Front View *' },
+                  { key: 'back', label: 'Back View *' },
+                  { key: 'left', label: 'Left View *' },
+                  { key: 'right', label: 'Right View *' },
+                  { key: 'odometer', label: 'Odometer / Meter' },
+                  { key: 'chassis', label: 'Chassis Plate' },
+                  { key: 'customer', label: 'Customer Photo' },
                 ].map((media) => (
-                  <div key={media.key} className="space-y-2">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                      {media.label}
-                    </span>
-                    <div className="relative aspect-video rounded-xl overflow-hidden border border-dashed border-slate-300 bg-slate-50 flex flex-col items-center justify-center group cursor-pointer transition-all hover:bg-slate-100/50 shadow-sm">
-                      {gatePreviews[media.key] ? (
+                  <div key={media.key} className="space-y-1.5">
+                    <span className="text-[11px] font-bold text-slate-700 block">{media.label}</span>
+                    <div className="relative aspect-[4/3] rounded-xl overflow-hidden border-2 border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center group cursor-pointer hover:border-indigo-400 transition-all shadow-sm">
+                      {previews[media.key] || gatePreviews[media.key] ? (
                         <>
-                          {media.type === 'video' ? (
-                            <video
-                              src={gatePreviews[media.key]}
-                              controls
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <img
-                              src={gatePreviews[media.key]}
-                              alt={media.label}
-                              className="w-full h-full object-cover"
-                            />
-                          )}
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity z-20">
+                          <img
+                            src={previews[media.key] || gatePreviews[media.key]}
+                            alt={media.label}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity z-20">
                             <button
                               type="button"
-                              onClick={() =>
-                                !uploadingGatePhotos[media.key] &&
-                                document.getElementById(`upload-${media.key}`)?.click()
-                              }
-                              className="bg-white/95 hover:bg-white text-slate-800 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center space-x-1 shadow-md"
+                              onClick={() => document.getElementById(`upload-photo-${media.key}`)?.click()}
+                              className="bg-white text-slate-900 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center space-x-1 shadow-md cursor-pointer"
                             >
                               <Camera className="w-3.5 h-3.5" />
                               <span>Retake</span>
@@ -1240,263 +1081,310 @@ export const VehicleEntry: React.FC = () => {
                           </div>
                         </>
                       ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              !uploadingGatePhotos[media.key] &&
-                              document.getElementById(`upload-${media.key}`)?.click()
-                            }
-                            className="flex flex-col items-center space-y-1.5 text-slate-400 group-hover:text-primary transition-colors"
-                          >
-                            <Camera className="w-6 h-6" />
-                            <span className="text-[10px] font-bold uppercase tracking-wider">
-                              Capture {media.type === 'video' ? 'Video' : 'Photo'}
-                            </span>
-                          </button>
-                        </>
-                      )}
-
-                      {/* Syncing Loader Spinner overlay */}
-                      {uploadingGatePhotos[media.key] && (
-                        <div className="absolute inset-0 bg-white/80 backdrop-blur-[1px] flex flex-col items-center justify-center space-y-1.5 z-30 select-none">
-                          <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-                          <span className="text-[8px] font-bold text-primary uppercase tracking-wider animate-pulse">
-                            Syncing Cloud...
-                          </span>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => document.getElementById(`upload-photo-${media.key}`)?.click()}
+                          className="flex flex-col items-center space-y-1.5 text-slate-400 group-hover:text-indigo-600 transition-colors p-2 text-center cursor-pointer"
+                        >
+                          <Camera className="w-6 h-6 text-slate-400 group-hover:text-indigo-600" />
+                          <span className="text-[10px] font-bold uppercase tracking-wider">Tap to Capture</span>
+                        </button>
                       )}
 
                       <input
-                        id={`upload-${media.key}`}
+                        id={`upload-photo-${media.key}`}
                         type="file"
-                        accept={media.type === 'video' ? 'video/*' : 'image/*'}
+                        accept="image/*"
                         capture="environment"
                         className="hidden"
-                        disabled={uploadingGatePhotos[media.key]}
-                        onChange={(e) => handleGatePhotoUpload(media.key, e)}
+                        onChange={(e) => {
+                          if (media.key === 'customer') {
+                            handleGatePhotoUpload(media.key, e);
+                          } else {
+                            handlePhotoUpload(media.key, e);
+                          }
+                        }}
                       />
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* Vehicle 360° Condition Photos Section */}
-              <div className="border-t border-slate-100 pt-6">
-                <span className="text-xs font-black text-slate-800 uppercase tracking-wider block mb-4">
-                  📸 Vehicle 360° Condition Photos (Check-in Quality Checklist)
-                </span>
-                
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 font-semibold">
-                  {[
-                    { key: 'front', label: 'Front View Photo *' },
-                    { key: 'back', label: 'Back View Photo *' },
-                    { key: 'left', label: 'Left View Photo *' },
-                    { key: 'right', label: 'Right View Photo *' },
-                    { key: 'dashboard', label: 'Dashboard & Interior' },
-                    { key: 'odometer', label: 'Odometer Reading' },
-                    { key: 'chassis', label: 'Chassis Number Plate' },
-                  ].map((media) => (
-                    <div key={media.key} className="space-y-2 animate-fade-in text-left">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                        {media.label}
-                      </span>
-                      <div className="relative aspect-video rounded-xl overflow-hidden border border-dashed border-slate-300 bg-slate-50 flex flex-col items-center justify-center group cursor-pointer transition-all hover:bg-slate-100/50 shadow-sm">
-                        {previews[media.key] ? (
-                          <>
-                            <img
-                              src={previews[media.key]}
-                              alt={media.label}
-                              className="w-full h-full object-cover"
-                            />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity z-20">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  !uploadingPhotos[media.key] &&
-                                  document.getElementById(`upload-condition-${media.key}`)?.click()
-                                }
-                                className="bg-white/95 hover:bg-white text-slate-800 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center space-x-1 shadow-md"
-                              >
-                                <Camera className="w-3.5 h-3.5" />
-                                <span>Retake</span>
-                              </button>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                !uploadingPhotos[media.key] &&
-                                document.getElementById(`upload-condition-${media.key}`)?.click()
-                              }
-                              className="flex flex-col items-center space-y-1.5 text-slate-400 group-hover:text-primary transition-colors"
-                            >
-                              <Camera className="w-6 h-6" />
-                              <span className="text-[10px] font-bold uppercase tracking-wider">
-                                Capture Photo
-                              </span>
-                            </button>
-                          </>
-                        )}
+              {/* Navigation Footer */}
+              <div className="flex justify-between items-center pt-6 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold px-5 py-2.5 rounded-xl text-xs transition-colors cursor-pointer flex items-center space-x-1"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>Back</span>
+                </button>
 
-                        {/* Syncing Loader Spinner overlay */}
-                        {uploadingPhotos[media.key] && (
-                          <div className="absolute inset-0 bg-white/80 backdrop-blur-[1px] flex flex-col items-center justify-center space-y-1.5 z-30 select-none">
-                            <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-                            <span className="text-[8px] font-bold text-primary uppercase tracking-wider animate-pulse">
-                              Syncing Cloud...
-                            </span>
-                          </div>
-                        )}
+                <div className="flex items-center space-x-3">
+                  <button
+                    type="button"
+                    onClick={handleSaveDraft}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl border border-slate-300 transition-all text-xs flex items-center space-x-2 cursor-pointer shadow-sm"
+                  >
+                    <Save className="w-4 h-4 text-amber-600" />
+                    <span>Save Draft</span>
+                  </button>
 
-                        <input
-                          id={`upload-condition-${media.key}`}
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          className="hidden"
-                          disabled={uploadingPhotos[media.key]}
-                          onChange={(e) => handlePhotoUpload(media.key, e)}
-                        />
-                      </div>
-                    </div>
-                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setStep(3)}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-md transition-all text-xs flex items-center space-x-2 cursor-pointer"
+                  >
+                    <span>Next: Review & Inventory</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
                 </div>
-              </div>
-
-              <div className="flex justify-between pt-6 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setStep(2)}
-                  disabled={Object.values(uploadingGatePhotos).some(Boolean) || Object.values(uploadingPhotos).some(Boolean)}
-                  className="border border-slate-200 text-slate-500 font-bold px-5 py-2.5 rounded-xl hover:bg-slate-50 text-sm disabled:opacity-50 transition-colors"
-                >
-                  Back
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const isUploading = Object.values(uploadingGatePhotos).some(Boolean) || Object.values(uploadingPhotos).some(Boolean);
-                    if (isUploading) {
-                      toast.error('Please wait! Media is currently syncing to cloud storage.');
-                      return;
-                    }
-                    if (!gatePhotos.customer) {
-                      toast.error('Customer / Driver photo is required!');
-                      return;
-                    }
-                    if (!photos.front || !photos.back || !photos.left || !photos.right) {
-                      toast.error('Mandatory 360° vehicle condition photos (Front, Back, Left, Right) are required!');
-                      return;
-                    }
-                    setStep(4);
-                  }}
-                  disabled={Object.values(uploadingGatePhotos).some(Boolean) || Object.values(uploadingPhotos).some(Boolean)}
-                  className={`font-bold px-6 py-2.5 rounded-xl shadow-md transition-all text-sm flex items-center space-x-2 ${
-                    (Object.values(uploadingGatePhotos).some(Boolean) || Object.values(uploadingPhotos).some(Boolean))
-                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
-                      : 'bg-primary hover:bg-primary/95 text-white shadow-primary/10 shadow-lg'
-                  }`}
-                >
-                  <span>Gate Signature</span>
-                  <PenTool className="w-4 h-4" />
-                </button>
               </div>
             </div>
           )}
 
-          {/* STEP 4: CUSTOMER SIGNATURE */}
-          {step === 4 && (
-            <div className="space-y-6 animate-fade-in">
-              <div className="max-w-md mx-auto space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Witness/Customer Name
-                  </label>
-                  <input
-                    type="text"
-                    value={signatureName}
-                    onChange={(e) => setSignatureName(e.target.value)}
-                    placeholder="Enter witness/driver full name"
-                    className="w-full text-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm font-semibold shadow-sm"
-                  />
-                </div>
+          {/* STEP 3: REVIEW & INVENTORY DETAILS */}
+          {step === 3 && (
+            <div className="space-y-6 animate-fade-in font-sans text-slate-800">
+              <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">Review & Inventory Details</h3>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-                    Customer Signature Pad
-                  </label>
-                  <div
-                    onClick={() => setSigning(true)}
-                    className="aspect-video w-full rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100/50 flex flex-col items-center justify-center cursor-pointer transition-colors relative shadow-sm"
-                  >
-                    {signing ? (
-                      <div className="absolute inset-0 p-4 flex flex-col justify-end">
-                        <span className="text-[10px] uppercase font-bold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-md self-start">
-                          Witness Verified
-                        </span>
-                        <div className="flex justify-between items-center mt-auto border-t border-slate-200 pt-3 text-slate-400 text-[10px] font-bold">
-                          <span>Verified via Odoo/YMS secure portal</span>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSigning(false);
-                            }}
-                            className="text-rose-500 font-bold hover:underline"
-                          >
-                            Clear
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center space-y-1.5 text-slate-400">
-                        <PenTool className="w-8 h-8" />
-                        <span className="text-[10px] font-bold uppercase tracking-wider">
-                          Tap here to Sign Verification
-                        </span>
-                      </div>
-                    )}
+              {/* Card 1: Basic Info Summary Card */}
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                <h4 className="text-xs font-extrabold text-indigo-600 uppercase tracking-wider border-b border-slate-100 pb-2">
+                  Vehicle Specifications
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">License Plate</span>
+                    <span className="font-extrabold text-slate-900 text-sm">{formData.vehicleNumber.toUpperCase() || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Type Class</span>
+                    <span className="font-bold text-slate-800">{formData.vehicleType || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Brand / Model</span>
+                    <span className="font-bold text-slate-800">{formData.brand || 'N/A'} / {formData.model || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Bank / Party</span>
+                    <span className="font-bold text-slate-800">{formData.bankName || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Chassis Number</span>
+                    <span className="font-bold text-slate-800">{formData.chassisNumber || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Customer Name</span>
+                    <span className="font-bold text-slate-800">{formData.customerName || 'N/A'}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex justify-between pt-6 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setStep(3)}
-                  className="border border-slate-200 text-slate-500 font-bold px-5 py-2.5 rounded-xl hover:bg-slate-50 text-sm transition-colors"
-                >
-                  Back
-                </button>
-                <button
-                  type="button"
-                  disabled={submitting}
-                  onClick={handleSubmit}
-                  className="bg-primary hover:bg-primary/95 disabled:bg-slate-300 text-white font-bold px-8 py-2.5 rounded-xl shadow-md shadow-primary/20 transition-all text-sm flex items-center space-x-2 shadow-lg"
-                >
-                  {submitting ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Submitting Check-in...</span>
-                    </>
+              {/* Card 2: Captured Photos Summary Bar */}
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                <h4 className="text-xs font-extrabold text-indigo-600 uppercase tracking-wider border-b border-slate-100 pb-2">
+                  Captured Photos
+                </h4>
+                <div className="flex items-center gap-3 overflow-x-auto pb-2">
+                  {Object.entries({ ...previews, ...gatePreviews }).filter(([_, uri]) => !!uri).length === 0 ? (
+                    <p className="text-xs text-slate-400 font-medium">No inspection photos captured.</p>
                   ) : (
-                    <>
-                      <span>Complete In-Yard Entry</span>
-                      <CheckCircle2 className="w-4 h-4" />
-                    </>
+                    Object.entries({ ...previews, ...gatePreviews })
+                      .filter(([_, uri]) => !!uri)
+                      .map(([key, uri]) => {
+                        const labels: Record<string, string> = {
+                          front: 'Front View',
+                          back: 'Back View',
+                          left: 'Left View',
+                          right: 'Right View',
+                          odometer: 'Odometer',
+                          chassis: 'Chassis Plate',
+                          customer: 'Customer Photo',
+                          witness: 'Witness Photo',
+                          gate_overview: 'Gate Overview',
+                          video: 'Vehicle Video',
+                        };
+                        return (
+                          <div key={key} className="relative w-28 h-20 rounded-xl overflow-hidden border border-slate-200 shrink-0 group shadow-sm bg-slate-50">
+                            <img src={uri} alt={key} className="w-full h-full object-cover" />
+                            <div className="absolute inset-x-0 bottom-0 bg-slate-900/80 px-1.5 py-0.5 text-center">
+                              <span className="text-[9px] font-bold text-white uppercase tracking-tight block truncate">
+                                {labels[key] || key}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
                   )}
+                </div>
+              </div>
+
+              {/* Card 3: Accessories Inventory */}
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+                <h4 className="text-xs font-extrabold text-indigo-600 uppercase tracking-wider border-b border-slate-100 pb-2">
+                  Accessories Inventory
+                </h4>
+
+                <div className="space-y-3 divide-y divide-slate-100">
+                  {checklist.map((item, index) => {
+                    const isTyre = item.itemName === 'Front Tyre' || item.itemName === 'Back Tyre';
+                    return (
+                      <div key={item.itemName} className="pt-3 first:pt-0 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-semibold ${item.isPresent ? 'text-slate-900 font-bold' : 'text-slate-600'}`}>
+                            {item.itemName}
+                          </span>
+                          
+                          {/* iOS Style Switch Toggle */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = [...checklist];
+                              updated[index].isPresent = !updated[index].isPresent;
+                              setChecklist(updated);
+                            }}
+                            className={`w-11 h-6 rounded-full transition-colors p-0.5 cursor-pointer relative ${
+                              item.isPresent ? 'bg-emerald-500' : 'bg-slate-300'
+                            }`}
+                          >
+                            <div
+                              className={`w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 transform ${
+                                item.isPresent ? 'translate-x-5' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        {item.isPresent && (
+                          <div className="space-y-2 pl-2 border-l-2 border-emerald-500 animate-slide-down">
+                            {isTyre && (
+                              <input
+                                type="text"
+                                value={item.make || ''}
+                                onChange={(e) => {
+                                  const updated = [...checklist];
+                                  updated[index].make = e.target.value;
+                                  setChecklist(updated);
+                                }}
+                                placeholder="Enter Tyre Company Name (e.g. CEAT, TVS)"
+                                className="w-full bg-slate-50 text-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 focus:outline-none focus:border-indigo-600 text-xs font-medium shadow-sm"
+                              />
+                            )}
+                            <input
+                              type="text"
+                              value={item.remarks || ''}
+                              onChange={(e) => {
+                                const updated = [...checklist];
+                                updated[index].remarks = e.target.value;
+                                setChecklist(updated);
+                              }}
+                              placeholder="Add remarks (optional)"
+                              className="w-full bg-slate-50 text-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 focus:outline-none focus:border-indigo-600 text-xs font-medium shadow-sm"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Body Condition Selector */}
+                <div className="pt-4 border-t border-slate-100 space-y-2">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Body Condition *</label>
+                  <div className="flex items-center gap-3">
+                    {(['Good', 'Average', 'Bad'] as const).map((cond) => (
+                      <button
+                        key={cond}
+                        type="button"
+                        onClick={() => setBodyCondition(cond)}
+                        className={`flex-1 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer border ${
+                          bodyCondition === cond
+                            ? cond === 'Good'
+                              ? 'bg-emerald-600 border-emerald-600 text-white shadow-md'
+                              : cond === 'Average'
+                              ? 'bg-amber-600 border-amber-600 text-white shadow-md'
+                              : 'bg-rose-600 border-rose-600 text-white shadow-md'
+                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        {cond}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Yard Remarks */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Yard Remarks</label>
+                  <input
+                    type="text"
+                    value={yardRemarks}
+                    onChange={(e) => setYardRemarks(e.target.value)}
+                    placeholder="Enter remarks for the yard"
+                    className="w-full bg-slate-50 text-slate-900 p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-indigo-600 text-xs font-medium shadow-sm"
+                  />
+                </div>
+
+                {/* Customer Remarks */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Customer Remarks</label>
+                  <input
+                    type="text"
+                    value={customerRemarks}
+                    onChange={(e) => setCustomerRemarks(e.target.value)}
+                    placeholder="Enter remarks from the customer"
+                    className="w-full bg-slate-50 text-slate-900 p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-indigo-600 text-xs font-medium shadow-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Navigation Footer */}
+              <div className="flex justify-between items-center pt-6 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setStep(2)}
+                  className="border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold px-5 py-2.5 rounded-xl text-xs transition-colors cursor-pointer flex items-center space-x-1"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>Back</span>
                 </button>
+
+                <div className="flex items-center space-x-3">
+                  <button
+                    type="button"
+                    onClick={handleSaveDraft}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl border border-slate-300 transition-all text-xs flex items-center space-x-2 cursor-pointer shadow-sm"
+                  >
+                    <Save className="w-4 h-4 text-amber-600" />
+                    <span>Save Draft</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-md transition-all text-xs flex items-center space-x-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {submitting ? (
+                      <span>Submitting...</span>
+                    ) : (
+                      <>
+                        <span>Submit In-Yard Check-In</span>
+                        <CheckCircle2 className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           )}
         </div>
       )}
 
-      {/* STEP 5: SUCCESS GATE PASS & PDF PRINTING */}
-      {step === 5 && createdVehicle && (
+      {/* STEP 4: STATUS SCREEN & GATE PASS RECEIPT */}
+      {step === 4 && createdVehicle && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 max-w-2xl mx-auto space-y-8 animate-fade-in print-container">
           {/* Header */}
           <div className="text-center space-y-2 no-print">

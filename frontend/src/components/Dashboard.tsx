@@ -26,10 +26,19 @@ import {
   Layers,
   Users,
   ClipboardCheck,
+  Car,
+  Building,
+  RefreshCw,
+  ChevronRight,
+  Menu,
+  Home,
+  Database,
 } from 'lucide-react';
 import { useToastStore } from '../store/toastStore';
 import { useAuthStore } from '../store/authStore';
 import { UnifiedReleaseModal } from './UnifiedReleaseModal';
+import { DraftsModal } from './DraftsModal';
+
 
 
 interface DashboardStats {
@@ -50,9 +59,9 @@ interface DashboardStats {
     };
     pendingReleases: number;
     dailyRevenue: {
-      today: { amount: number; count: number };
-      thisMonth: { amount: number; count: number };
-      thisYear: { amount: number; count: number };
+      today: { amount: number; count: number; accrued?: number };
+      thisMonth: { amount: number; count: number; accrued?: number };
+      thisYear: { amount: number; count: number; accrued?: number };
     };
     dailyLoss: {
       today: { amount: number; count: number };
@@ -81,9 +90,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
   const [calcRate, setCalcRate] = useState<number>(150);
 
   // ==========================================
-  // VEHICLE QUICK RELEASE DESK STATE
+  // VEHICLE QUICK RELEASE & DRAFTS DESK STATE
   // ==========================================
   const [releaseWizardOpen, setReleaseWizardOpen] = useState(false);
+  const [draftsModalOpen, setDraftsModalOpen] = useState(false);
+  const [draftsCount, setDraftsCount] = useState(0);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('yms_offline_drafts');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setDraftsCount(Array.isArray(parsed) ? parsed.length : 0);
+      } else {
+        setDraftsCount(0);
+      }
+    } catch (e) {
+      setDraftsCount(0);
+    }
+  }, [draftsModalOpen]);
+
 
   // Callback to refresh dashboard stats after a successful release
   const handleReleaseSuccess = async () => {
@@ -793,28 +819,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
 
   const renderManagerDashboard = () => {
     return (
-      <div className="space-y-4 md:space-y-5 animate-fade-in select-none bg-slate-950">
-        {/* Top Welcome Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-2.5 md:space-y-0">
+      <div className="space-y-6 animate-fade-in select-none bg-slate-950 p-1 sm:p-2 rounded-3xl">
+        {/* Top Header with Date Mode & Live Status */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
           <div>
-            <h2 className="text-lg sm:text-2xl font-black text-white tracking-tight font-display flex items-center gap-1.5">
+            <h2 className="text-lg sm:text-2xl font-black text-white tracking-tight font-display flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />
-              <span>Operations Control Center</span>
+              <span>Tenant Admin Operations Dashboard</span>
             </h2>
-            <p className="text-[10px] sm:text-xs text-slate-400 font-semibold mt-0.5 font-sans">Real-time status of parked vehicles, billing, and release approvals</p>
+            <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
+              Live yard stock summary, financial performance & quick operational desk
+            </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 self-start md:self-auto font-sans">
-            {/* Date range toggle buttons */}
-            <div className="flex items-center bg-slate-900 p-0.5 rounded-xl border border-slate-800 shadow-sm">
+          <div className="flex flex-wrap items-center gap-2 font-sans">
+            <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
               <button
                 onClick={() => {
                   setDateMode('realtime');
                   fetchStats();
                 }}
-                className={`px-3 py-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all duration-200 cursor-pointer ${
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   dateMode === 'realtime'
-                    ? 'bg-slate-800 text-white shadow-sm font-extrabold'
+                    ? 'bg-indigo-600 text-white shadow font-black'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -822,9 +849,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
               </button>
               <button
                 onClick={() => setDateMode('custom')}
-                className={`px-3 py-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all duration-200 cursor-pointer ${
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   dateMode === 'custom'
-                    ? 'bg-slate-800 text-white shadow-sm font-extrabold'
+                    ? 'bg-indigo-600 text-white shadow font-black'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -833,19 +860,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
             </div>
 
             {dateMode === 'custom' && (
-              <div className="flex items-center space-x-1.5 bg-slate-900 px-2.5 py-1.5 rounded-xl border border-slate-800 shadow-sm animate-fade-in">
+              <div className="flex items-center space-x-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
                 <input
                   type="date"
                   value={customStartDate}
                   onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="bg-transparent border-0 text-[10px] font-bold text-white focus:outline-none focus:ring-0 cursor-pointer p-0"
+                  className="bg-transparent border-0 text-xs font-bold text-white focus:outline-none cursor-pointer p-0"
                 />
-                <span className="text-[10px] text-slate-400 font-bold px-0.5">to</span>
+                <span className="text-xs text-slate-400 font-bold">to</span>
                 <input
                   type="date"
                   value={customEndDate}
                   onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="bg-transparent border-0 text-[10px] font-bold text-white focus:outline-none focus:ring-0 cursor-pointer p-0"
+                  className="bg-transparent border-0 text-xs font-bold text-white focus:outline-none cursor-pointer p-0"
                 />
                 <button
                   onClick={() => {
@@ -854,261 +881,387 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
                     }
                   }}
                   disabled={!customStartDate || !customEndDate}
-                  className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm"
+                  className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer"
                 >
                   Apply
                 </button>
               </div>
             )}
 
-            <div className="flex items-center space-x-1.5 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800 shadow-sm text-slate-300 text-[10px] sm:text-xs font-extrabold">
-              <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-              <span>{new Date().toLocaleDateString('en-IN', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}</span>
+            <div className="flex items-center space-x-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-slate-300 text-xs font-extrabold">
+              <Calendar className="w-4 h-4 text-indigo-400" />
+              <span>{new Date().toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
             </div>
           </div>
         </div>
 
-        {/* [NEW] Quick Actions Control Panel */}
-        <div className="bg-gradient-to-tr from-slate-900 via-slate-950 to-slate-900 text-white rounded-2xl p-4 sm:p-4.5 shadow-md relative overflow-hidden flex flex-col gap-3 border border-slate-800">
-          <div className="absolute right-0 top-0 w-28 h-28 bg-primary/10 rounded-full blur-[40px] pointer-events-none"></div>
-          <div className="absolute left-1/3 bottom-0 w-28 h-28 bg-indigo-500/10 rounded-full blur-[40px] pointer-events-none"></div>
-
-          <div className="z-10 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-[8px] font-black uppercase tracking-widest text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-md">
-                Command Center
-              </span>
-              <h3 className="text-xs sm:text-sm font-extrabold tracking-tight font-display">Logistics Yard Quick Actions</h3>
+        {/* 1. HERO MAIN ACTION CARDS GRID (4 Primary Actions) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Action 1: New Entry */}
+          <button
+            onClick={() => setCurrentTab && setCurrentTab('vehicle-entry')}
+            className="flex items-center space-x-4 bg-gradient-to-tr from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 border border-indigo-500/30 rounded-2xl p-4 text-left transition-all active:scale-95 shadow-lg group cursor-pointer"
+          >
+            <div className="p-3 bg-white/10 rounded-xl text-white group-hover:scale-110 transition-transform">
+              <Plus className="w-6 h-6 stroke-[3]" />
             </div>
-            <p className="hidden md:block text-[9px] text-slate-400 font-semibold">Instant single-tap shortcuts for day-to-day operations and field management.</p>
-          </div>
+            <div>
+              <span className="text-base font-black text-white block">New Entry</span>
+              <span className="text-xs text-indigo-100/80 font-bold block">Check in vehicle</span>
+            </div>
+          </button>
 
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 z-10">
-            {/* Action 1: Gate Check In */}
-            <button
-              onClick={() => setCurrentTab && setCurrentTab('vehicle-entry')}
-              className="flex flex-col items-start justify-between bg-gradient-to-tr from-primary to-indigo-650 hover:from-primary/95 hover:to-indigo-650/95 border border-primary/20 rounded-xl p-3 text-left h-20 sm:h-22 transition-all duration-200 active:scale-95 shadow-md shadow-primary/10 group cursor-pointer"
-            >
-              <div className="p-1.5 bg-white/10 rounded-lg text-white group-hover:scale-105 transition-transform">
-                <Plus className="w-4 h-4 stroke-[3]" />
-              </div>
-              <div className="space-y-0">
-                <span className="text-[11px] sm:text-xs font-black tracking-wide block">Gate Check-In</span>
-                <span className="text-[8px] text-white/70 font-semibold block">Record Repo Entry</span>
-              </div>
-            </button>
+          {/* Action 2: Vehicle List */}
+          <button
+            onClick={() => setCurrentTab && setCurrentTab('vehicles')}
+            className="flex items-center space-x-4 bg-slate-900 hover:bg-slate-850 border border-slate-800 rounded-2xl p-4 text-left transition-all active:scale-95 shadow-lg group cursor-pointer"
+          >
+            <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400 group-hover:scale-110 transition-transform">
+              <Car className="w-6 h-6" />
+            </div>
+            <div>
+              <span className="text-base font-black text-white block">Vehicle List</span>
+              <span className="text-xs text-slate-400 font-bold block">{stats.totalVehicles} Total Stock</span>
+            </div>
+          </button>
 
-            {/* Action 2: Yard Stocks */}
-            <button
-              onClick={() => setCurrentTab && setCurrentTab('vehicles')}
-              className="flex flex-col items-start justify-between bg-slate-950/40 hover:bg-slate-950/60 border border-slate-800 rounded-xl p-3 text-left h-20 sm:h-22 transition-all duration-200 active:scale-95 group cursor-pointer"
-            >
-              <div className="p-1.5 bg-slate-800 text-slate-350 rounded-lg group-hover:scale-105 transition-transform">
-                <Truck className="w-4 h-4" />
-              </div>
-              <div className="space-y-0">
-                <span className="text-[11px] sm:text-xs font-black tracking-wide block text-slate-200">Active Stock</span>
-                <span className="text-[8px] text-slate-550 font-semibold block">Track slots & release</span>
-              </div>
-            </button>
+          {/* Action 3: Release Vehicle */}
+          <button
+            onClick={() => setReleaseWizardOpen(true)}
+            className="flex items-center space-x-4 bg-slate-900 hover:bg-slate-850 border border-slate-800 rounded-2xl p-4 text-left transition-all active:scale-95 shadow-lg group cursor-pointer"
+          >
+            <div className="p-3 bg-amber-500/10 rounded-xl text-amber-400 group-hover:scale-110 transition-transform">
+              <KeyRound className="w-6 h-6" />
+            </div>
+            <div>
+              <span className="text-base font-black text-white block">Release Vehicle</span>
+              <span className="text-xs text-slate-400 font-bold block">Check out vehicle</span>
+            </div>
+          </button>
 
-            {/* Action 3: Configure Tariffs */}
-            <button
-              onClick={() => setCurrentTab && setCurrentTab('rates')}
-              className="flex flex-col items-start justify-between bg-slate-950/40 hover:bg-slate-950/60 border border-slate-800 rounded-xl p-3 text-left h-20 sm:h-22 transition-all duration-200 active:scale-95 group cursor-pointer"
-            >
-              <div className="p-1.5 bg-slate-800 text-slate-350 rounded-lg group-hover:scale-105 transition-transform">
-                <Coins className="w-4 h-4" />
-              </div>
-              <div className="space-y-0">
-                <span className="text-[11px] sm:text-xs font-black tracking-wide block text-slate-200">Bank Rates</span>
-                <span className="text-[8px] text-slate-550 font-semibold block">Manage tariffs & lists</span>
-              </div>
-            </button>
-
-            {/* Action 4: Reports Analytics */}
-            <button
-              onClick={() => setCurrentTab && setCurrentTab('reports')}
-              className="flex flex-col items-start justify-between bg-slate-950/40 hover:bg-slate-950/60 border border-slate-800 rounded-xl p-3 text-left h-20 sm:h-22 transition-all duration-200 active:scale-95 group cursor-pointer"
-            >
-              <div className="p-1.5 bg-slate-800 text-slate-350 rounded-lg group-hover:scale-105 transition-transform">
-                <FileText className="w-4 h-4" />
-              </div>
-              <div className="space-y-0">
-                <span className="text-[11px] sm:text-xs font-black tracking-wide block text-slate-200">Loss Analytics</span>
-                <span className="text-[8px] text-slate-550 font-semibold block">Kachha share graphs</span>
-              </div>
-            </button>
-
-            {/* Action 5: Vehicle Release Desk */}
-            <button
-              onClick={() => setReleaseWizardOpen(true)}
-              className="flex flex-col items-start justify-between bg-slate-950/40 hover:bg-slate-950/60 border border-slate-800 rounded-xl p-3 text-left h-20 sm:h-22 transition-all duration-200 active:scale-95 group cursor-pointer font-sans"
-            >
-              <div className="p-1.5 bg-slate-800 text-slate-350 rounded-lg group-hover:scale-105 transition-transform">
-                <KeyRound className="w-4 h-4 text-amber-400" />
-              </div>
-              <div className="space-y-0">
-                <span className="text-[11px] sm:text-xs font-black tracking-wide block text-slate-200">Vehicle Release</span>
-                <span className="text-[8px] text-slate-550 font-semibold block">Quick checkout desk</span>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        {/* KPI Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {cards.map((card, idx) => {
-            const Icon = card.icon;
-            return (
-              <div
-                key={idx}
-                className="bg-white/90 backdrop-blur-md rounded-3xl border border-slate-200/50 p-6 flex flex-col justify-between shadow-[0_4px_20px_rgba(0,0,0,0.015)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.04)] transition-all duration-300 active:scale-[0.98] group relative overflow-hidden"
-              >
-                <div className="absolute right-0 bottom-0 w-24 h-24 bg-slate-50/60 rounded-full blur-2xl group-hover:scale-125 transition-all duration-500"></div>
-
-                <div className="flex justify-between items-start z-10">
-                  <div className="space-y-2 font-sans">
-                    <span className="text-[9px] uppercase font-black tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded border border-slate-200/40 block w-fit">
-                      {card.badge}
-                    </span>
-                    <h3 className="text-slate-450 font-bold text-xs uppercase tracking-wider block">{card.title}</h3>
-                  </div>
-                  <div className={`p-3 rounded-2xl ${card.color} group-hover:scale-115 transition-transform duration-300 shrink-0`}>
-                    <Icon className="w-5.5 h-5.5" />
-                  </div>
-                </div>
-                {card.type === 'interactive' && card.counts ? (
-                  <div className="mt-5 z-10 space-y-3 font-sans">
-                    <p className="text-[11px] text-slate-400 font-semibold leading-relaxed">{card.desc}</p>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        onClick={() => handleCountClick(card.statusType, 'this_month')}
-                        className="flex flex-col items-center justify-center bg-slate-50 hover:bg-indigo-50/50 border border-slate-200/60 rounded-2xl p-3 text-center transition-all duration-200 active:scale-95 group/btn cursor-pointer"
-                      >
-                        <span className="text-[9px] uppercase font-black text-slate-450 block group-hover/btn:text-indigo-650 transition-colors">
-                          This Month
-                        </span>
-                        <span className="text-2xl font-black text-slate-800 block mt-1 font-display">
-                          {card.counts.thisMonth}
-                        </span>
-                      </button>
-                      <button
-                        onClick={() => handleCountClick(card.statusType, 'all')}
-                        className="flex flex-col items-center justify-center bg-slate-50 hover:bg-indigo-50/50 border border-slate-200/60 rounded-2xl p-3 text-center transition-all duration-200 active:scale-95 group/btn cursor-pointer"
-                      >
-                        <span className="text-[9px] uppercase font-black text-slate-450 block group-hover/btn:text-indigo-655 transition-colors">
-                          Total Stock
-                        </span>
-                        <span className="text-2xl font-black text-slate-800 block mt-1 font-display">
-                          {card.counts.total}
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-                ) : card.type === 'interactive-three' && card.threeValues ? (
-                  <div className="mt-5 z-10 space-y-3 font-sans">
-                    <p className="text-[11px] text-slate-400 font-semibold leading-relaxed">{card.desc}</p>
-                    {data?.stats && (data.stats as any).isCustomRange ? (
-                      <button
-                        onClick={() => handleThreeClick(card.statusType, 'custom')}
-                        className="w-full flex flex-col items-center justify-center bg-indigo-50/50 hover:bg-indigo-50/80 border border-indigo-200/60 rounded-2xl p-4.5 text-center transition-all duration-200 active:scale-95 group/btn cursor-pointer"
-                      >
-                        <span className="text-[9px] uppercase font-black text-indigo-650 tracking-wider block">
-                          Selected Custom Period
-                        </span>
-                        <span className="text-2xl font-black text-slate-850 block mt-1 font-display">
-                          {card.isCurrency ? `\u20B9${(card.threeValues.today as any).amount.toLocaleString('en-IN')}` : (card.threeValues.today as any)}
-                        </span>
-                        <span className="text-[10px] text-slate-450 font-semibold block mt-1">
-                          {card.isCurrency 
-                            ? `${card.threeValues.today.count} ${card.threeValues.today.count === 1 ? 'vehicle' : 'vehicles'}`
-                            : 'vehicles'
-                          }
-                        </span>
-                      </button>
-                    ) : (
-                      <div className="grid grid-cols-3 gap-1.5">
-                        <button
-                          onClick={() => handleThreeClick(card.statusType, 'today')}
-                          className="flex flex-col items-center justify-center bg-slate-50 hover:bg-indigo-50/50 border border-slate-200/60 rounded-2xl py-2 px-1 text-center transition-all duration-200 active:scale-95 group/btn cursor-pointer"
-                        >
-                          <span className="text-[8px] uppercase font-black text-slate-400 block group-hover/btn:text-indigo-650 transition-colors">
-                            Today
-                          </span>
-                          <span className="text-sm font-black text-slate-800 block mt-0.5 font-display truncate w-full px-0.5" title={card.isCurrency ? `\u20B9${(card.threeValues.today as any).amount.toLocaleString('en-IN')}` : String(card.threeValues.today)}>
-                            {card.isCurrency ? `\u20B9${(card.threeValues.today as any).amount.toLocaleString('en-IN')}` : (card.threeValues.today as any)}
-                          </span>
-                          <span className="text-[8px] text-slate-450 font-semibold block mt-0.5 group-hover/btn:text-indigo-500">
-                            {card.isCurrency 
-                              ? `${card.threeValues.today.count}`
-                              : 'vehicles'
-                            }
-                          </span>
-                        </button>
-                        <button
-                          onClick={() => handleThreeClick(card.statusType, 'this_month')}
-                          className="flex flex-col items-center justify-center bg-slate-50 hover:bg-indigo-50/50 border border-slate-200/60 rounded-2xl py-2 px-1 text-center transition-all duration-200 active:scale-95 group/btn cursor-pointer"
-                        >
-                          <span className="text-[8px] uppercase font-black text-slate-400 block group-hover/btn:text-indigo-650 transition-colors">
-                            Month
-                          </span>
-                          <span className="text-sm font-black text-slate-800 block mt-0.5 font-display truncate w-full px-0.5" title={card.isCurrency ? `\u20B9${(card.threeValues.thisMonth as any).amount.toLocaleString('en-IN')}` : String(card.threeValues.thisMonth)}>
-                            {card.isCurrency ? `\u20B9${(card.threeValues.thisMonth as any).amount.toLocaleString('en-IN')}` : (card.threeValues.thisMonth as any)}
-                          </span>
-                          <span className="text-[8px] text-slate-455 font-semibold block mt-0.5 group-hover/btn:text-indigo-500">
-                            {card.isCurrency 
-                              ? `${card.threeValues.thisMonth.count}`
-                              : 'vehicles'
-                            }
-                          </span>
-                        </button>
-                        <button
-                          onClick={() => handleThreeClick(card.statusType, 'this_year')}
-                          className="flex flex-col items-center justify-center bg-slate-50 hover:bg-indigo-50/50 border border-slate-200/60 rounded-2xl py-2 px-1 text-center transition-all duration-200 active:scale-95 group/btn cursor-pointer"
-                        >
-                          <span className="text-[8px] uppercase font-black text-slate-400 block group-hover/btn:text-indigo-650 transition-colors">
-                            Year
-                          </span>
-                          <span className="text-sm font-black text-slate-800 block mt-0.5 font-display truncate w-full px-0.5" title={card.isCurrency ? `\u20B9${(card.threeValues.thisYear as any).amount.toLocaleString('en-IN')}` : String(card.threeValues.thisYear)}>
-                            {card.isCurrency ? `\u20B9${(card.threeValues.thisYear as any).amount.toLocaleString('en-IN')}` : (card.threeValues.thisYear as any)}
-                          </span>
-                          <span className="text-[8px] text-slate-455 font-semibold block mt-0.5 group-hover/btn:text-indigo-500">
-                            {card.isCurrency 
-                              ? `${card.threeValues.thisYear.count}`
-                              : 'vehicles'
-                            }
-                          </span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="mt-5 z-10 space-y-1 font-sans">
-                    <p className="text-3xl font-black text-slate-900 tracking-tight font-display">{card.value}</p>
-                    <p className="text-xs text-slate-400 font-semibold">{card.desc}</p>
-                  </div>
+          {/* Action 4: Pending Drafts */}
+          <button
+            onClick={() => setDraftsModalOpen(true)}
+            className="flex items-center space-x-4 bg-slate-900 hover:bg-slate-850 border border-slate-800 rounded-2xl p-4 text-left transition-all active:scale-95 shadow-lg group cursor-pointer relative"
+          >
+            <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400 group-hover:scale-110 transition-transform">
+              <FileText className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="text-base font-black text-white block">Pending Drafts</span>
+                {draftsCount > 0 && (
+                  <span className="bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                    {draftsCount}
+                  </span>
                 )}
               </div>
-            );
-          })}
+              <span className="text-xs text-slate-400 font-bold block">
+                {draftsCount > 0 ? `${draftsCount} saved drafts` : 'No saved drafts'}
+              </span>
+            </div>
+          </button>
         </div>
 
-        {/* Charts & Details section */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Bank-wise Distribution */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between lg:col-span-1 font-sans">
-            <div>
-              <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
-                <Activity className="w-5 h-5 text-primary" />
-                <span>Bank-wise Vehicles Share</span>
-              </h3>
-              <p className="text-xs text-slate-450 font-semibold mt-1">Breakdown of finance partners</p>
+        {/* 2. YARD OPERATIONS SUMMARY METRICS GRID */}
+        <div>
+          <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
+            <LayoutGrid className="w-4 h-4 text-indigo-400" />
+            <span>Yard Operations Summary</span>
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Metric 1: In Yard */}
+            <button
+              onClick={() => handleCountClick('PAKKA', 'all')}
+              className="bg-slate-900 hover:bg-slate-850 border border-slate-800 rounded-2xl p-4 text-left transition-all active:scale-95 cursor-pointer flex flex-col justify-between"
+            >
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">In Yard</span>
+                <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400">
+                  <LayoutGrid className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="my-2">
+                <span className="text-3xl font-black text-white tracking-tight font-display">{stats.totalVehicles}</span>
+              </div>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[10px] font-black px-2 py-0.5 rounded-md">
+                  Pakka: {stats.pakkaVehicles.total}
+                </span>
+                <span className="bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[10px] font-black px-2 py-0.5 rounded-md">
+                  Kachha: {stats.kachhaVehicles.total}
+                </span>
+              </div>
+            </button>
+
+            {/* Metric 2: Today Entry */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Today Entry</span>
+                <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400">
+                  <Clock className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="my-2">
+                <span className="text-3xl font-black text-white tracking-tight font-display">{recentEntries.length}</span>
+              </div>
+              <span className="text-xs text-slate-400 font-semibold">New check-ins logged today</span>
             </div>
 
-            <div className="space-y-4 my-6 flex-1 overflow-y-auto max-h-[280px] pr-2">
+            {/* Metric 3: Released */}
+            <button
+              onClick={() => handleThreeClick('RELEASED', 'today')}
+              className="bg-slate-900 hover:bg-slate-850 border border-slate-800 rounded-2xl p-4 text-left transition-all active:scale-95 cursor-pointer flex flex-col justify-between"
+            >
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Released</span>
+                <div className="p-2 bg-amber-500/10 rounded-lg text-amber-400">
+                  <KeyRound className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="my-2">
+                <span className="text-3xl font-black text-white tracking-tight font-display">{stats.releasedVehicles.today}</span>
+              </div>
+              <span className="text-xs text-slate-400 font-semibold">Total released vehicles today</span>
+            </button>
+
+            {/* Metric 4: Today Revenue */}
+            <button
+              onClick={() => handleThreeClick('REVENUE', 'today')}
+              className="bg-slate-900 hover:bg-slate-850 border border-slate-800 rounded-2xl p-4 text-left transition-all active:scale-95 cursor-pointer flex flex-col justify-between"
+            >
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Today Revenue</span>
+                <div className="p-2 bg-sky-500/10 rounded-lg text-sky-400">
+                  <IndianRupee className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="my-2">
+                <span className="text-3xl font-black text-white tracking-tight font-display">
+                  ₹{stats.dailyRevenue.today.amount.toLocaleString('en-IN')}
+                </span>
+              </div>
+              <span className="text-xs text-slate-400 font-semibold">
+                {stats.dailyRevenue.today.count} collections today
+              </span>
+            </button>
+          </div>
+
+          {/* Pending Yard Shifts Warning Banner */}
+          <button
+            onClick={() => setCurrentTab && setCurrentTab('vehicles')}
+            className="w-full mt-3 bg-amber-950/40 hover:bg-amber-950/60 border border-amber-500/30 rounded-2xl p-3.5 flex items-center justify-between transition-all active:scale-98 text-left cursor-pointer group"
+          >
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-amber-500/20 rounded-xl text-amber-400">
+                <RefreshCw className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-sm font-black text-amber-300 block">🚚 Pending Yard Shifts</span>
+                <span className="text-xs text-amber-400/80 font-semibold">Non-paneled bank vehicles queued for yard transfer</span>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-lg font-black text-amber-300">
+                {(stats as any).shiftPendingCount || 0} Vehicles
+              </span>
+              <ChevronRight className="w-5 h-5 text-amber-400 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </button>
+        </div>
+
+        {/* 3. QUICK TOOLS HORIZONTAL BAR */}
+        <div>
+          <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
+            <Activity className="w-4 h-4 text-indigo-400" />
+            <span>Quick Tools</span>
+          </h3>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setCurrentTab && setCurrentTab('reports')}
+              className="flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 px-4 py-2.5 rounded-xl text-slate-200 text-xs font-bold transition-all cursor-pointer"
+            >
+              <FileText className="w-4 h-4 text-purple-400" />
+              <span>Reports Analytics</span>
+            </button>
+            <button
+              onClick={() => setCurrentTab && setCurrentTab('rates')}
+              className="flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 px-4 py-2.5 rounded-xl text-slate-200 text-xs font-bold transition-all cursor-pointer"
+            >
+              <IndianRupee className="w-4 h-4 text-teal-400" />
+              <span>Charges Calculator</span>
+            </button>
+            <button
+              onClick={() => setCurrentTab && setCurrentTab('rates')}
+              className="flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 px-4 py-2.5 rounded-xl text-slate-200 text-xs font-bold transition-all cursor-pointer"
+            >
+              <Building className="w-4 h-4 text-blue-400" />
+              <span>Bank Master</span>
+            </button>
+            <button
+              onClick={() => setCurrentTab && setCurrentTab('storage')}
+              className="flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 px-4 py-2.5 rounded-xl text-slate-200 text-xs font-bold transition-all cursor-pointer"
+            >
+              <LayoutGrid className="w-4 h-4 text-emerald-400" />
+              <span>Storage Management</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 4. FINANCIAL PERFORMANCE SECTION */}
+        <div>
+          <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
+            <TrendingUp className="w-4 h-4 text-indigo-400" />
+            <span>Financial Performance Overview</span>
+          </h3>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Financial Card 1: DAILY REVENUE */}
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 flex flex-col justify-between shadow-xl relative overflow-hidden">
+              <div className="flex justify-between items-start">
+                <div>
+                  <span className="bg-blue-500/20 text-blue-400 text-[9px] font-black uppercase px-2.5 py-1 rounded-full border border-blue-500/30 tracking-wider">
+                    Total Earnings Overview
+                  </span>
+                  <h4 className="text-base font-black text-white uppercase tracking-wide mt-2">DAILY REVENUE</h4>
+                  <p className="text-[11px] text-slate-400 font-bold">Pakka Stock Dues + Released Collections</p>
+                </div>
+                <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center text-white font-black text-lg shadow-lg">
+                  ₹
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 mt-6">
+                <button
+                  onClick={() => handleThreeClick('REVENUE', 'today')}
+                  className="bg-slate-950 hover:bg-slate-850 p-3 rounded-2xl border border-slate-800 text-center transition-all cursor-pointer"
+                >
+                  <span className="text-[9px] font-black text-slate-400 uppercase block">TODAY</span>
+                  <span className="text-sm font-black text-white block mt-1">₹{stats.dailyRevenue.today.amount.toLocaleString('en-IN')}</span>
+                  <span className="text-[9px] text-slate-500 font-bold block mt-0.5">Accrued: ₹{stats.dailyRevenue.today.accrued || 0}</span>
+                </button>
+                <button
+                  onClick={() => handleThreeClick('REVENUE', 'this_month')}
+                  className="bg-slate-950 hover:bg-slate-850 p-3 rounded-2xl border border-slate-800 text-center transition-all cursor-pointer"
+                >
+                  <span className="text-[9px] font-black text-slate-400 uppercase block">MONTH</span>
+                  <span className="text-sm font-black text-white block mt-1">₹{stats.dailyRevenue.thisMonth.amount.toLocaleString('en-IN')}</span>
+                  <span className="text-[9px] text-slate-500 font-bold block mt-0.5">Accrued: ₹{stats.dailyRevenue.thisMonth.accrued || 0}</span>
+                </button>
+                <button
+                  onClick={() => handleThreeClick('REVENUE', 'this_year')}
+                  className="bg-slate-950 hover:bg-slate-850 p-3 rounded-2xl border border-slate-800 text-center transition-all cursor-pointer"
+                >
+                  <span className="text-[9px] font-black text-slate-400 uppercase block">YEAR</span>
+                  <span className="text-sm font-black text-white block mt-1">₹{stats.dailyRevenue.thisYear.amount.toLocaleString('en-IN')}</span>
+                  <span className="text-[9px] text-slate-500 font-bold block mt-0.5">Accrued: ₹{stats.dailyRevenue.thisYear.accrued || 0}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Financial Card 2: KACHHA ACCRUED VALUE */}
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 flex flex-col justify-between shadow-xl relative overflow-hidden">
+              <div className="flex justify-between items-start">
+                <div>
+                  <span className="bg-rose-500/20 text-rose-400 text-[9px] font-black uppercase px-2.5 py-1 rounded-full border border-rose-500/30 tracking-wider">
+                    Kachha Liability
+                  </span>
+                  <h4 className="text-base font-black text-white uppercase tracking-wide mt-2">KACHHA ACCRUED VALUE</h4>
+                  <p className="text-[11px] text-slate-400 font-bold">Accrued Kachha dues</p>
+                </div>
+                <div className="w-10 h-10 rounded-2xl bg-rose-600 flex items-center justify-center text-white shadow-lg">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 mt-6">
+                <button
+                  onClick={() => handleThreeClick('LOSS', 'today')}
+                  className="bg-slate-950 hover:bg-slate-850 p-3 rounded-2xl border border-slate-800 text-center transition-all cursor-pointer"
+                >
+                  <span className="text-[9px] font-black text-slate-400 uppercase block">TODAY</span>
+                  <span className="text-sm font-black text-white block mt-1">₹{stats.dailyLoss.today.amount.toLocaleString('en-IN')}</span>
+                  <span className="text-[9px] text-slate-500 font-bold block mt-0.5">{stats.dailyLoss.today.count} vehicles</span>
+                </button>
+                <button
+                  onClick={() => handleThreeClick('LOSS', 'this_month')}
+                  className="bg-slate-950 hover:bg-slate-850 p-3 rounded-2xl border border-slate-800 text-center transition-all cursor-pointer"
+                >
+                  <span className="text-[9px] font-black text-slate-400 uppercase block">MONTH</span>
+                  <span className="text-sm font-black text-white block mt-1">₹{stats.dailyLoss.thisMonth.amount.toLocaleString('en-IN')}</span>
+                  <span className="text-[9px] text-slate-500 font-bold block mt-0.5">{stats.dailyLoss.thisMonth.count} vehicles</span>
+                </button>
+                <button
+                  onClick={() => handleThreeClick('LOSS', 'this_year')}
+                  className="bg-slate-950 hover:bg-slate-850 p-3 rounded-2xl border border-slate-800 text-center transition-all cursor-pointer"
+                >
+                  <span className="text-[9px] font-black text-slate-400 uppercase block">YEAR</span>
+                  <span className="text-sm font-black text-white block mt-1">₹{stats.dailyLoss.thisYear.amount.toLocaleString('en-IN')}</span>
+                  <span className="text-[9px] text-slate-500 font-bold block mt-0.5">{stats.dailyLoss.thisYear.count} vehicles</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Financial Card 3: PAKKA RUNNING CHARGES */}
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 flex flex-col justify-between shadow-xl relative overflow-hidden">
+              <div className="flex justify-between items-start">
+                <div>
+                  <span className="bg-indigo-500/20 text-indigo-400 text-[9px] font-black uppercase px-2.5 py-1 rounded-full border border-indigo-500/30 tracking-wider">
+                    Pakka Liability
+                  </span>
+                  <h4 className="text-base font-black text-white uppercase tracking-wide mt-2">PAKKA RUNNING CHARGES</h4>
+                  <p className="text-[11px] text-slate-400 font-bold">Active Pakka parking billing</p>
+                </div>
+                <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg">
+                  <Coins className="w-5 h-5" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 mt-6">
+                <button
+                  onClick={() => handleCountClick('PAKKA', 'this_month')}
+                  className="bg-slate-950 hover:bg-slate-850 p-3 rounded-2xl border border-slate-800 text-center transition-all cursor-pointer"
+                >
+                  <span className="text-[9px] font-black text-slate-400 uppercase block">THIS MONTH</span>
+                  <span className="text-sm font-black text-white block mt-1">{stats.pakkaVehicles.thisMonth}</span>
+                  <span className="text-[9px] text-slate-500 font-bold block mt-0.5">Vehicles</span>
+                </button>
+                <button
+                  onClick={() => handleCountClick('PAKKA', 'all')}
+                  className="bg-slate-950 hover:bg-slate-850 p-3 rounded-2xl border border-slate-800 text-center transition-all cursor-pointer"
+                >
+                  <span className="text-[9px] font-black text-slate-400 uppercase block font-display">TOTAL STOCK</span>
+                  <span className="text-sm font-black text-white block mt-1">{stats.pakkaVehicles.total}</span>
+                  <span className="text-[9px] text-slate-500 font-bold block mt-0.5">Pakka Active</span>
+                </button>
+                <button
+                  onClick={() => handleThreeClick('REVENUE', 'this_month')}
+                  className="bg-slate-950 hover:bg-slate-850 p-3 rounded-2xl border border-slate-800 text-center transition-all cursor-pointer"
+                >
+                  <span className="text-[9px] font-black text-slate-400 uppercase block">MONTH DUES</span>
+                  <span className="text-sm font-black text-white block mt-1">₹{(stats.dailyRevenue.thisMonth.accrued || 0).toLocaleString('en-IN')}</span>
+                  <span className="text-[9px] text-slate-500 font-bold block mt-0.5">Accrued</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 5. BANK-WISE SHARE & RECENT LOGS TABLES */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 pt-2">
+          {/* Bank Distribution */}
+          <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 flex flex-col justify-between lg:col-span-1">
+            <div>
+              <h3 className="text-sm font-black text-white flex items-center space-x-2">
+                <Activity className="w-4 h-4 text-indigo-400" />
+                <span className="uppercase tracking-wider">Bank Stock Breakdown</span>
+              </h3>
+              <p className="text-[10px] text-slate-400 font-bold mt-1">Finance partner vehicles distribution</p>
+            </div>
+
+            <div className="space-y-3.5 my-5 flex-1 overflow-y-auto max-h-[260px] pr-1">
               {bankStats.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-8">No banks registered</p>
+                <p className="text-xs text-slate-500 text-center py-6">No bank records</p>
               ) : (
                 (() => {
                   const total = bankStats.reduce((sum, b) => sum + b.count, 0) || 1;
@@ -1116,13 +1269,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
                     const percent = Math.round((item.count / total) * 100);
                     return (
                       <div key={idx} className="space-y-1">
-                        <div className="flex justify-between text-xs font-semibold text-slate-655">
+                        <div className="flex justify-between text-xs font-bold text-slate-300">
                           <span>{item.bank}</span>
                           <span>{item.count} ({percent}%)</span>
                         </div>
-                        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
                           <div
-                            className="h-full bg-primary rounded-full transition-all duration-500"
+                            className="h-full bg-indigo-500 rounded-full transition-all duration-500"
                             style={{ width: `${percent}%` }}
                           ></div>
                         </div>
@@ -1134,59 +1287,59 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
             </div>
           </div>
 
-          {/* Quick Offline Bill Calculator Card */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between lg:col-span-1 font-sans">
+          {/* Quick Offline Dues Calculator */}
+          <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 flex flex-col justify-between lg:col-span-1">
             <div>
-              <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
-                <IndianRupee className="w-5 h-5 text-emerald-500" />
-                <span>Quick Bill Calculator</span>
+              <h3 className="text-sm font-black text-white flex items-center space-x-2">
+                <IndianRupee className="w-4 h-4 text-emerald-400" />
+                <span className="uppercase tracking-wider">Dues Estimator</span>
               </h3>
-              <p className="text-xs text-slate-450 font-semibold mt-1">Offline parking charge estimation</p>
+              <p className="text-[10px] text-slate-400 font-bold mt-1">Quick customer parking charge check</p>
             </div>
 
-            <div className="space-y-4 my-6 flex-1">
+            <div className="space-y-3.5 my-4 flex-1">
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Days Parked</label>
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Days Parked</label>
                 <input
                   type="number"
                   value={calcDays}
                   onChange={(e) => setCalcDays(Math.max(1, parseInt(e.target.value) || 0))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm font-semibold text-slate-750 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
                   min="1"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-455 uppercase tracking-wider block">Rate Per Day (₹)</label>
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Rate Per Day (₹)</label>
                 <input
                   type="number"
                   value={calcRate}
                   onChange={(e) => setCalcRate(Math.max(1, parseInt(e.target.value) || 0))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm font-semibold text-slate-750 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
                   min="1"
                 />
               </div>
 
-              <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-center mt-4">
-                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">Estimated Charge</span>
-                <span className="text-2xl font-black text-emerald-700 block mt-1">{"\u20B9"}{(calcDays * calcRate).toLocaleString('en-IN')}</span>
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-3 text-center mt-2">
+                <span className="text-[9px] font-black text-emerald-400 uppercase tracking-wider block">Estimated Dues</span>
+                <span className="text-xl font-black text-emerald-300 block mt-0.5">₹{(calcDays * calcRate).toLocaleString('en-IN')}</span>
               </div>
             </div>
           </div>
 
-          {/* Recent Activity Log - Entries */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm lg:col-span-2 flex flex-col justify-between font-sans">
+          {/* Recent In-Yard Entries Log */}
+          <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 lg:col-span-2 flex flex-col justify-between">
             <div>
-              <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
-                <Truck className="w-5 h-5 text-kachha" />
-                <span>Recent In-Yard Entries</span>
+              <h3 className="text-sm font-black text-white flex items-center space-x-2">
+                <Truck className="w-4 h-4 text-indigo-400" />
+                <span className="uppercase tracking-wider">Recent In-Yard Entries</span>
               </h3>
-              <p className="text-xs text-slate-450 font-semibold mt-1">Latest vehicle check-ins</p>
+              <p className="text-[10px] text-slate-400 font-bold mt-1">Latest vehicle check-ins logged under tenant yard</p>
             </div>
 
-            <div className="my-6 flex-1 overflow-x-auto min-h-[220px]">
+            <div className="my-4 flex-1 overflow-x-auto min-h-[220px]">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-slate-100 text-slate-400 uppercase font-black tracking-wider text-[10px]">
+                  <tr className="border-b border-slate-800 text-slate-400 uppercase font-black tracking-wider text-[10px]">
                     <th className="pb-3 font-extrabold">Vehicle No</th>
                     <th className="pb-3 font-extrabold">Brand/Model</th>
                     <th className="pb-3 font-extrabold">Bank</th>
@@ -1194,30 +1347,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
                     <th className="pb-3 font-extrabold">Yard Slot</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50 text-slate-655 font-semibold">
+                <tbody className="divide-y divide-slate-800/60 text-slate-300 font-semibold">
                   {recentEntries.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-6 text-center text-slate-400">No vehicles recorded yet</td>
+                      <td colSpan={5} className="py-6 text-center text-slate-500">No vehicles recorded yet</td>
                     </tr>
                   ) : (
-                    recentEntries.map((v) => (
-                      <tr key={v.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="py-3.5 font-black text-slate-800 uppercase tracking-wide">{v.vehicleNumber}</td>
-                        <td className="py-3.5">{v.brand} {v.model}</td>
-                        <td className="py-3.5 font-bold">{v.bankName}</td>
-                        <td className="py-3.5 font-bold">
-                          <span
-                            className={`px-2 py-0.5 rounded font-black text-[9px] ${
-                              v.yardStatus === 'KACHHA'
-                                ? 'bg-amber-100 text-amber-700 border border-amber-200'
-                                : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                            }`}
-                          >
+                    recentEntries.slice(0, 5).map((v) => (
+                      <tr key={v.id} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-3 font-black text-white uppercase tracking-wide">{v.vehicleNumber}</td>
+                        <td className="py-3 text-slate-300 font-bold">{v.brand} {v.model}</td>
+                        <td className="py-3 text-slate-400 font-bold">{v.bankName}</td>
+                        <td className="py-3">
+                          <span className={`px-2 py-0.5 rounded font-black text-[9px] ${
+                            v.yardStatus === 'KACHHA'
+                              ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                              : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                          }`}>
                             {v.yardStatus}
                           </span>
                         </td>
-                        <td className="py-3.5">
-                          <span className="font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                        <td className="py-3">
+                          <span className="font-bold text-slate-300 bg-slate-950 border border-slate-800 px-2 py-0.5 rounded">
                             {v.yardLocation?.slot || 'Unallocated'}
                           </span>
                         </td>
@@ -1227,58 +1378,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
                 </tbody>
               </table>
             </div>
-          </div>
-        </div>
-
-        {/* Dispatched / Released Activity Log */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col font-sans">
-          <div>
-            <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
-              <CheckCircle className="w-5 h-5 text-pakka" />
-              <span>Recent Releases & Dispatches</span>
-            </h3>
-            <p className="text-xs text-slate-455 font-semibold mt-1">Vehicles that safely cleared gate passes today</p>
-          </div>
-
-          <div className="mt-6 overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-slate-100 text-slate-400 uppercase font-black tracking-wider text-[10px]">
-                  <th className="pb-3 font-extrabold">Gate Pass No</th>
-                  <th className="pb-3 font-extrabold">Vehicle Number</th>
-                  <th className="pb-3 font-extrabold">Type</th>
-                  <th className="pb-3 font-extrabold">Released Date</th>
-                  <th className="pb-3 font-extrabold">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50 text-slate-655 font-semibold">
-                {recentReleases.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-6 text-center text-slate-400 font-bold">No releases recorded today</td>
-                  </tr>
-                ) : (
-                  recentReleases.map((r) => (
-                    <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3.5 font-bold text-slate-800">{r.gatePassNumber}</td>
-                      <td className="py-3.5 font-black uppercase text-slate-850">{r.vehicle?.vehicleNumber}</td>
-                      <td className="py-3.5 uppercase">{r.releaseType} Release</td>
-                      <td className="py-3.5 font-semibold text-slate-500">{new Date(r.releasedAt).toLocaleString('en-IN')}</td>
-                      <td className="py-3.5">
-                        <a
-                          href={r.gatePassUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-primary font-bold hover:underline flex items-center space-x-1"
-                        >
-                          <span>Print Pass</span>
-                          <ArrowRight className="w-3 h-3" />
-                        </a>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
           </div>
         </div>
       </div>
@@ -1701,6 +1800,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
         isOpen={releaseWizardOpen}
         onClose={() => setReleaseWizardOpen(false)}
         onSuccess={handleReleaseSuccess}
+      />
+
+      {/* DRAFTS MODAL */}
+      <DraftsModal
+        isOpen={draftsModalOpen}
+        onClose={() => setDraftsModalOpen(false)}
+        onResumeDraft={(draftData) => {
+          setDraftsModalOpen(false);
+          setCurrentTab && setCurrentTab('vehicle-entry');
+        }}
       />
     </div>
   );
