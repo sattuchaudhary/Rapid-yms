@@ -403,58 +403,58 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
         {/* Offline Dues Estimator & In-Yard Activity logs */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Quick Bill Calculator */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-200/60 shadow-md flex flex-col justify-between">
+          <div className="bg-slate-900/60 backdrop-blur-md p-6 rounded-3xl border border-slate-800/80 shadow-xl flex flex-col justify-between">
             <div>
-              <h3 className="text-sm font-black text-slate-800 flex items-center space-x-2">
-                <IndianRupee className="w-5 h-5 text-emerald-500" />
+              <h3 className="text-sm font-black text-white flex items-center space-x-2">
+                <IndianRupee className="w-5 h-5 text-emerald-400" />
                 <span className="uppercase tracking-wider">Quick Dues Calculator</span>
               </h3>
-              <p className="text-[10px] text-slate-450 font-bold mt-1">Estimate parking dues for inquiring customers</p>
+              <p className="text-[10px] text-slate-400 font-bold mt-1">Estimate parking dues for inquiring customers</p>
             </div>
 
             <div className="space-y-4 my-6 flex-1">
               <div className="space-y-1">
-                <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block">Days Parked</label>
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Days Parked</label>
                 <input
                   type="number"
                   value={calcDays}
                   onChange={(e) => setCalcDays(Math.max(1, parseInt(e.target.value) || 0))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
                   min="1"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[9px] font-black text-slate-455 uppercase tracking-wider block">Rate Per Day (₹)</label>
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Rate Per Day (₹)</label>
                 <input
                   type="number"
                   value={calcRate}
                   onChange={(e) => setCalcRate(Math.max(1, parseInt(e.target.value) || 0))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
                   min="1"
                 />
               </div>
 
-              <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-center mt-4 shadow-sm">
-                <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wider block">Estimated Charge</span>
-                <span className="text-xl font-black text-emerald-700 block mt-1">₹{(calcDays * calcRate).toLocaleString('en-IN')}</span>
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 text-center mt-4 shadow-sm">
+                <span className="text-[9px] font-black text-emerald-400 uppercase tracking-wider block">Estimated Charge</span>
+                <span className="text-xl font-black text-emerald-300 block mt-1">₹{(calcDays * calcRate).toLocaleString('en-IN')}</span>
               </div>
             </div>
           </div>
 
           {/* Table: Guard shift logs */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-200/60 shadow-md lg:col-span-2 flex flex-col justify-between">
+          <div className="bg-slate-900/60 backdrop-blur-md p-6 rounded-3xl border border-slate-800/80 shadow-xl lg:col-span-2 flex flex-col justify-between">
             <div>
-              <h3 className="text-sm font-black text-slate-800 flex items-center space-x-2">
-                <Truck className="w-5 h-5 text-indigo-500" />
+              <h3 className="text-sm font-black text-white flex items-center space-x-2">
+                <Truck className="w-5 h-5 text-indigo-400" />
                 <span className="uppercase tracking-wider">Gate Check-In Shift Log</span>
               </h3>
-              <p className="text-[10px] text-slate-455 font-bold mt-1">Latest vehicle check-ins logged under your node</p>
+              <p className="text-[10px] text-slate-400 font-bold mt-1">Latest vehicle check-ins logged under your node</p>
             </div>
 
             <div className="my-6 flex-1 overflow-x-auto min-h-[220px]">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-slate-100 text-slate-400 uppercase font-black tracking-wider text-[10px]">
+                  <tr className="border-b border-slate-800 text-slate-400 uppercase font-black tracking-wider text-[10px]">
                     <th className="pb-3 font-extrabold">Vehicle No</th>
                     <th className="pb-3 font-extrabold">Model</th>
                     <th className="pb-3 font-extrabold">Bank</th>
@@ -462,28 +462,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
                     <th className="pb-3 font-extrabold">Slot</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50 text-slate-655 font-semibold">
+                <tbody className="divide-y divide-slate-800/60 text-slate-300 font-semibold">
                   {recentEntries.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="py-8 text-center text-slate-400 font-bold">No entries logged today</td>
                     </tr>
                   ) : (
                     recentEntries.slice(0, 5).map((v) => (
-                      <tr key={v.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="py-3 font-black text-slate-800 uppercase tracking-wide">{v.vehicleNumber}</td>
-                        <td className="py-3 text-slate-500 font-bold">{v.brand} {v.model}</td>
-                        <td className="py-3 text-slate-600 font-bold">{v.bankName}</td>
+                      <tr key={v.id} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-3 font-black text-white uppercase tracking-wide">{v.vehicleNumber}</td>
+                        <td className="py-3 text-slate-300 font-bold">{v.brand} {v.model}</td>
+                        <td className="py-3 text-slate-400 font-bold">{v.bankName}</td>
                         <td className="py-3">
                           <span className={`px-2 py-0.5 rounded font-black text-[9px] ${
                             v.yardStatus === 'KACHHA'
-                              ? 'bg-amber-100 text-amber-700 border border-amber-200'
-                              : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                              ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                              : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                           }`}>
                             {v.yardStatus}
                           </span>
                         </td>
                         <td className="py-3">
-                          <span className="font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                          <span className="font-bold text-slate-300 bg-slate-950 border border-slate-800 px-2 py-0.5 rounded">
                             {v.yardLocation?.slot || 'Unallocated'}
                           </span>
                         </td>
@@ -563,13 +563,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
         {/* Stock allocation metrics & Visual Zone progress */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Space occupancy progress bars */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-200/60 shadow-md flex flex-col justify-between">
+          <div className="bg-slate-900/60 backdrop-blur-md p-6 rounded-3xl border border-slate-800/80 shadow-xl flex flex-col justify-between">
             <div>
-              <h3 className="text-sm font-black text-slate-800 flex items-center space-x-2">
-                <LayoutGrid className="w-5 h-5 text-indigo-500" />
+              <h3 className="text-sm font-black text-white flex items-center space-x-2">
+                <LayoutGrid className="w-5 h-5 text-indigo-400" />
                 <span className="uppercase tracking-wider">Yard Slot Occupancy</span>
               </h3>
-              <p className="text-[10px] text-slate-455 font-bold mt-1">Real-time occupancy ratio across allocated zones</p>
+              <p className="text-[10px] text-slate-400 font-bold mt-1">Real-time occupancy ratio across allocated zones</p>
             </div>
 
             <div className="space-y-5 my-6 flex-1 overflow-y-auto">
@@ -577,11 +577,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
                 const percent = Math.round((zone.occupied / zone.capacity) * 100);
                 return (
                   <div key={zone.id} className="space-y-1.5 font-bold text-xs">
-                    <div className="flex justify-between text-slate-655 font-bold text-[11px]">
+                    <div className="flex justify-between text-slate-300 font-bold text-[11px]">
                       <span>{zone.name}</span>
                       <span>{zone.occupied} / {zone.capacity} ({percent}%)</span>
                     </div>
-                    <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200/40">
+                    <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
                       <div
                         className={`h-full ${zone.color} rounded-full transition-all duration-500 shadow-sm`}
                         style={{ width: `${percent}%` }}
@@ -594,10 +594,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
           </div>
 
           {/* Table: Supervisor in-yard entries */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-200/60 shadow-md lg:col-span-2 flex flex-col justify-between">
+          <div className="bg-slate-900/60 backdrop-blur-md p-6 rounded-3xl border border-slate-800/80 shadow-xl lg:col-span-2 flex flex-col justify-between">
             <div>
-              <h3 className="text-sm font-black text-slate-800 flex items-center space-x-2">
-                <Truck className="w-5 h-5 text-indigo-500" />
+              <h3 className="text-sm font-black text-white flex items-center space-x-2">
+                <Truck className="w-5 h-5 text-indigo-400" />
                 <span className="uppercase tracking-wider">Active Inventory Arrivals</span>
               </h3>
               <p className="text-[10px] text-slate-455 font-bold mt-1">Recent entries awaiting layout allocation</p>
@@ -672,24 +672,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
 
         {/* Executive Quick KPIs */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/50 shadow-sm flex flex-col justify-between">
-            <span className="text-[8px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase tracking-wider w-fit">Release Status</span>
+          <div className="bg-slate-900/60 backdrop-blur-md p-5 rounded-3xl border border-slate-800/80 shadow-xl flex flex-col justify-between">
+            <span className="text-[8px] font-black text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded uppercase tracking-wider w-fit border border-indigo-500/20">Release Status</span>
             <div className="mt-3">
-              <span className="text-3xl font-black text-slate-800 tracking-tight font-display">{stats.pendingReleases}</span>
+              <span className="text-3xl font-black text-white tracking-tight font-display">{stats.pendingReleases}</span>
               <span className="text-xs text-slate-400 font-bold block mt-0.5">Pending Release Applications</span>
             </div>
           </div>
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/50 shadow-sm flex flex-col justify-between">
-            <span className="text-[8px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase tracking-wider w-fit">Cleared Dispatches</span>
+          <div className="bg-slate-900/60 backdrop-blur-md p-5 rounded-3xl border border-slate-800/80 shadow-xl flex flex-col justify-between">
+            <span className="text-[8px] font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded uppercase tracking-wider w-fit border border-emerald-500/20">Cleared Dispatches</span>
             <div className="mt-3">
-              <span className="text-3xl font-black text-slate-800 tracking-tight font-display">{stats.releasedVehicles.today}</span>
+              <span className="text-3xl font-black text-white tracking-tight font-display">{stats.releasedVehicles.today}</span>
               <span className="text-xs text-slate-400 font-bold block mt-0.5">Vehicles Dispatched Today</span>
             </div>
           </div>
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/50 shadow-sm flex flex-col justify-between">
-            <span className="text-[8px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase tracking-wider w-fit">Total Month Outflow</span>
+          <div className="bg-slate-900/60 backdrop-blur-md p-5 rounded-3xl border border-slate-800/80 shadow-xl flex flex-col justify-between">
+            <span className="text-[8px] font-black text-teal-400 bg-teal-500/10 px-2 py-0.5 rounded uppercase tracking-wider w-fit border border-teal-500/20">Total Month Outflow</span>
             <div className="mt-3">
-              <span className="text-3xl font-black text-slate-800 tracking-tight font-display">{stats.releasedVehicles.thisMonth}</span>
+              <span className="text-3xl font-black text-white tracking-tight font-display">{stats.releasedVehicles.thisMonth}</span>
               <span className="text-xs text-slate-400 font-bold block mt-0.5">Cleared passes this month</span>
             </div>
           </div>
@@ -725,13 +725,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
         </div>
 
         {/* Digital release requests queue queue log */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200/60 shadow-md flex flex-col">
+        <div className="bg-slate-900/60 backdrop-blur-md p-6 rounded-3xl border border-slate-800/80 shadow-xl flex flex-col">
           <div>
-            <h3 className="text-sm font-black text-slate-800 flex items-center space-x-2">
-              <ClipboardCheck className="w-5 h-5 text-indigo-500" />
+            <h3 className="text-sm font-black text-white flex items-center space-x-2">
+              <ClipboardCheck className="w-5 h-5 text-indigo-400" />
               <span className="uppercase tracking-wider">Digital Customer Release Queue</span>
             </h3>
-            <p className="text-[10px] text-slate-455 font-bold mt-1">Applications submitted online from Customer Portal awaiting paperwork audit</p>
+            <p className="text-[10px] text-slate-400 font-bold mt-1">Applications submitted online from Customer Portal awaiting paperwork audit</p>
           </div>
 
           <div className="my-6 overflow-x-auto min-h-[220px]">
@@ -793,20 +793,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
 
   const renderManagerDashboard = () => {
     return (
-      <div className="space-y-4 md:space-y-5 animate-fade-in select-none">
+      <div className="space-y-4 md:space-y-5 animate-fade-in select-none bg-slate-950">
         {/* Top Welcome Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-2.5 md:space-y-0">
           <div>
-            <h2 className="text-lg sm:text-2xl font-extrabold text-slate-800 tracking-tight font-display flex items-center gap-1.5">
-              <Sparkles className="w-5 h-5 text-primary animate-pulse" />
+            <h2 className="text-lg sm:text-2xl font-black text-white tracking-tight font-display flex items-center gap-1.5">
+              <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />
               <span>Operations Control Center</span>
             </h2>
-            <p className="text-[10px] sm:text-xs text-slate-450 font-semibold mt-0.5 font-sans">Real-time status of parked vehicles, billing, and release approvals</p>
+            <p className="text-[10px] sm:text-xs text-slate-400 font-semibold mt-0.5 font-sans">Real-time status of parked vehicles, billing, and release approvals</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 self-start md:self-auto font-sans">
             {/* Date range toggle buttons */}
-            <div className="flex items-center bg-slate-200/50 p-0.5 rounded-xl border border-slate-300/30 shadow-sm">
+            <div className="flex items-center bg-slate-900 p-0.5 rounded-xl border border-slate-800 shadow-sm">
               <button
                 onClick={() => {
                   setDateMode('realtime');
@@ -814,8 +814,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
                 }}
                 className={`px-3 py-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all duration-200 cursor-pointer ${
                   dateMode === 'realtime'
-                    ? 'bg-white text-slate-850 shadow-sm font-extrabold'
-                    : 'text-slate-500 hover:text-slate-700'
+                    ? 'bg-slate-800 text-white shadow-sm font-extrabold'
+                    : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 Real-Time
@@ -824,8 +824,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
                 onClick={() => setDateMode('custom')}
                 className={`px-3 py-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all duration-200 cursor-pointer ${
                   dateMode === 'custom'
-                    ? 'bg-white text-slate-850 shadow-sm font-extrabold'
-                    : 'text-slate-500 hover:text-slate-700'
+                    ? 'bg-slate-800 text-white shadow-sm font-extrabold'
+                    : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 Custom Range
@@ -833,19 +833,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
             </div>
 
             {dateMode === 'custom' && (
-              <div className="flex items-center space-x-1.5 bg-white px-2.5 py-1.5 rounded-xl border border-slate-200/80 shadow-sm animate-fade-in">
+              <div className="flex items-center space-x-1.5 bg-slate-900 px-2.5 py-1.5 rounded-xl border border-slate-800 shadow-sm animate-fade-in">
                 <input
                   type="date"
                   value={customStartDate}
                   onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="bg-transparent border-0 text-[10px] font-bold text-slate-700 focus:outline-none focus:ring-0 cursor-pointer p-0"
+                  className="bg-transparent border-0 text-[10px] font-bold text-white focus:outline-none focus:ring-0 cursor-pointer p-0"
                 />
                 <span className="text-[10px] text-slate-400 font-bold px-0.5">to</span>
                 <input
                   type="date"
                   value={customEndDate}
                   onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="bg-transparent border-0 text-[10px] font-bold text-slate-700 focus:outline-none focus:ring-0 cursor-pointer p-0"
+                  className="bg-transparent border-0 text-[10px] font-bold text-white focus:outline-none focus:ring-0 cursor-pointer p-0"
                 />
                 <button
                   onClick={() => {
@@ -854,15 +854,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentTab }) => {
                     }
                   }}
                   disabled={!customStartDate || !customEndDate}
-                  className="bg-primary hover:bg-primary/95 disabled:bg-slate-200 disabled:text-slate-450 text-white px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer hover:shadow-sm"
+                  className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm"
                 >
                   Apply
                 </button>
               </div>
             )}
 
-            <div className="flex items-center space-x-1.5 bg-white px-3 py-1.5 rounded-xl border border-slate-200/50 shadow-sm text-slate-655 text-[10px] sm:text-xs font-extrabold">
-              <Calendar className="w-3.5 h-3.5 text-primary" />
+            <div className="flex items-center space-x-1.5 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800 shadow-sm text-slate-300 text-[10px] sm:text-xs font-extrabold">
+              <Calendar className="w-3.5 h-3.5 text-indigo-400" />
               <span>{new Date().toLocaleDateString('en-IN', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}</span>
             </div>
           </div>

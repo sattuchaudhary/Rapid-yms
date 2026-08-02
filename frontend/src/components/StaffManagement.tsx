@@ -121,12 +121,12 @@ export const StaffManagement: React.FC = () => {
   };
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-slate-50 space-y-6 md:space-y-8 flex-1 overflow-y-auto select-none">
+    <div className="p-4 sm:p-6 md:p-8 bg-slate-950 space-y-6 md:space-y-8 flex-1 overflow-y-auto select-none">
       {/* Title */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Staff Management Console</h2>
-          <p className="text-sm text-slate-500 font-medium">Verify credentials, assign roles, toggle access, and monitor check-in executives</p>
+          <h2 className="text-2xl font-black text-white tracking-wide font-display">Staff Management Console</h2>
+          <p className="text-xs text-slate-400 font-semibold mt-0.5">Verify credentials, assign roles, toggle access, and monitor check-in executives</p>
         </div>
         <button
           onClick={() => {
@@ -134,7 +134,7 @@ export const StaffManagement: React.FC = () => {
             setFormData({ name: '', email: '', phone: '', password: '', role: 'GUARD' });
             setShowForm(!showForm);
           }}
-          className="bg-primary hover:bg-primary/95 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-sm shadow-primary/10 transition-all self-start"
+          className="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-lg shadow-indigo-600/20 transition-all self-start cursor-pointer"
         >
           <UserPlus className="w-4 h-4" />
           <span>Add Staff Member</span>
@@ -145,10 +145,10 @@ export const StaffManagement: React.FC = () => {
       {showForm && (
         <form
           onSubmit={handleSubmit}
-          className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm max-w-xl mx-auto space-y-5 animate-fade-in"
+          className="bg-slate-900/60 backdrop-blur-md p-6 rounded-3xl border border-slate-800/80 shadow-2xl max-w-xl mx-auto space-y-5 animate-fade-in text-white"
         >
-          <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-2">
-            <Users className="w-5 h-5 text-primary" />
+          <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center space-x-2">
+            <Users className="w-5 h-5 text-indigo-400" />
             <span>{editId ? 'Edit Staff Member' : 'Staff Registration Form'}</span>
           </h3>
 
@@ -162,7 +162,7 @@ export const StaffManagement: React.FC = () => {
                 value={formData.name}
                 onChange={handleChange}
                 placeholder="Enter full name"
-                className="w-full text-slate-800 px-3 py-2 rounded-xl border text-xs font-semibold focus:outline-none"
+                className="w-full text-white bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-indigo-500"
               />
             </div>
 
@@ -172,7 +172,7 @@ export const StaffManagement: React.FC = () => {
                 name="role"
                 value={formData.role}
                 onChange={handleChange}
-                className="w-full text-slate-800 px-3 py-2 rounded-xl border text-xs font-semibold focus:outline-none"
+                className="w-full text-white bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-indigo-500"
               >
                 <option value="TENANT_ADMIN">Tenant Admin</option>
                 <option value="MANAGER">Manager</option>
@@ -192,8 +192,8 @@ export const StaffManagement: React.FC = () => {
                 value={formData.email}
                 onChange={handleChange}
                 placeholder="email@example.com"
-                className={`w-full text-slate-800 px-3 py-2 rounded-xl border text-xs font-semibold focus:outline-none ${
-                  editId ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : ''
+                className={`w-full text-white bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-indigo-500 ${
+                  editId ? 'bg-slate-900 text-slate-500 cursor-not-allowed' : ''
                 }`}
               />
             </div>
@@ -206,7 +206,7 @@ export const StaffManagement: React.FC = () => {
                 value={formData.phone}
                 onChange={handleChange}
                 placeholder="Enter mobile no"
-                className="w-full text-slate-800 px-3 py-2 rounded-xl border text-xs font-semibold focus:outline-none"
+                className="w-full text-white bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-indigo-500"
               />
             </div>
 
@@ -221,7 +221,7 @@ export const StaffManagement: React.FC = () => {
                 value={formData.password}
                 onChange={handleChange}
                 placeholder={editId ? 'Enter new password (optional)' : 'Min 6 characters'}
-                className="w-full text-slate-800 px-3 py-2 rounded-xl border text-xs font-semibold focus:outline-none"
+                className="w-full text-white bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-indigo-500"
               />
             </div>
           </div>
@@ -234,13 +234,13 @@ export const StaffManagement: React.FC = () => {
                 setEditId(null);
                 setFormData({ name: '', email: '', phone: '', password: '', role: 'GUARD' });
               }}
-              className="border text-slate-500 font-bold px-4 py-2 rounded-xl text-xs hover:bg-slate-50"
+              className="border border-slate-800 text-slate-400 font-bold px-4 py-2 rounded-xl text-xs hover:bg-slate-800 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="bg-primary hover:bg-primary/95 text-white font-bold px-5 py-2 rounded-xl text-xs shadow-md shadow-primary/10"
+              className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-5 py-2 rounded-xl text-xs shadow-lg shadow-indigo-600/20"
             >
               {editId ? 'Save Changes' : 'Register Staff'}
             </button>
@@ -258,18 +258,18 @@ export const StaffManagement: React.FC = () => {
           staff.map((member) => (
             <div
               key={member.id}
-              className="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col justify-between shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-0.5"
+              className="bg-slate-900/60 backdrop-blur-md rounded-3xl border border-slate-800/80 p-6 flex flex-col justify-between shadow-xl hover:border-slate-700 transition-all duration-300 transform hover:-translate-y-0.5"
             >
               <div className="flex justify-between items-start">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-primary/10 text-primary border border-primary/20 rounded-full flex items-center justify-center font-bold text-sm">
+                  <div className="w-10 h-10 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-2xl flex items-center justify-center font-black text-sm shadow-inner">
                     {member.name.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <h4 className="font-bold text-slate-800 text-sm">{member.name}</h4>
+                    <h4 className="font-black text-white text-sm">{member.name}</h4>
                     <div className="flex items-center space-x-1 mt-0.5">
-                      <Shield className="w-3.5 h-3.5 text-primary" />
-                      <span className="text-[10px] font-bold text-primary uppercase tracking-wider">
+                      <Shield className="w-3.5 h-3.5 text-indigo-400" />
+                      <span className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-wider">
                         {member.role.replace('_', ' ')}
                       </span>
                     </div>
@@ -279,7 +279,7 @@ export const StaffManagement: React.FC = () => {
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => handleEditClick(member)}
-                    className="text-slate-400 hover:text-primary transition-colors p-1.5 rounded-lg hover:bg-slate-100"
+                    className="text-slate-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-slate-800"
                     title="Edit Staff Member"
                   >
                     <Edit className="w-4 h-4" />
@@ -287,32 +287,32 @@ export const StaffManagement: React.FC = () => {
                   {member.id !== currentUser?.id && (
                     <button
                       onClick={() => toggleStatus(member.id, member.status)}
-                      className={`text-slate-400 transition-colors ${member.status === 'ACTIVE' ? 'hover:text-rose-500' : 'hover:text-emerald-500'}`}
+                      className={`text-slate-400 transition-colors ${member.status === 'ACTIVE' ? 'hover:text-rose-400' : 'hover:text-emerald-400'}`}
                       title={member.status === 'ACTIVE' ? 'Suspend Staff' : 'Activate Staff'}
                     >
                       {member.status === 'ACTIVE' ? (
-                        <ToggleRight className="w-8 h-8 text-primary" />
+                        <ToggleRight className="w-8 h-8 text-indigo-500" />
                       ) : (
-                        <ToggleLeft className="w-8 h-8 text-slate-300" />
+                        <ToggleLeft className="w-8 h-8 text-slate-600" />
                       )}
                     </button>
                   )}
                 </div>
               </div>
 
-              <div className="mt-5 space-y-2 border-t border-slate-50 pt-4 text-xs font-semibold text-slate-500">
+              <div className="mt-5 space-y-2 border-t border-slate-800/80 pt-4 text-xs font-semibold text-slate-400">
                 <div className="flex items-center space-x-2">
-                  <Mail className="w-4 h-4 text-slate-400" />
+                  <Mail className="w-4 h-4 text-slate-500" />
                   <span>{member.email}</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Phone className="w-4 h-4 text-slate-400" />
+                  <Phone className="w-4 h-4 text-slate-500" />
                   <span>{member.phone || 'No Mobile Registered'}</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <ShieldAlert className="w-4 h-4 text-slate-400" />
+                  <ShieldAlert className="w-4 h-4 text-slate-500" />
                   <span>
-                    Status: <span className={member.status === 'ACTIVE' ? 'text-emerald-600' : 'text-rose-600'}>{member.status}</span>
+                    Status: <span className={member.status === 'ACTIVE' ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>{member.status}</span>
                   </span>
                 </div>
               </div>

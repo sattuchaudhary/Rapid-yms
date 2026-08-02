@@ -559,15 +559,15 @@ export const VehicleEntry: React.FC = () => {
   };
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-slate-50 space-y-6 md:space-y-8 flex-1 overflow-y-auto">
+    <div className="p-4 sm:p-6 md:p-8 bg-slate-950 space-y-6 md:space-y-8 flex-1 overflow-y-auto">
       {/* Page Title */}
       <div className="no-print">
-        <h2 className="text-2xl font-bold text-slate-800 tracking-tight">New Vehicle Gate Entry</h2>
-        <p className="text-sm text-slate-500 font-medium">Record repo details, verify inventory checklist, and capture condition photos</p>
+        <h2 className="text-2xl font-black text-white tracking-wide font-display">New Vehicle Gate Entry</h2>
+        <p className="text-xs text-slate-400 font-semibold mt-0.5">Record repo details, verify inventory checklist, and capture condition photos</p>
       </div>
 
       {step < 5 && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 max-w-4xl mx-auto">
+        <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl border border-slate-800/80 shadow-2xl p-6 max-w-4xl mx-auto text-white">
           {/* Step Indicator */}
           <div className="relative mb-10 select-none no-print max-w-2xl mx-auto pb-4">
             {/* Background connecting progress line */}
