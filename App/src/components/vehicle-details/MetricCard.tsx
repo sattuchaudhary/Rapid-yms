@@ -72,7 +72,7 @@ export function MetricCard({ label, value, subValue, icon, theme }: MetricCardPr
 
 const styles = StyleSheet.create({
   card: {
-    width: '48.5%',
+    flex: 1,
     borderRadius: 16,
     padding: 12,
     borderWidth: 1,

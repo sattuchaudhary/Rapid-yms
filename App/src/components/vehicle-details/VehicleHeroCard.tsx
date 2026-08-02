@@ -31,6 +31,10 @@ export function VehicleHeroCard({
       ? 'Commercial (CV)'
       : 'Four Wheeler (4W)';
 
+  const brandStr = vehicle.brand && vehicle.brand !== 'N/A' ? vehicle.brand : '';
+  const modelStr = vehicle.model && vehicle.model !== 'N/A' ? vehicle.model : '';
+  const fullModelTitle = `${brandStr} ${modelStr}`.trim() || categoryLabel;
+
   return (
     <View style={styles.heroCard}>
       {/* Top Main Row */}
@@ -51,12 +55,11 @@ export function VehicleHeroCard({
 
         <View style={styles.infoWrapper}>
           <ThemedText style={styles.vehicleNumber}>
-            {vehicle.vehicleNumber.toUpperCase()}
+            {(vehicle.vehicleNumber || '').toUpperCase()}
           </ThemedText>
 
           <ThemedText style={styles.modelText} numberOfLines={1}>
-            {vehicle.brand || 'Vehicle'} {vehicle.model || ''}{' '}
-            {vehicle.color ? `• ${vehicle.color}` : ''}
+            {fullModelTitle} {vehicle.color ? `• ${vehicle.color}` : ''}
           </ThemedText>
 
           <ThemedText style={styles.categoryText}>{categoryLabel}</ThemedText>

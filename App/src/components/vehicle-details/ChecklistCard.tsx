@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   missingChip: {
-    width: '48.5%',
+    width: '47.5%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   availableChip: {
-    width: '48.5%',
+    width: '47.5%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,

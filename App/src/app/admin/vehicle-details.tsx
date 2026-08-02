@@ -708,39 +708,43 @@ export default function VehicleDetailsScreen() {
             onPressPhoto={() => setActivePhotoUrl(displayPhoto)}
           />
 
-          {/* 2. DASHBOARD METRIC CARDS GRID */}
+          {/* 2. DASHBOARD METRIC CARDS GRID (2x2 equal side-by-side grid) */}
           <View style={styles.metricsGrid}>
-            <MetricCard
-              label="PARKING DURATION"
-              value={`${getDurationDays()} Days`}
-              subValue={`Entry: ${formattedEntryDate.split(',')[0]}`}
-              icon={<Clock size={16} color="#D97706" />}
-              theme="amber"
-            />
+            <View style={styles.metricRow}>
+              <MetricCard
+                label="PARKING DURATION"
+                value={`${getDurationDays()} Days`}
+                subValue={`Entry: ${formattedEntryDate.split(',')[0]}`}
+                icon={<Clock size={16} color="#D97706" />}
+                theme="amber"
+              />
 
-            <MetricCard
-              label="OUTSTANDING DUE"
-              value={`₹${getTotalCharges().toLocaleString('en-IN')}`}
-              subValue={`Rate: ₹${getDailyRate()}/day`}
-              icon={<DollarSign size={16} color="#16A34A" />}
-              theme="green"
-            />
+              <MetricCard
+                label="OUTSTANDING DUE"
+                value={`₹${getTotalCharges().toLocaleString('en-IN')}`}
+                subValue={`Rate: ₹${getDailyRate()}/day`}
+                icon={<DollarSign size={16} color="#16A34A" />}
+                theme="green"
+              />
+            </View>
 
-            <MetricCard
-              label="YARD SLOT"
-              value={vehicle.yardLocation ? `${vehicle.yardLocation.zone}-${vehicle.yardLocation.slot}` : 'Unassigned'}
-              subValue="Possession Zone"
-              icon={<Car size={16} color="#4F46E5" />}
-              theme="indigo"
-            />
+            <View style={styles.metricRow}>
+              <MetricCard
+                label="YARD SLOT"
+                value={vehicle.yardLocation ? `${vehicle.yardLocation.zone}-${vehicle.yardLocation.slot}` : 'Unassigned'}
+                subValue="Possession Zone"
+                icon={<Car size={16} color="#4F46E5" />}
+                theme="indigo"
+              />
 
-            <MetricCard
-              label="BANK / FINANCER"
-              value={vehicle.bankName || 'Direct'}
-              subValue={vehicle.bank?.isThirdParty ? 'Third Party Partner' : 'Direct Bank'}
-              icon={<Building size={16} color="#64748B" />}
-              theme="slate"
-            />
+              <MetricCard
+                label="BANK / FINANCER"
+                value={vehicle.bankName || 'Direct'}
+                subValue={vehicle.bank?.isThirdParty ? 'Third Party Partner' : 'Direct Bank'}
+                icon={<Building size={16} color="#64748B" />}
+                theme="slate"
+              />
+            </View>
           </View>
 
           {/* 3. CONTEXTUAL OPERATOR ACTION BANNERS */}
@@ -1158,10 +1162,12 @@ const styles = StyleSheet.create({
 
   // Metric grid
   metricsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
     marginBottom: 12,
+    gap: 10,
+  },
+  metricRow: {
+    flexDirection: 'row',
+    gap: 10,
   },
 
   // Context banners
