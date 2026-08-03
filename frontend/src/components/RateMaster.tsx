@@ -16,7 +16,8 @@ import {
   HelpCircle,
   Layers,
   ArrowRight,
-  ArrowLeft
+  ArrowLeft,
+  Search
 } from 'lucide-react';
 
 interface Bank {
@@ -57,6 +58,7 @@ export const RateMaster: React.FC = () => {
   const [rates, setRates] = useState<ParkingRate[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   
   // Accordion control for main banks/third parties
   const [expandedBanks, setExpandedBanks] = useState<Record<string, boolean>>({});
@@ -295,6 +297,10 @@ export const RateMaster: React.FC = () => {
   // Open Edit Tariff modal
   const handleOpenEditModal = (bank: Bank) => {
     setEditingBank(bank);
+    setEditingBank(bank);
+    setWaiverDays(bank.parkingWaiverDays ?? 2);
+    setParkingPayer(bank.parkingPayer ?? 'CUSTOMER');
+
     const bankRates = rates.filter(r => r.bankId === bank.id);
     const ratesMap = {
       TW: '' as number | '',
@@ -324,6 +330,15 @@ export const RateMaster: React.FC = () => {
 
     try {
       setSavingRates(true);
+
+      // 1. Update Bank waiver days and parking payer
+      await api.put(`/banks/${editingBank.id}`, {
+        name: editingBank.name,
+        parkingWaiverDays: Number(waiverDays || 0),
+        parkingPayer: parkingPayer,
+      });
+
+      // 2. Update rates per vehicle category
       const types = ['TW', 'THREE_W', 'FW', 'CV'] as const;
       const promises = types.map(type => {
         const dailyRate = editingRates[type];
@@ -335,7 +350,7 @@ export const RateMaster: React.FC = () => {
       });
 
       await Promise.all(promises);
-      toast.success(`Rates updated successfully for "${editingBank.name}"!`);
+      toast.success(`Rates & rules updated successfully for "${editingBank.name}"!`);
       setEditingBank(null);
       fetchData();
     } catch (err: any) {
@@ -410,10 +425,21 @@ export const RateMaster: React.FC = () => {
     }
   };
 
-  // Lists splitting
-  const mainDirectBanks = banks.filter(b => !b.parentId && !b.isThirdParty);
-  const thirdPartyPartners = banks.filter(b => !b.parentId && b.isThirdParty);
+  // Lists splitting with Search filtering
   const getSubBanks = (parentId: string) => banks.filter(b => b.parentId === parentId);
+  const rawDirectBanks = banks.filter(b => !b.parentId && !b.isThirdParty);
+  const rawThirdPartyPartners = banks.filter(b => !b.parentId && b.isThirdParty);
+
+  const mainDirectBanks = searchTerm
+    ? rawDirectBanks.filter(b => b.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    : rawDirectBanks;
+
+  const thirdPartyPartners = searchTerm
+    ? rawThirdPartyPartners.filter(b =>
+        b.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        getSubBanks(b.id).some(sub => sub.name.toLowerCase().includes(searchTerm.toLowerCase()))
+      )
+    : rawThirdPartyPartners;
 
   const getRateValue = (bankId: string, type: 'TW' | 'THREE_W' | 'FW' | 'CV') => {
     const rate = rates.find(r => r.bankId === bankId && r.vehicleType === type);
@@ -421,8 +447,8 @@ export const RateMaster: React.FC = () => {
   };
 
   // Stats calculation
-  const totalDirectCount = mainDirectBanks.length;
-  const totalThirdPartyCount = thirdPartyPartners.length;
+  const totalDirectCount = rawDirectBanks.length;
+  const totalThirdPartyCount = rawThirdPartyPartners.length;
   const totalSubBanksCount = banks.filter(b => b.parentId !== null).length;
 
   return (
@@ -448,6 +474,18 @@ export const RateMaster: React.FC = () => {
           <Plus className="w-5 h-5" />
           <span>Create Bank / Partner</span>
         </button>
+      </div>
+
+      {/* Search Filter Bar */}
+      <div className="relative max-w-md w-full">
+        <Search className="w-4 h-4 text-slate-400 absolute left-4 top-3" />
+        <input
+          type="text"
+          placeholder="Search bank name or partner network..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-11 pr-4 py-2.5 text-xs font-semibold text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 transition-all shadow-md"
+        />
       </div>
 
       {/* Top Metrics Cards */}
@@ -1429,29 +1467,55 @@ export const RateMaster: React.FC = () => {
       
       {/* EDIT TARIFF MODAL OVERLAY */}
       {editingBank && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 select-none animate-fade-in">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden relative">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-50 p-4 select-none animate-fade-in">
+          <div className="bg-slate-900 text-white rounded-3xl border border-slate-800 shadow-2xl w-full max-w-md overflow-hidden relative">
             <button
               onClick={() => setEditingBank(null)}
-              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded-lg transition-all"
+              className="absolute right-4 top-4 text-slate-400 hover:text-white p-1.5 hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <form onSubmit={handleSaveEditedRates} className="p-6 space-y-6">
-              <div className="border-b border-slate-100 pb-3 pr-6">
-                <span className="text-[10px] font-extrabold text-indigo-600 uppercase tracking-widest block">Configure Parking Tariff</span>
-                <h4 className="text-lg font-extrabold text-slate-800 tracking-tight mt-1">{editingBank.name}</h4>
+            <form onSubmit={handleSaveEditedRates} className="p-6 space-y-5 text-left">
+              <div className="border-b border-slate-800 pb-3 pr-6">
+                <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest block">Configure Parking Tariff</span>
+                <h4 className="text-lg font-black text-white tracking-tight mt-1">{editingBank.name}</h4>
                 {editingBank.parentId && (
                   <p className="text-[10px] text-slate-400 font-bold mt-0.5">Nested sub-bank of Third Party network</p>
                 )}
               </div>
 
+              {/* Grace Period & Payer controls */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest">Grace Period (Days)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={waiverDays}
+                    onChange={(e) => setWaiverDays(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full text-white bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs font-semibold focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest">Parking Fee Payer</label>
+                  <select
+                    value={parkingPayer}
+                    onChange={(e) => setParkingPayer(e.target.value as 'CUSTOMER' | 'BANK')}
+                    className="w-full text-white bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs font-semibold focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value="CUSTOMER">CUSTOMER</option>
+                    <option value="BANK">BANK</option>
+                  </select>
+                </div>
+              </div>
+
               {/* Tariff Inputs Grid */}
-              <div className="space-y-4">
+              <div className="space-y-3 pt-1">
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Category Daily Rates (₹/Day)</span>
                 {/* TW */}
                 <div className="flex items-center justify-between gap-4">
-                  <label className="text-xs font-bold text-slate-600">2W – Two Wheeler</label>
+                  <label className="text-xs font-bold text-slate-300">2W – Two Wheeler</label>
                   <div className="relative w-32 shrink-0">
                     <span className="absolute left-3.5 top-2 text-slate-400 text-xs font-bold">{"\u20B9"}</span>
                     <input
@@ -1460,14 +1524,14 @@ export const RateMaster: React.FC = () => {
                       required
                       value={editingRates.TW}
                       onChange={(e) => setEditingRates({ ...editingRates, TW: e.target.value === '' ? '' : Number(e.target.value) })}
-                      className="w-full text-right text-slate-800 pl-6 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs font-extrabold focus:outline-none focus:border-indigo-600 bg-white"
+                      className="w-full text-right text-white font-mono pl-6 pr-3 py-1.5 rounded-xl border border-slate-800 text-xs font-extrabold focus:outline-none focus:border-indigo-500 bg-slate-950"
                     />
                   </div>
                 </div>
 
                 {/* THREE_W */}
                 <div className="flex items-center justify-between gap-4">
-                  <label className="text-xs font-bold text-slate-600">3W – Auto/Cargo</label>
+                  <label className="text-xs font-bold text-slate-300">3W – Auto/Cargo</label>
                   <div className="relative w-32 shrink-0">
                     <span className="absolute left-3.5 top-2 text-slate-400 text-xs font-bold">{"\u20B9"}</span>
                     <input
@@ -1476,14 +1540,14 @@ export const RateMaster: React.FC = () => {
                       required
                       value={editingRates.THREE_W}
                       onChange={(e) => setEditingRates({ ...editingRates, THREE_W: e.target.value === '' ? '' : Number(e.target.value) })}
-                      className="w-full text-right text-slate-800 pl-6 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs font-extrabold focus:outline-none focus:border-indigo-600 bg-white"
+                      className="w-full text-right text-white font-mono pl-6 pr-3 py-1.5 rounded-xl border border-slate-800 text-xs font-extrabold focus:outline-none focus:border-indigo-500 bg-slate-950"
                     />
                   </div>
                 </div>
 
                 {/* FW */}
                 <div className="flex items-center justify-between gap-4">
-                  <label className="text-xs font-bold text-slate-600">4W – Sedan/SUV</label>
+                  <label className="text-xs font-bold text-slate-300">4W – Sedan/SUV</label>
                   <div className="relative w-32 shrink-0">
                     <span className="absolute left-3.5 top-2 text-slate-400 text-xs font-bold">{"\u20B9"}</span>
                     <input
@@ -1492,14 +1556,14 @@ export const RateMaster: React.FC = () => {
                       required
                       value={editingRates.FW}
                       onChange={(e) => setEditingRates({ ...editingRates, FW: e.target.value === '' ? '' : Number(e.target.value) })}
-                      className="w-full text-right text-slate-800 pl-6 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs font-extrabold focus:outline-none focus:border-indigo-600 bg-white"
+                      className="w-full text-right text-white font-mono pl-6 pr-3 py-1.5 rounded-xl border border-slate-800 text-xs font-extrabold focus:outline-none focus:border-indigo-500 bg-slate-950"
                     />
                   </div>
                 </div>
 
                 {/* CV */}
                 <div className="flex items-center justify-between gap-4">
-                  <label className="text-xs font-bold text-slate-600">CV – Commercial</label>
+                  <label className="text-xs font-bold text-slate-300">CV – Commercial</label>
                   <div className="relative w-32 shrink-0">
                     <span className="absolute left-3.5 top-2 text-slate-400 text-xs font-bold">{"\u20B9"}</span>
                     <input
@@ -1508,7 +1572,7 @@ export const RateMaster: React.FC = () => {
                       required
                       value={editingRates.CV}
                       onChange={(e) => setEditingRates({ ...editingRates, CV: e.target.value === '' ? '' : Number(e.target.value) })}
-                      className="w-full text-right text-slate-800 pl-6 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs font-extrabold focus:outline-none focus:border-indigo-600 bg-white"
+                      className="w-full text-right text-white font-mono pl-6 pr-3 py-1.5 rounded-xl border border-slate-800 text-xs font-extrabold focus:outline-none focus:border-indigo-500 bg-slate-950"
                     />
                   </div>
                 </div>
