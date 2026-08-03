@@ -181,7 +181,7 @@ export const RateMaster: React.FC = () => {
       });
 
       if (res.data?.success) {
-        toast.success(`Direct Bank "${directName}" successfully registered!`);
+        toast.success(`${partnerType === 'shift' ? 'Shift Bank' : 'Direct Bank'} "${directName}" successfully registered!`);
         setIsCreateModalOpen(false);
         fetchData();
       }
@@ -1036,12 +1036,14 @@ export const RateMaster: React.FC = () => {
             )}
 
             {/* STEP 2: CONFIGURATION & TARIFFS */}
-            {createStep === 2 && partnerType === 'direct' && (
-              <form onSubmit={handleCreateDirectBank} className="p-8 space-y-6">
-                <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+            {createStep === 2 && (partnerType === 'direct' || partnerType === 'shift') && (
+              <form onSubmit={handleCreateDirectBank} className="p-8 space-y-6 text-left">
+                <div className="border-b border-slate-800 pb-3 flex items-center justify-between">
                   <div>
-                    <span className="text-[10px] font-extrabold text-indigo-600 uppercase tracking-widest block">Step 2 of 2</span>
-                    <h3 className="text-xl font-extrabold text-slate-800 tracking-tight mt-1">Configure Direct Bank</h3>
+                    <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest block">Step 2 of 2</span>
+                    <h3 className="text-xl font-black text-white tracking-tight mt-1">
+                      {partnerType === 'shift' ? 'Configure Shift / Non-Paneled Bank' : 'Configure Direct Bank'}
+                    </h3>
                   </div>
                   <button
                     type="button"
