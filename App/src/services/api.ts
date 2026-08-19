@@ -6,6 +6,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 const JWT_KEY = 'yms_jwt_token';
 const REFRESH_KEY = 'yms_refresh_token';
+const BIOMETRIC_REFRESH_KEY = 'yms_biometric_refresh_token';
 const SERVER_URL_KEY = 'yms_server_url';
 const USER_INFO_KEY = 'yms_user_info';
 
@@ -28,6 +29,13 @@ export const getAuthToken = async (): Promise<string | null> => {
 export const saveTokens = async (accessToken: string, refreshToken: string) => {
   await SecureStore.setItemAsync(JWT_KEY, accessToken);
   await SecureStore.setItemAsync(REFRESH_KEY, refreshToken);
+  if (refreshToken) {
+    await SecureStore.setItemAsync(BIOMETRIC_REFRESH_KEY, refreshToken);
+  }
+};
+
+export const getBiometricRefreshToken = async (): Promise<string | null> => {
+  return (await SecureStore.getItemAsync(BIOMETRIC_REFRESH_KEY)) || (await SecureStore.getItemAsync(REFRESH_KEY));
 };
 
 export const clearTokens = async () => {

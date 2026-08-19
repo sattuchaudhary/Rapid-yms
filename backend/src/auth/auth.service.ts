@@ -138,7 +138,11 @@ export const refreshTokenService = async (token: string) => {
       id: string; tenantId: string; role: string; email: string;
     };
 
-    const user = await prisma.user.findUnique({ where: { id: decoded.id } });
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      include: { tenant: { select: { id: true, yardName: true, status: true, address: true, phone: true } } }
+    });
+
     if (!user || user.status !== 'ACTIVE') {
       throw new AppError('User not found or inactive', 401);
     }
@@ -150,7 +154,19 @@ export const refreshTokenService = async (token: string) => {
       email: user.email,
     };
 
-    return generateTokens(payload);
+    const tokens = generateTokens(payload);
+    return {
+      ...tokens,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        tenant: user.tenant,
+        requiresPasswordReset: user.requiresPasswordReset,
+      }
+    };
   } catch {
     throw new AppError('Invalid refresh token', 401);
   }

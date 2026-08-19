@@ -18,7 +18,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import NetInfo from '@react-native-community/netinfo';
-import { apiRequest, saveTokens, saveUserInfo, getServerUrl, setServerUrl, saveSessionDate } from '@/services/api';
+import { apiRequest, saveTokens, saveUserInfo, getServerUrl, setServerUrl, saveSessionDate, getBiometricRefreshToken } from '@/services/api';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -187,13 +187,13 @@ export default function LoginScreen() {
       const isOnline = !!(netInfo.isConnected && netInfo.isInternetReachable !== false);
 
       if (isOnline) {
-        const refreshToken = await SecureStore.getItemAsync('yms_refresh_token');
+        const refreshToken = await getBiometricRefreshToken();
         const baseUrl = await getServerUrl();
 
         if (!refreshToken) {
           Alert.alert(
-            'Session Expired',
-            'Your previous session has expired. Please log in with your password once to re-activate biometrics.'
+            'Biometrics Re-sync Required',
+            'Please log in with your email and password once to enable biometrics.'
           );
           setLoading(false);
           return;
@@ -210,22 +210,24 @@ export default function LoginScreen() {
             const resData = await refreshRes.json();
             if (resData.success && resData.accessToken) {
               await saveTokens(resData.accessToken, resData.refreshToken || refreshToken);
+              if (resData.user) {
+                await saveUserInfo(resData.user);
+              }
               await saveSessionDate();
               router.replace('/admin/dashboard');
               return;
             }
           }
 
-          // If refresh token is expired/invalid on server
+          // If refresh token is invalid/expired on server
           Alert.alert(
             'Session Expired',
-            'Your server session has expired. Please enter your password to sign in.'
+            'Your server session has expired. Please enter your password to sign in and refresh biometrics.'
           );
           setLoading(false);
           return;
         } catch (netErr) {
           console.warn('[Biometrics] Network error during token refresh, attempting offline entry:', netErr);
-          // If server is unreachable, allow offline entry with cached session
           await saveSessionDate();
           router.replace('/admin/dashboard');
           return;
