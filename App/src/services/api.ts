@@ -60,6 +60,8 @@ export const getUserInfo = async (): Promise<UserSession | null> => {
   return data ? JSON.parse(data) : null;
 };
 
+let isRedirectingToLogin = false;
+
 // Simple fetch-based request client
 export const apiRequest = async (
   endpoint: string,
@@ -120,7 +122,11 @@ export const apiRequest = async (
     // Clear tokens and force logout if refresh token is also invalid/expired
     console.log('[API] Authentication failed. Clearing tokens and logging out...');
     await clearTokens();
-    router.replace('/login');
+    if (!isRedirectingToLogin) {
+      isRedirectingToLogin = true;
+      setTimeout(() => { isRedirectingToLogin = false; }, 2000);
+      router.replace('/login');
+    }
     throw new Error('Session expired. Please log in again.');
   }
 

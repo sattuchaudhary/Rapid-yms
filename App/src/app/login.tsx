@@ -106,13 +106,9 @@ export default function LoginScreen() {
         // Secure Offline Authentication Fallback from cached hash
         const cachedEmail = await SecureStore.getItemAsync('yms_cached_email');
         const cachedHash = await SecureStore.getItemAsync('yms_cached_auth_hash');
-        const legacyPassword = await SecureStore.getItemAsync('yms_cached_password');
         const inputHash = hashCredential(cleanEmail, password);
 
-        const isMatch =
-          cachedEmail &&
-          cachedEmail === cleanEmail &&
-          ((cachedHash && cachedHash === inputHash) || (legacyPassword && legacyPassword === password));
+        const isMatch = cachedEmail && cachedEmail === cleanEmail && cachedHash && cachedHash === inputHash;
 
         if (isMatch) {
           console.log('[Login] Offline login authentication successful');
@@ -145,8 +141,6 @@ export default function LoginScreen() {
         const credHash = hashCredential(cleanEmail, password);
         await SecureStore.setItemAsync('yms_cached_email', cleanEmail);
         await SecureStore.setItemAsync('yms_cached_auth_hash', credHash);
-        // Wipe legacy raw password if present
-        await SecureStore.deleteItemAsync('yms_cached_password').catch(() => {});
 
         // Redirect to admin dashboard
         router.replace('/admin/dashboard');
@@ -182,43 +176,65 @@ export default function LoginScreen() {
         fallbackLabel: 'Use Password',
       });
 
-      if (result.success) {
-        setEmail(cachedEmail);
-        setLoading(true);
+      if (!result.success) {
+        return;
+      }
 
-        const netInfo = await NetInfo.fetch();
-        const isOnline = !!(netInfo.isConnected && netInfo.isInternetReachable !== false);
+      setEmail(cachedEmail);
+      setLoading(true);
 
-        if (isOnline) {
-          // If online, perform silent token refresh to ensure tokens are valid
-          const refreshToken = await SecureStore.getItemAsync('yms_refresh_token');
-          const baseUrl = await getServerUrl();
+      const netInfo = await NetInfo.fetch();
+      const isOnline = !!(netInfo.isConnected && netInfo.isInternetReachable !== false);
 
-          if (refreshToken) {
-            try {
-              const refreshRes = await fetch(`${baseUrl}/api/auth/refresh`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ refreshToken }),
-              });
-              const resData = await refreshRes.json();
-              if (resData.success && resData.accessToken) {
-                await saveTokens(resData.accessToken, resData.refreshToken || refreshToken);
-                if (resData.user) await saveUserInfo(resData.user);
-                await saveSessionDate();
-                router.replace('/admin/dashboard');
-                return;
-              }
-            } catch (refErr) {
-              console.warn('[Biometrics] Token refresh failed, falling back to cached session:', refErr);
-            }
-          }
+      if (isOnline) {
+        const refreshToken = await SecureStore.getItemAsync('yms_refresh_token');
+        const baseUrl = await getServerUrl();
+
+        if (!refreshToken) {
+          Alert.alert(
+            'Session Expired',
+            'Your previous session has expired. Please log in with your password once to re-activate biometrics.'
+          );
+          setLoading(false);
+          return;
         }
 
-        // Offline or token refresh completed
-        await saveSessionDate();
-        router.replace('/admin/dashboard');
+        try {
+          const refreshRes = await fetch(`${baseUrl}/api/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken }),
+          });
+
+          if (refreshRes.ok) {
+            const resData = await refreshRes.json();
+            if (resData.success && resData.accessToken) {
+              await saveTokens(resData.accessToken, resData.refreshToken || refreshToken);
+              await saveSessionDate();
+              router.replace('/admin/dashboard');
+              return;
+            }
+          }
+
+          // If refresh token is expired/invalid on server
+          Alert.alert(
+            'Session Expired',
+            'Your server session has expired. Please enter your password to sign in.'
+          );
+          setLoading(false);
+          return;
+        } catch (netErr) {
+          console.warn('[Biometrics] Network error during token refresh, attempting offline entry:', netErr);
+          // If server is unreachable, allow offline entry with cached session
+          await saveSessionDate();
+          router.replace('/admin/dashboard');
+          return;
+        }
       }
+
+      // Offline mode
+      await saveSessionDate();
+      router.replace('/admin/dashboard');
     } catch (e: any) {
       console.warn('[Biometrics Auth] Error:', e);
       Alert.alert('Biometric Error', 'Authentication process failed.');
@@ -259,21 +275,26 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={{ flex: 1, backgroundColor: '#0B0F19' }}
     >
       <StatusBar style="light" />
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <ScrollView
-          contentContainerStyle={[styles.scrollContainer, { paddingBottom: Math.max(insets.bottom, 24) }]}
+          contentContainerStyle={[
+            styles.scrollContainer,
+            {
+              paddingTop: Math.max(insets.top, 24) + 12,
+              paddingBottom: Math.max(insets.bottom, 24) + 12,
+            },
+          ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.container}>
             {/* Settings Icon */}
             <TouchableOpacity
-              style={[styles.settingsBtn, { top: Math.max(insets.top, 16) + 10 }]}
+              style={styles.settingsBtn}
               onPress={() => setModalVisible(true)}
               activeOpacity={0.7}
             >
@@ -387,7 +408,7 @@ export default function LoginScreen() {
               onRequestClose={() => setModalVisible(false)}
             >
               <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 style={{ flex: 1 }}
               >
                 <View style={styles.modalOverlay}>
@@ -477,17 +498,18 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
+    paddingHorizontal: 24,
   },
   container: {
-    flex: 1,
-    backgroundColor: '#0B0F19',
-    paddingHorizontal: 24,
-    justifyContent: 'center',
-    paddingVertical: 32,
+    width: '100%',
+    maxWidth: 440,
+    alignSelf: 'center',
+    position: 'relative',
   },
   settingsBtn: {
     position: 'absolute',
-    right: 24,
+    top: 0,
+    right: 0,
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -505,8 +527,8 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 32,
-    marginTop: 20,
+    marginBottom: 28,
+    marginTop: 10,
   },
   logoBadge: {
     width: 80,
