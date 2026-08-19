@@ -10,6 +10,7 @@ import {
   deleteVehiclePhotoService,
   getVehicleParkingCalculationService,
   getVehicleParkingTransactionsService,
+  getVehicleSummaryService,
 } from './vehicle.service';
 
 import prisma from '../common/prisma';
@@ -39,15 +40,48 @@ const createVehicleSchema = z.object({
   })).optional(),
 });
 
-const updateVehicleSchema = createVehicleSchema.partial().extend({
+const updateVehicleSchema = z.object({
+  vehicleNumber: z.string().optional(),
+  chassisNumber: z.string().nullable().optional(),
+  engineNumber: z.string().nullable().optional(),
+  vehicleType: z.enum(['TW', 'THREE_W', 'FW', 'CV']).optional(),
+  brand: z.string().nullable().optional(),
+  model: z.string().nullable().optional(),
+  color: z.string().nullable().optional(),
+  bankName: z.string().nullable().optional(),
+  bankId: z.string().nullable().optional(),
+  repoAgency: z.string().nullable().optional(),
+  repoDate: z.string().nullable().optional(),
+  entryDate: z.string().nullable().optional(),
+  customerName: z.string().nullable().optional(),
+  customerPhone: z.string().nullable().optional(),
+  customerSign: z.string().nullable().optional(),
+  yardLocationId: z.string().nullable().optional(),
   yardStatus: z.enum(['KACHHA', 'PAKKA', 'RELEASED']).optional(),
-  repoKitDate: z.string().optional(),
-  kachhaStartDate: z.string().optional(),
-  pakkaDate: z.string().optional(),
-  releaseOrderDate: z.string().optional(),
+  repoKitDate: z.string().nullable().optional(),
+  kachhaStartDate: z.string().nullable().optional(),
+  pakkaDate: z.string().nullable().optional(),
+  releaseOrderDate: z.string().nullable().optional(),
   releasePersonType: z.enum(['CUSTOMER', 'BUYER']).optional(),
+  inventory: z.array(z.object({
+    itemName: z.string(),
+    isPresent: z.boolean(),
+    remarks: z.string().optional(),
+  })).optional(),
 });
 
+
+export const getVehicleSummary = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const startDate = req.query.startDate as string;
+    const endDate = req.query.endDate as string;
+    const summary = await getVehicleSummaryService(tenantId, startDate, endDate);
+    res.json({ success: true, data: summary });
+  } catch (err) {
+    next(err);
+  }
+};
 
 export const getVehicles = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {

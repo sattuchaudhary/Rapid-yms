@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   getVehicles,
+  getVehicleSummary,
   getVehicleById,
   createVehicle,
   updateVehicle,
@@ -22,6 +23,9 @@ import {
 } from './vehicleShift.controller';
 
 const router = Router();
+
+// Fast Category Aggregate Summary Endpoint
+router.get('/summary', authenticate, getVehicleSummary);
 
 // Non-Paneled Shift Endpoints
 router.get('/shift-pending', authenticate, getShiftPendingVehicles);

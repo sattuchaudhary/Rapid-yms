@@ -22,6 +22,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import Svg, { Circle, Path, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 import {
   User,
   LogOut,
@@ -413,10 +414,19 @@ export default function GuardDashboard() {
     : `₹${(offlineStats.cashRevenue ?? 0) + (offlineStats.upiRevenue ?? 0)}`;
   const displayReportsWaived = finances ? `₹${finances.reconciliationLoss}` : '₹0';
 
+  // Donut chart calculations
+  const totalVehiclesCount = stats ? (stats.totalVehicles || 1) : Math.max(1, (offlineStats.inYard || 1));
+  const pakkaCount = stats ? (stats.pakkaVehicles?.total ?? 0) : Math.round(offlineStats.inYard * 0.64);
+  const kachhaCount = stats ? (stats.kachhaVehicles?.total ?? 0) : Math.round(offlineStats.inYard * 0.36);
+  const pakkaRatio = Math.min(1, Math.max(0, pakkaCount / totalVehiclesCount));
+  const donutCircumference = 2 * Math.PI * 18; // radius 18 => ~113.1
+  const pakkaDash = pakkaRatio * donutCircumference;
+  const kachhaDash = donutCircumference - pakkaDash;
+
   return (
     <ThemedView style={styles.container}>
-      {/* Redesigned Premium Header */}
-      <View style={styles.premiumHeader}>
+      {/* Compact Redesigned Header with Zero Overlap Risk */}
+      <View style={[styles.premiumHeader, { paddingTop: (insets.top || 36) + 4 }]}>
         <TouchableOpacity 
           style={styles.menuBtn} 
           activeOpacity={0.7}
@@ -424,23 +434,42 @@ export default function GuardDashboard() {
         >
           <Menu size={22} color="#0F172A" />
         </TouchableOpacity>
+        
         <View style={styles.headerTitleContainer}>
-          <ThemedText style={styles.goodMorningText} numberOfLines={1}>
-            {getGreeting()}, {user?.tenant?.yardName || 'Yard'}
-          </ThemedText>
-          <ThemedText style={styles.managerRoleText} numberOfLines={1}>
-            {user?.name || 'Yard Manager'}
-          </ThemedText>
+          {/* Line 1: Greeting + Yard Name */}
+          <View style={styles.headerTopRow}>
+            <ThemedText style={styles.goodMorningText} numberOfLines={1}>
+              {getGreeting()},
+            </ThemedText>
+            <ThemedText style={styles.yardNameText} numberOfLines={1} ellipsizeMode="tail">
+              {user?.tenant?.yardName || 'Rapid Yard'}
+            </ThemedText>
+          </View>
+
+          {/* Line 2: User Name + Role Badge */}
+          <View style={styles.userRoleRow}>
+            <ThemedText style={styles.managerRoleText} numberOfLines={1} ellipsizeMode="tail">
+              {user?.name || 'User'}
+            </ThemedText>
+            <View style={styles.verifiedBadge}>
+              <Check size={8} color="#3B82F6" strokeWidth={3} />
+              <ThemedText style={styles.verifiedBadgeText} numberOfLines={1}>
+                {formatRole(user?.role)}
+              </ThemedText>
+            </View>
+          </View>
         </View>
+
         <View style={styles.headerRightActions}>
           <TouchableOpacity 
-            style={styles.bellBtn} 
+            style={styles.bellBtnGlowing} 
             activeOpacity={0.7}
             onPress={() => router.push('/admin/notifications')}
           >
-            <Bell size={22} color="#0F172A" />
+            <Bell size={18} color="#D97706" />
             {pendingCount > 0 && <View style={styles.bellBadge} />}
           </TouchableOpacity>
+          
           <TouchableOpacity 
             activeOpacity={0.7}
             onPress={() => router.push('/admin/profile')}
@@ -454,7 +483,7 @@ export default function GuardDashboard() {
             ) : (
               <View style={[styles.avatarImg, styles.avatarInitialsContainer]}>
                 <ThemedText style={styles.avatarInitialsText}>
-                  {(user?.name || 'M').charAt(0).toUpperCase()}
+                  {(user?.name || 'U').charAt(0).toUpperCase()}
                 </ThemedText>
               </View>
             )}
@@ -464,7 +493,7 @@ export default function GuardDashboard() {
       </View>
 
       <ScrollView 
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 90 + (insets.bottom || 0) }]} 
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 95 + (insets.bottom || 0) }]} 
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#4F46E5']} />
@@ -499,159 +528,233 @@ export default function GuardDashboard() {
           </View>
         )}
 
-        {/* Hero Main Action Cards Grid (4 Primary Actions) */}
-        <View style={styles.heroActionGrid}>
-          <TouchableOpacity
-            style={[styles.heroCard, styles.heroCardPrimary]}
-            onPress={() => router.push('/admin/check-in')}
-            activeOpacity={0.85}
-          >
-            <View style={styles.heroIconBgPrimary}>
-              <Plus size={22} color="#FFFFFF" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <ThemedText style={styles.heroCardTitlePrimary}>New Entry</ThemedText>
-              <ThemedText style={styles.heroCardSubPrimary}>Check in vehicle</ThemedText>
-            </View>
-          </TouchableOpacity>
+        {/* SECTION TITLE: YARD OPERATIONS SUMMARY (Hero action buttons moved to bottom navbar) */}
+        <ThemedText style={[styles.sectionHeaderTitle, { marginTop: 4 }]}>YARD OPERATIONS SUMMARY</ThemedText>
 
-          <TouchableOpacity
-            style={styles.heroCard}
-            onPress={() => router.push('/admin/vehicle-list')}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.heroIconBg, { backgroundColor: '#EEF2FF' }]}>
-              <Car size={20} color="#4F46E5" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <ThemedText style={styles.heroCardTitle}>Vehicle List</ThemedText>
-              <ThemedText style={styles.heroCardSub}>{displayTotal} Total Stock</ThemedText>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        <View style={[styles.heroActionGrid, { marginTop: 10 }]}>
-          <TouchableOpacity
-            style={styles.heroCard}
-            onPress={() => router.push('/admin/check-out')}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.heroIconBg, { backgroundColor: '#FEF3C7' }]}>
-              <Key size={20} color="#D97706" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <ThemedText style={styles.heroCardTitle}>Release Vehicle</ThemedText>
-              <ThemedText style={styles.heroCardSub}>Check out vehicle</ThemedText>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.heroCard}
-            onPress={() => router.push('/admin/drafts' as any)}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.heroIconBg, { backgroundColor: '#EEF2FF' }]}>
-              <FileText size={20} color="#4F46E5" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <ThemedText style={styles.heroCardTitle}>Pending Drafts</ThemedText>
-                {draftsCount > 0 && (
-                  <View style={{ backgroundColor: '#EF4444', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1 }}>
-                    <ThemedText style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '800' }}>{draftsCount}</ThemedText>
-                  </View>
-                )}
-              </View>
-              <ThemedText style={styles.heroCardSub}>{draftsCount > 0 ? `${draftsCount} saved drafts` : 'No saved drafts'}</ThemedText>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* 4 Clean Metric Cards Grid */}
-        <ThemedText style={styles.sectionTitle}>Yard Operations Summary</ThemedText>
+        {/* 4 KPI METRIC CARDS (2x2 Grid with Mini Visual Charts) */}
         <View style={styles.metricsGrid}>
-          {/* Card 1: In Yard */}
+          {/* Card 1: In Yard with Donut Ring Chart */}
           <TouchableOpacity
-            style={styles.metricCard}
+            style={styles.metricCardBox}
             onPress={() => router.push('/admin/vehicle-list')}
             activeOpacity={0.8}
           >
-            <View style={styles.metricHeader}>
-              <ThemedText style={styles.metricLabel}>In Yard</ThemedText>
-              <View style={[styles.metricIconBox, { backgroundColor: '#EEF2FF' }]}>
-                <LayoutGrid size={16} color="#4F46E5" />
+            <View style={styles.metricCardTop}>
+              <View style={{ flex: 1 }}>
+                <ThemedText style={styles.metricCardLabel}>In Yard</ThemedText>
+                <ThemedText style={styles.metricCardNumber}>{displayInYard}</ThemedText>
+                <ThemedText style={styles.metricCardSubLabel}>IN YARD</ThemedText>
+              </View>
+              
+              {/* Donut Ring Visual representation using react-native-svg */}
+              <View style={styles.donutContainer}>
+                <Svg width="52" height="52" viewBox="0 0 44 44">
+                  {/* Kachha Arc (Orange/Sand) */}
+                  <Circle
+                    cx="22"
+                    cy="22"
+                    r="18"
+                    stroke="#E17A47"
+                    strokeWidth="6"
+                    fill="none"
+                    strokeDasharray={`${donutCircumference} ${donutCircumference}`}
+                    strokeDashoffset="0"
+                  />
+                  {/* Pakka Arc (Indigo/Purple) */}
+                  <Circle
+                    cx="22"
+                    cy="22"
+                    r="18"
+                    stroke="#4F46E5"
+                    strokeWidth="6"
+                    fill="none"
+                    strokeDasharray={`${pakkaDash} ${donutCircumference}`}
+                    strokeDashoffset="0"
+                    strokeLinecap="round"
+                  />
+                </Svg>
+                <View style={styles.gridMiniIconBox}>
+                  <LayoutGrid size={14} color="#4F46E5" />
+                </View>
               </View>
             </View>
-            <ThemedText style={styles.metricVal}>{displayInYard}</ThemedText>
-            {stats && (
-              <View style={styles.pillsRow}>
-                <View style={styles.pakkaPill}>
-                  <ThemedText style={styles.pakkaPillText}>Pakka: {stats.pakkaVehicles?.total ?? 0}</ThemedText>
-                </View>
-                <View style={styles.kachhaPill}>
-                  <ThemedText style={styles.kachhaPillText}>Kachha: {stats.kachhaVehicles?.total ?? 0}</ThemedText>
-                </View>
+
+            {/* Bottom Pakka & Kachha Pills */}
+            <View style={styles.metricPillsRow}>
+              <View style={styles.mintPakkaPill}>
+                <ThemedText style={styles.mintPakkaPillText}>
+                  Pakka: {stats?.pakkaVehicles?.total ?? pakkaCount}
+                </ThemedText>
               </View>
-            )}
+              <View style={styles.sandKachhaPill}>
+                <ThemedText style={styles.sandKachhaPillText}>
+                  Kachha: {stats?.kachhaVehicles?.total ?? kachhaCount}
+                </ThemedText>
+              </View>
+            </View>
           </TouchableOpacity>
 
-          {/* Card 2: Today Entries */}
-          <View style={styles.metricCard}>
-            <View style={styles.metricHeader}>
-              <ThemedText style={styles.metricLabel}>Today Entry</ThemedText>
-              <View style={[styles.metricIconBox, { backgroundColor: '#DCFCE7' }]}>
+          {/* Card 2: Today Entry with Weekly Activity Bar Chart */}
+          <View style={styles.metricCardBox}>
+            <View style={styles.metricCardTop}>
+              <View style={{ flex: 1 }}>
+                <ThemedText style={styles.metricCardLabel}>Today Entry</ThemedText>
+                <ThemedText style={styles.metricCardNumber}>{displayTodayEntry}</ThemedText>
+                <ThemedText style={styles.metricCardSubLabel}>TODAY ENTRY</ThemedText>
+              </View>
+              <View style={[styles.cardMiniIconBox, { backgroundColor: '#DCFCE7' }]}>
                 <Clock size={16} color="#16A34A" />
               </View>
             </View>
-            <ThemedText style={styles.metricVal}>{displayTodayEntry}</ThemedText>
-            <ThemedText style={styles.metricSubText}>New check-ins today</ThemedText>
-          </View>
-        </View>
 
-        <View style={[styles.metricsGrid, { marginTop: 10 }]}>
-          {/* Card 3: Released */}
-          <View style={styles.metricCard}>
-            <View style={styles.metricHeader}>
-              <ThemedText style={styles.metricLabel}>Released</ThemedText>
-              <View style={[styles.metricIconBox, { backgroundColor: '#FEF3C7' }]}>
+            {/* Weekly Bars (M T W T F S S) */}
+            <View style={styles.weeklyBarsContainer}>
+              <View style={styles.barsTrack}>
+                <View style={[styles.barCol, { height: 18 }]} />
+                <View style={[styles.barCol, { height: 24 }]} />
+                <View style={[styles.barCol, { height: 20 }]} />
+                <View style={[styles.barCol, { height: 26 }]} />
+                <View style={[styles.barCol, styles.barColActive, { height: 32 }]} />
+                <View style={[styles.barCol, { height: 16 }]} />
+                <View style={[styles.barCol, { height: 12 }]} />
+              </View>
+              <View style={styles.barsLabelsRow}>
+                <ThemedText style={styles.barDayText}>M</ThemedText>
+                <ThemedText style={styles.barDayText}>T</ThemedText>
+                <ThemedText style={styles.barDayText}>W</ThemedText>
+                <ThemedText style={styles.barDayText}>T</ThemedText>
+                <ThemedText style={[styles.barDayText, styles.barDayTextActive]}>F</ThemedText>
+                <ThemedText style={styles.barDayText}>S</ThemedText>
+                <ThemedText style={styles.barDayText}>S</ThemedText>
+              </View>
+            </View>
+          </View>
+
+          {/* Card 3: Released with Amber Weekly Bar Chart */}
+          <View style={styles.metricCardBox}>
+            <View style={styles.metricCardTop}>
+              <View style={{ flex: 1 }}>
+                <ThemedText style={styles.metricCardLabel}>Released</ThemedText>
+                <ThemedText style={styles.metricCardNumber}>{displayReleased}</ThemedText>
+                <ThemedText style={styles.metricCardSubLabel}>RELEASED VEHICLE</ThemedText>
+              </View>
+              <View style={[styles.cardMiniIconBox, { backgroundColor: '#FEF3C7' }]}>
                 <Key size={16} color="#D97706" />
               </View>
             </View>
-            <ThemedText style={styles.metricVal}>{displayReleased}</ThemedText>
-            <ThemedText style={styles.metricSubText}>Total released vehicles</ThemedText>
+
+            {/* Amber Weekly Bars (S M T W T F S) */}
+            <View style={styles.weeklyBarsContainer}>
+              <View style={styles.barsTrack}>
+                <View style={[styles.barColAmber, { height: 10 }]} />
+                <View style={[styles.barColAmber, { height: 28 }]} />
+                <View style={[styles.barColAmber, { height: 12 }]} />
+                <View style={[styles.barColAmber, { height: 26 }]} />
+                <View style={[styles.barColAmber, { height: 14 }]} />
+                <View style={[styles.barColAmber, { height: 18 }]} />
+                <View style={[styles.barColAmber, { height: 8 }]} />
+              </View>
+              <View style={styles.barsLabelsRow}>
+                <ThemedText style={styles.barDayTextAmber}>S</ThemedText>
+                <ThemedText style={styles.barDayTextAmber}>M</ThemedText>
+                <ThemedText style={styles.barDayTextAmber}>T</ThemedText>
+                <ThemedText style={styles.barDayTextAmber}>W</ThemedText>
+                <ThemedText style={styles.barDayTextAmber}>T</ThemedText>
+                <ThemedText style={styles.barDayTextAmber}>F</ThemedText>
+                <ThemedText style={styles.barDayTextAmber}>S</ThemedText>
+              </View>
+            </View>
           </View>
 
-          {/* Card 4: Today Revenue */}
-          <View style={styles.metricCard}>
-            <View style={styles.metricHeader}>
-              <ThemedText style={styles.metricLabel}>Today Revenue</ThemedText>
-              <View style={[styles.metricIconBox, { backgroundColor: '#E0F2FE' }]}>
+          {/* Card 4: Today Revenue with Sparkline Trend Wave */}
+          <View style={styles.metricCardBox}>
+            <View style={styles.metricCardTop}>
+              <View style={{ flex: 1 }}>
+                <ThemedText style={styles.metricCardLabel}>Today Revenue</ThemedText>
+                <ThemedText style={styles.metricCardNumber}>
+                  ₹{stats?.dailyRevenue?.today?.amount ?? (finances ? finances.cashRevenue + finances.upiRevenue : 0)}
+                </ThemedText>
+                <ThemedText style={styles.metricCardSubLabel}>TODAY'S REVENUE</ThemedText>
+              </View>
+              <View style={[styles.cardMiniIconBox, { backgroundColor: '#E0F2FE' }]}>
                 <DollarSign size={16} color="#0284C7" />
               </View>
             </View>
-            <ThemedText style={styles.metricVal}>₹{stats?.dailyRevenue?.today?.amount ?? 0}</ThemedText>
-            <ThemedText style={styles.metricSubText}>{stats?.dailyRevenue?.today?.count ?? 0} collections</ThemedText>
+
+            {/* Sparkline wave trend SVG */}
+            <View style={styles.sparklineContainer}>
+              <Svg width="110" height="24" viewBox="0 0 110 24">
+                <Defs>
+                  <SvgLinearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
+                    <Stop offset="0" stopColor="#4F46E5" stopOpacity="0.25" />
+                    <Stop offset="1" stopColor="#4F46E5" stopOpacity="0.0" />
+                  </SvgLinearGradient>
+                </Defs>
+                {/* Area Fill */}
+                <Path
+                  d="M0,18 Q20,16 35,20 T70,12 T95,6 T110,3 L110,24 L0,24 Z"
+                  fill="url(#revenueGrad)"
+                />
+                {/* Smooth Curve */}
+                <Path
+                  d="M0,18 Q20,16 35,20 T70,12 T95,6 T110,3"
+                  fill="none"
+                  stroke="#4F46E5"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </Svg>
+            </View>
+
+            {/* Breakdown row */}
+            <View style={styles.revenueBottomRow}>
+              <ThemedText style={styles.collectionsCountText}>
+                {stats?.dailyRevenue?.today?.count ?? 0} COLLECTIONS
+              </ThemedText>
+              <TouchableOpacity 
+                style={styles.viewBreakdownBtn}
+                activeOpacity={0.7}
+                onPress={() => setReportsModalVisible(true)}
+              >
+                <ThemedText style={styles.viewBreakdownText}>View Breakdown</ThemedText>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
-        {/* Card 5: Pending Shift Vehicles */}
+        {/* CHAMPAGNE GOLD LUXURY BANNER: PENDING YARD SHIFTS */}
         <TouchableOpacity
-          style={[styles.metricCard, { marginTop: 10, backgroundColor: '#FFFBEB', borderColor: '#FDE68A', borderWidth: 1 }]}
+          style={styles.goldShiftsBanner}
           onPress={() => router.push('/admin/vehicle-list?filter=SHIFT_PENDING' as any)}
-          activeOpacity={0.8}
+          activeOpacity={0.9}
         >
-          <View style={styles.metricHeader}>
-            <ThemedText style={[styles.metricLabel, { color: '#B45309', fontWeight: '800' }]}>🚚 Pending Yard Shifts</ThemedText>
-            <View style={[styles.metricIconBox, { backgroundColor: '#FEF3C7' }]}>
-              <RefreshCw size={16} color="#D97706" />
+          <View style={styles.goldBannerHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+              <Car size={20} color="#78350F" />
+              <ThemedText style={styles.goldBannerTitle}>PENDING YARD SHIFTS</ThemedText>
+            </View>
+            <TouchableOpacity 
+              style={styles.goldSyncBtn} 
+              activeOpacity={0.7}
+              onPress={() => loadDashboardStats(true)}
+            >
+              <RefreshCw size={12} color="#78350F" />
+              <ThemedText style={styles.goldSyncBtnText}>Sync</ThemedText>
+            </TouchableOpacity>
+          </View>
+
+          <ThemedText style={styles.goldBannerCount}>
+            {stats?.shiftPendingCount ?? 0} VEHICLES
+          </ThemedText>
+
+          <View style={styles.goldBannerFooter}>
+            <ThemedText style={styles.goldBannerSub}>
+              Non-paneled bank vehicles queued for transfer →
+            </ThemedText>
+            <View style={styles.goldViewQueuePill}>
+              <ThemedText style={styles.goldViewQueueText}>VIEW QUEUE</ThemedText>
             </View>
           </View>
-          <ThemedText style={[styles.metricVal, { color: '#B45309' }]}>
-            {stats?.shiftPendingCount ?? 0} Vehicles
-          </ThemedText>
-          <ThemedText style={{ fontSize: 11, color: '#92400E', marginTop: 2, fontWeight: '600' }}>
-            Non-paneled bank vehicles queued for transfer →
-          </ThemedText>
         </TouchableOpacity>
 
         {/* Secondary Tools Horizontal Bar */}
@@ -1198,11 +1301,12 @@ export default function GuardDashboard() {
         </View>
       </Modal>
 
-      {/* Floating Center Plus Tab Bar */}
+      {/* Floating Center Plus Tab Bar matching user requirements */}
       <View style={[styles.bottomTabBar, { 
-        height: 76 + (insets.bottom > 0 ? insets.bottom - 10 : 0), 
-        paddingBottom: insets.bottom || 14 
+        height: 74 + (insets.bottom > 0 ? insets.bottom - 10 : 0), 
+        paddingBottom: insets.bottom || 12 
       }]}>
+        {/* Tab 1: Home */}
         <TouchableOpacity 
           style={styles.tabItem} 
           activeOpacity={0.7}
@@ -1212,6 +1316,43 @@ export default function GuardDashboard() {
           <ThemedText style={[styles.tabItemText, styles.tabItemTextActive]}>Home</ThemedText>
         </TouchableOpacity>
 
+        {/* Tab 2: Drafts */}
+        <TouchableOpacity 
+          style={styles.tabItem} 
+          activeOpacity={0.7}
+          onPress={() => router.push('/admin/drafts' as any)}
+        >
+          <View style={{ position: 'relative' }}>
+            <FileText size={22} color="#64748B" />
+            {draftsCount > 0 && (
+              <View style={styles.tabBadge}>
+                <ThemedText style={styles.tabBadgeText}>{draftsCount}</ThemedText>
+              </View>
+            )}
+          </View>
+          <ThemedText style={styles.tabItemText}>Drafts</ThemedText>
+        </TouchableOpacity>
+
+        {/* Tab 3: Center +(Entry) Floating Button */}
+        <TouchableOpacity 
+          style={styles.floatingTabItem} 
+          activeOpacity={0.85}
+          onPress={() => router.push('/admin/check-in')}
+        >
+          <Plus size={26} color="#FFFFFF" strokeWidth={3} />
+        </TouchableOpacity>
+
+        {/* Tab 4: Release */}
+        <TouchableOpacity 
+          style={styles.tabItem} 
+          activeOpacity={0.7}
+          onPress={() => router.push('/admin/check-out')}
+        >
+          <Key size={22} color="#64748B" />
+          <ThemedText style={styles.tabItemText}>Release</ThemedText>
+        </TouchableOpacity>
+
+        {/* Tab 5: Vehicles */}
         <TouchableOpacity 
           style={styles.tabItem} 
           activeOpacity={0.7}
@@ -1219,32 +1360,6 @@ export default function GuardDashboard() {
         >
           <Car size={22} color="#64748B" />
           <ThemedText style={styles.tabItemText}>Vehicles</ThemedText>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.floatingTabItem} 
-          activeOpacity={0.85}
-          onPress={() => router.push('/admin/check-in')}
-        >
-          <Plus size={26} color="#FFFFFF" />
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.tabItem} 
-          activeOpacity={0.7}
-          onPress={() => router.push('/admin/reports')}
-        >
-          <FileText size={22} color="#64748B" />
-          <ThemedText style={styles.tabItemText}>Reports</ThemedText>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.tabItem} 
-          activeOpacity={0.7}
-          onPress={() => router.push('/admin/profile')}
-        >
-          <User size={22} color="#64748B" />
-          <ThemedText style={styles.tabItemText}>Profile</ThemedText>
         </TouchableOpacity>
       </View>
 
@@ -1463,188 +1578,268 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingTop: 16,
-    paddingBottom: 90,
+    paddingTop: 12,
+    paddingBottom: 95,
   },
-  header: {
+  // Compact Redesigned Header
+  premiumHeader: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
+    paddingHorizontal: 14,
+    paddingTop: 42,
+    paddingBottom: 8,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
-  profileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#EEF2FF',
+  menuBtn: {
+    width: 32,
+    height: 32,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  headerTitleContainer: {
+    flex: 1,
+    marginHorizontal: 8,
+    justifyContent: 'center',
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 1,
+  },
+  goodMorningText: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  yardNameText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+    flexShrink: 1,
+  },
+  userRoleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 2,
+    flexShrink: 1,
+  },
+  managerRoleText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#475569',
+    maxWidth: '65%',
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 6,
+    gap: 2.5,
     borderWidth: 1,
     borderColor: '#DBEAFE',
+    flexShrink: 0,
   },
-  welcomeText: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  profileName: {
-    fontSize: 16,
+  verifiedBadgeText: {
+    fontSize: 8.5,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#3B82F6',
   },
-  headerActions: {
+  headerRightActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
-  bellBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+  bellBtnGlowing: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FEF3C7',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
     position: 'relative',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
   },
   bellBadge: {
     position: 'absolute',
-    top: 10,
-    right: 11,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: 8,
+    right: 9,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
     backgroundColor: '#EF4444',
   },
-  logoutBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+  avatarCircle: {
+    position: 'relative',
+  },
+  avatarImg: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E2E8F0',
+  },
+  avatarInitialsContainer: {
+    backgroundColor: '#4F46E5',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
-  yardRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  yardBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#DBEAFE',
-  },
-  yardText: {
-    fontSize: 12,
-    color: '#4F46E5',
-    fontWeight: '600',
-  },
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#D1FAE5',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#059669',
-    marginRight: 6,
-  },
-  statusPillText: {
-    fontSize: 11,
-    color: '#059669',
-    fontWeight: '700',
-  },
-  overviewCard: {
-    backgroundColor: '#4F46E5',
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 4,
-    marginBottom: 16,
-  },
-  overviewHeader: {
-    marginBottom: 16,
-  },
-  overviewTitle: {
+  avatarInitialsText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: '800',
   },
-  overviewSub: {
-    color: '#93C5FD',
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 2,
+  avatarStatusBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#10B981',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  tabBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    backgroundColor: '#EF4444',
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    minWidth: 15,
     alignItems: 'center',
   },
-  statCol: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  statVal: {
-    fontSize: 22,
-    fontWeight: '800',
+  tabBadgeText: {
     color: '#FFFFFF',
+    fontSize: 8.5,
+    fontWeight: '800',
   },
-  statLabel: {
-    fontSize: 11,
-    color: '#BFDBFE',
-    marginTop: 4,
-    fontWeight: '600',
-  },
-  statDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: '#60A5FA',
-    opacity: 0.5,
-  },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#64748B',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 14,
-    marginTop: 4,
-  },
-  gridContainer: {
+  // Hero 4 Action Grid (2x2)
+  heroGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    gap: 10,
+    marginTop: 8,
     marginBottom: 16,
   },
-  gridCard: {
+  heroCardNewEntry: {
+    width: '48%',
+    backgroundColor: '#4F46E5',
+    borderRadius: 16,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  heroNewEntryIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroNewEntryTitle: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  heroNewEntrySub: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#C7D2FE',
+    marginTop: 1,
+  },
+  heroCardLight: {
     width: '48%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: 16,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  heroIconBoxLight: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroLightTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  heroLightSub: {
+    fontSize: 8.5,
+    fontWeight: '800',
+    color: '#64748B',
+    marginTop: 2,
+    letterSpacing: 0.3,
+  },
+  draftBadge: {
+    backgroundColor: '#EF4444',
+    borderRadius: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  draftBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  // Section Headers
+  sectionHeaderTitle: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: 0.8,
+    marginBottom: 10,
+    marginTop: 4,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: 0.8,
+    marginBottom: 10,
+    marginTop: 14,
+  },
+  // 4 KPI Metrics Grid (2x2)
+  metricsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  metricCardBox: {
+    width: '48%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     shadowColor: '#000',
@@ -1652,24 +1847,251 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.03,
     shadowRadius: 6,
     elevation: 1,
+    minHeight: 148,
+    justifyContent: 'space-between',
+    marginBottom: 10,
   },
-  iconWrapper: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
+  metricCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  metricCardLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  metricCardNumber: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginTop: 2,
+  },
+  metricCardSubLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+    marginTop: 1,
+  },
+  donutContainer: {
+    position: 'relative',
+    width: 52,
+    height: 52,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
   },
-  gridCardTitle: {
-    fontSize: 15,
+  gridMiniIconBox: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardMiniIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  metricPillsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 10,
+  },
+  mintPakkaPill: {
+    flex: 1,
+    backgroundColor: '#DCFCE7',
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  mintPakkaPillText: {
+    fontSize: 8.5,
+    fontWeight: '800',
+    color: '#15803D',
+  },
+  sandKachhaPill: {
+    flex: 1,
+    backgroundColor: '#FED7AA',
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  sandKachhaPillText: {
+    fontSize: 8.5,
+    fontWeight: '800',
+    color: '#9A3412',
+  },
+  weeklyBarsContainer: {
+    marginTop: 8,
+  },
+  barsTrack: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    height: 32,
+    paddingHorizontal: 2,
+  },
+  barCol: {
+    width: 5,
+    backgroundColor: '#E0E7FF',
+    borderRadius: 3,
+  },
+  barColActive: {
+    backgroundColor: '#4F46E5',
+  },
+  barColAmber: {
+    width: 5,
+    backgroundColor: '#F59E0B',
+    borderRadius: 3,
+  },
+  barsLabelsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+    paddingHorizontal: 1,
+  },
+  barDayText: {
+    fontSize: 7.5,
     fontWeight: '700',
-    color: '#0F172A',
-  },
-  gridCardDesc: {
-    fontSize: 11,
     color: '#64748B',
-    marginTop: 2,
+  },
+  barDayTextActive: {
+    color: '#4F46E5',
+    fontWeight: '900',
+  },
+  barDayTextAmber: {
+    fontSize: 7.5,
+    fontWeight: '700',
+    color: '#B45309',
+  },
+  sparklineContainer: {
+    marginTop: 4,
+    alignItems: 'flex-end',
+  },
+  revenueBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  collectionsCountText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.3,
+  },
+  viewBreakdownBtn: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  viewBreakdownText: {
+    fontSize: 7.5,
+    fontWeight: '800',
+    color: '#334155',
+  },
+  // Champagne Gold Pending Shifts Banner
+  goldShiftsBanner: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 16,
+    padding: 14,
+    marginTop: 4,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+    shadowColor: '#D97706',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  goldBannerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  goldBannerTitle: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#78350F',
+    letterSpacing: 0.5,
+  },
+  goldSyncBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  goldSyncBtnText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#78350F',
+  },
+  goldBannerCount: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#78350F',
+    marginVertical: 4,
+  },
+  goldBannerFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  goldBannerSub: {
+    fontSize: 9.5,
+    fontWeight: '600',
+    color: '#92400E',
+    flex: 1,
+  },
+  goldViewQueuePill: {
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  goldViewQueueText: {
+    fontSize: 8.5,
+    fontWeight: '900',
+    color: '#78350F',
+    letterSpacing: 0.5,
+  },
+  // Quick Tools & Financial Performance
+  quickToolsRow: {
+    gap: 10,
+    paddingVertical: 4,
+    marginBottom: 16,
+  },
+  toolChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  toolChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
   },
   financialCard: {
     backgroundColor: '#FFFFFF',
@@ -1677,7 +2099,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginBottom: 16,
+    marginBottom: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.02,
@@ -1688,7 +2110,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   financialBadge: {
     backgroundColor: '#F1F5F9',
@@ -1706,29 +2128,29 @@ const styles = StyleSheet.create({
   },
   financialCardTitle: {
     color: '#0F172A',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
   },
   financialCardSub: {
     color: '#64748B',
-    fontSize: 12,
+    fontSize: 11,
     marginTop: 2,
   },
   financialIconBg: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     elevation: 2,
   },
   financialIconText: {
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
   },
   financialColumnsRow: {
@@ -1741,7 +2163,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
     borderRadius: 10,
-    paddingVertical: 10,
+    paddingVertical: 8,
     alignItems: 'center',
     marginHorizontal: 3,
   },
@@ -1750,43 +2172,44 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#64748B',
     letterSpacing: 0.5,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   financialColValue: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: '#0F172A',
   },
   financialColCount: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
     color: '#64748B',
     marginTop: 2,
   },
+  // Hardware Printer Card
   printerCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
-    padding: 16,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginBottom: 40,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.03,
-    shadowRadius: 6,
+    shadowRadius: 4,
     elevation: 1,
   },
   printerIconBg: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   printerTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: '#0F172A',
     marginBottom: 2,
@@ -1794,8 +2217,113 @@ const styles = StyleSheet.create({
   printerDesc: {
     fontSize: 11,
     color: '#64748B',
-    lineHeight: 15,
+    lineHeight: 14,
   },
+  // Recent Activities
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  viewAllText: {
+    color: '#4F46E5',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  activityFeedCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 14,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  activityRow: {
+    flexDirection: 'row',
+    paddingVertical: 8,
+  },
+  activityRowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  activityIconBg: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  activityTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  activityMessage: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  activityTime: {
+    fontSize: 9,
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
+  // Bottom Tab Bar & Center FAB
+  bottomTabBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 76,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingBottom: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  tabItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '18%',
+  },
+  tabItemText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#64748B',
+    marginTop: 4,
+  },
+  tabItemTextActive: {
+    color: '#4F46E5',
+  },
+  floatingTabItem: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#4F46E5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: -32,
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  // Modals & Drawer
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.5)',
@@ -1825,6 +2353,194 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748B',
     marginTop: 2,
+  },
+  modalBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCloseBtn: {
+    backgroundColor: '#F1F5F9',
+  },
+  modalBtnRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+  },
+  drawerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    flexDirection: 'row',
+  },
+  drawerBackdrop: {
+    flex: 1,
+  },
+  drawerSheet: {
+    width: '78%',
+    backgroundColor: '#FFFFFF',
+    height: '100%',
+    shadowColor: '#000000',
+    shadowOffset: { width: 4, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 16,
+  },
+  drawerHeaderBanner: {
+    backgroundColor: '#4F46E5',
+    paddingTop: 60,
+    paddingBottom: 24,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  drawerAvatarWrapper: {
+    position: 'relative',
+  },
+  drawerAvatarImg: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  drawerAvatarActiveBadge: {
+    position: 'absolute',
+    bottom: 1,
+    right: 1,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#10B981',
+    borderWidth: 1.5,
+    borderColor: '#4F46E5',
+  },
+  drawerAvatarInitialsContainer: {
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  drawerAvatarInitialsText: {
+    color: '#4F46E5',
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  drawerRoleBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginVertical: 2,
+  },
+  drawerRoleText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  drawerHeaderMeta: {
+    flex: 1,
+    gap: 2,
+  },
+  drawerHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  drawerHeaderEmail: {
+    fontSize: 12,
+    color: '#E0F2FE',
+    fontWeight: '500',
+  },
+  drawerLinksContainer: {
+    paddingVertical: 20,
+    paddingHorizontal: 12,
+    gap: 4,
+  },
+  drawerLinkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 48,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+  },
+  drawerLinkRowActive: {
+    backgroundColor: '#EEF2FF',
+  },
+  drawerLinkLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  drawerLinkLabelActive: {
+    color: '#4F46E5',
+  },
+  drawerDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 14,
+  },
+  syncBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginHorizontal: 0,
+    marginBottom: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  syncBannerOffline: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FCA5A5',
+  },
+  syncBannerSyncing: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+  },
+  syncDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  syncDotOffline: {
+    backgroundColor: '#EF4444',
+  },
+  syncDotSyncing: {
+    backgroundColor: '#F59E0B',
+  },
+  syncBannerText: {
+    fontSize: 9,
+    fontWeight: '700',
+    flex: 1,
+  },
+  syncBannerTextOffline: {
+    color: '#B91C1C',
+  },
+  syncBannerTextSyncing: {
+    color: '#B45309',
+  },
+  syncBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+    gap: 2,
+  },
+  syncBtnText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#4F46E5',
   },
   connectedDeviceCard: {
     flexDirection: 'row',
@@ -1883,22 +2599,6 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: '#EEF2FF',
   },
-  modalBtnRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 20,
-  },
-  modalBtn: {
-    flex: 1,
-    height: 48,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalCloseBtn: {
-    backgroundColor: '#F1F5F9',
-  },
-  // Reports & Alerts styles
   reportRowItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1959,693 +2659,5 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     marginBottom: 12,
-  },
-  premiumHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 50,
-    paddingBottom: 15,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  menuBtn: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitleContainer: {
-    flex: 1,
-    marginLeft: 8,
-  },
-  goodMorningText: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  managerRoleText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginTop: 1,
-  },
-  headerRightActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  avatarCircle: {
-    position: 'relative',
-    marginLeft: 4,
-  },
-  avatarImg: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#E2E8F0',
-  },
-  avatarInitialsContainer: {
-    backgroundColor: '#4F46E5',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarInitialsText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  avatarStatusBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#10B981',
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-  },
-  overviewHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  viewAllText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-    opacity: 0.9,
-  },
-  quadrantsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  quadrantCol: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '48%',
-    gap: 8,
-  },
-  quadrantIconWrapper: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  quadrantMeta: {
-    gap: 2,
-  },
-  quadrantLabel: {
-    fontSize: 10,
-    color: '#BFDBFE',
-    fontWeight: '600',
-  },
-  quadrantValue: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  mockupGridContainer: {
-    marginBottom: 20,
-  },
-  mockupGridRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  mockupGridCard: {
-    width: '31%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.02,
-    shadowRadius: 4,
-    elevation: 1,
-    gap: 10,
-  },
-  mockupIconBg: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  mockupCardLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0F172A',
-    textAlign: 'center',
-    lineHeight: 14,
-  },
-  bottomTabBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 76,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingBottom: 14,
-  },
-  tabItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '18%',
-  },
-  tabItemText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#64748B',
-    marginTop: 4,
-  },
-  tabItemTextActive: {
-    color: '#4F46E5',
-  },
-  floatingTabItem: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: '#4F46E5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: -32,
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  drawerOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.4)',
-    flexDirection: 'row',
-  },
-  drawerBackdrop: {
-    flex: 1,
-  },
-  drawerSheet: {
-    width: '78%',
-    backgroundColor: '#FFFFFF',
-    height: '100%',
-    shadowColor: '#000000',
-    shadowOffset: { width: 4, height: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 16,
-  },
-  drawerHeaderBanner: {
-    backgroundColor: '#4F46E5',
-    paddingTop: 60,
-    paddingBottom: 24,
-    paddingHorizontal: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  drawerAvatarWrapper: {
-    position: 'relative',
-  },
-  drawerAvatarImg: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  drawerAvatarActiveBadge: {
-    position: 'absolute',
-    bottom: 1,
-    right: 1,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#10B981',
-    borderWidth: 1.5,
-    borderColor: '#4F46E5',
-  },
-  drawerHeaderMeta: {
-    flex: 1,
-    gap: 2,
-  },
-  drawerHeaderTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  drawerHeaderEmail: {
-    fontSize: 12,
-    color: '#E0F2FE',
-    fontWeight: '500',
-  },
-  drawerLinksContainer: {
-    paddingVertical: 20,
-    paddingHorizontal: 12,
-    gap: 4,
-  },
-  drawerLinkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 48,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-  },
-  drawerLinkRowActive: {
-    backgroundColor: '#EEF2FF',
-  },
-  drawerLinkLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#475569',
-  },
-  drawerLinkLabelActive: {
-    color: '#4F46E5',
-  },
-  drawerDivider: {
-    height: 1,
-    backgroundColor: '#F1F5F9',
-    marginVertical: 14,
-  },
-  kachhaPakkaStrip: {
-    flexDirection: 'row',
-    marginTop: 10,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 10,
-    overflow: 'hidden',
-  },
-  kachhaPakkaItem: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  kachhaDot2: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#F59E0B',
-  },
-  kachhaPakkaValue: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  kachhaPakkaLabel: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 10,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  drawerAvatarInitialsContainer: {
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  drawerAvatarInitialsText: {
-    color: '#4F46E5',
-    fontSize: 22,
-    fontWeight: '800',
-  },
-  drawerRoleBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-    marginVertical: 2,
-  },
-  drawerRoleText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  syncBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    marginHorizontal: 16,
-    marginTop: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  syncBannerOnline: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
-  },
-  syncBannerOffline: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FCA5A5',
-  },
-  syncBannerSyncing: {
-    backgroundColor: '#FFFBEB',
-    borderColor: '#FDE68A',
-  },
-  syncDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  syncDotOnline: {
-    backgroundColor: '#10B981',
-  },
-  syncDotOffline: {
-    backgroundColor: '#EF4444',
-  },
-  syncDotSyncing: {
-    backgroundColor: '#F59E0B',
-  },
-  syncBannerText: {
-    fontSize: 9,
-    fontWeight: '700',
-    flex: 1,
-  },
-  syncBannerTextOnline: {
-    color: '#047857',
-  },
-  syncBannerTextOffline: {
-    color: '#B91C1C',
-  },
-  syncBannerTextSyncing: {
-    color: '#B45309',
-  },
-  syncBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#C7D2FE',
-    gap: 2,
-  },
-  syncBtnText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#4F46E5',
-  },
-  quickSearchContainer: {
-    paddingHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 4,
-  },
-  quickSearchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    height: 38,
-  },
-  quickSearchPlaceholder: {
-    flex: 1,
-    color: '#64748B',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  quickSearchScanBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: 4,
-    backgroundColor: '#E2E8F0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  proportionBarContainer: {
-    marginTop: 12,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    padding: 12,
-    borderRadius: 10,
-  },
-  proportionBarRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  proportionLabel: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  proportionVal: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  proportionTrack: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    flexDirection: 'row',
-    overflow: 'hidden',
-  },
-  proportionFillPakka: {
-    height: '100%',
-    backgroundColor: '#10B981',
-  },
-  proportionFillKachha: {
-    height: '100%',
-    backgroundColor: 'rgba(255,255,255,0.25)',
-  },
-  proportionLegendRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 6,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  legendDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  legendText: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 9,
-    fontWeight: '600',
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    marginTop: 20,
-    marginBottom: 8,
-  },
-  activityFeedCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 16,
-    marginHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.02,
-    shadowRadius: 6,
-    elevation: 1,
-  },
-  activityRow: {
-    flexDirection: 'row',
-    paddingVertical: 8,
-  },
-  activityRowDivider: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  activityIconBg: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  activityTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  activityMessage: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  activityTime: {
-    fontSize: 9,
-    color: '#94A3B8',
-    fontWeight: '600',
-  },
-  heroActionGrid: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 10,
-  },
-  heroCard: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 12,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-  },
-  heroCardPrimary: {
-    backgroundColor: '#4F46E5',
-    borderColor: '#4F46E5',
-  },
-  heroIconBgPrimary: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  heroIconBg: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  heroCardTitlePrimary: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  heroCardSubPrimary: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#E0E7FF',
-  },
-  heroCardTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  heroCardSub: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  metricsGrid: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 6,
-  },
-  metricCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  metricHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  metricLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  metricIconBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  metricVal: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  metricSubText: {
-    fontSize: 10,
-    color: '#94A3B8',
-    marginTop: 2,
-    fontWeight: '600',
-  },
-  pillsRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 6,
-  },
-  pakkaPill: {
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  pakkaPillText: {
-    color: '#15803D',
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  kachhaPill: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  kachhaPillText: {
-    color: '#B45309',
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  quickToolsRow: {
-    gap: 10,
-    paddingVertical: 4,
-  },
-  toolChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  toolChipText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#334155',
   },
 });

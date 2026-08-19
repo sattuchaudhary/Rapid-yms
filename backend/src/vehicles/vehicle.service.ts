@@ -20,6 +20,30 @@ export interface VehicleFilters {
   limit?: number;
 }
 
+export const getVehicleSummaryService = async (tenantId: string, startDate?: string, endDate?: string) => {
+  const whereClause: any = { tenantId };
+  if (startDate || endDate) {
+    whereClause.entryDate = {};
+    if (startDate) whereClause.entryDate.gte = new Date(startDate);
+    if (endDate) whereClause.entryDate.lte = new Date(endDate);
+  }
+
+  const [total, pakka, kachha, released, shifting] = await Promise.all([
+    prisma.vehicle.count({ where: whereClause }),
+    prisma.vehicle.count({ where: { ...whereClause, yardStatus: 'PAKKA' } }),
+    prisma.vehicle.count({ where: { ...whereClause, yardStatus: 'KACHHA' } }),
+    prisma.vehicle.count({ where: { ...whereClause, yardStatus: 'RELEASED' } }),
+    prisma.vehicle.count({
+      where: {
+        ...whereClause,
+        shifts: { some: { status: 'INITIATED' } },
+      },
+    }),
+  ]);
+
+  return { all: total, pakka, kachha, released, shifting };
+};
+
 // Helper to sign static S3/R2 URLs into temporary authenticated GET URLs
 const signVehiclePhotos = async (tenantId: string, photos: any[]) => {
   try {
@@ -452,24 +476,26 @@ export const updateVehicleService = async (
   userId: string,
   data: {
     vehicleNumber?: string;
-    chassisNumber?: string;
-    engineNumber?: string;
-    brand?: string;
-    model?: string;
-    color?: string;
-    bankName?: string;
-    bankId?: string;
-    repoAgency?: string;
-    customerName?: string;
-    customerPhone?: string;
-    yardLocationId?: string;
+    chassisNumber?: string | null;
+    engineNumber?: string | null;
+    brand?: string | null;
+    model?: string | null;
+    color?: string | null;
+    bankName?: string | null;
+    bankId?: string | null;
+    repoAgency?: string | null;
+    repoDate?: string | null;
+    customerName?: string | null;
+    customerPhone?: string | null;
+    customerSign?: string | null;
+    yardLocationId?: string | null;
     yardStatus?: YardStatus;
-    repoKitDate?: string;
-    kachhaStartDate?: string;
-    pakkaDate?: string;
-    releaseOrderDate?: string;
+    repoKitDate?: string | null;
+    kachhaStartDate?: string | null;
+    pakkaDate?: string | null;
+    releaseOrderDate?: string | null;
     releasePersonType?: 'CUSTOMER' | 'BUYER';
-    entryDate?: string;
+    entryDate?: string | null;
     inventory?: { itemName: string; isPresent: boolean; remarks?: string }[];
   }
 ) => {
@@ -495,16 +521,34 @@ export const updateVehicleService = async (
     updateData.yardLocationId = null;
   }
 
-  if (data.repoKitDate) updateData.repoKitDate = new Date(data.repoKitDate);
-  if (data.kachhaStartDate) updateData.kachhaStartDate = new Date(data.kachhaStartDate);
-  if (data.pakkaDate) updateData.pakkaDate = new Date(data.pakkaDate);
-  if (data.releaseOrderDate) updateData.releaseOrderDate = new Date(data.releaseOrderDate);
-  if (data.entryDate) updateData.entryDate = new Date(data.entryDate);
+  if (data.repoKitDate !== undefined) {
+    updateData.repoKitDate = data.repoKitDate ? new Date(data.repoKitDate) : null;
+  }
+  if (data.kachhaStartDate !== undefined) {
+    updateData.kachhaStartDate = data.kachhaStartDate ? new Date(data.kachhaStartDate) : null;
+  }
+  if (data.pakkaDate !== undefined) {
+    updateData.pakkaDate = data.pakkaDate ? new Date(data.pakkaDate) : null;
+  }
+  if (data.releaseOrderDate !== undefined) {
+    updateData.releaseOrderDate = data.releaseOrderDate ? new Date(data.releaseOrderDate) : null;
+  }
+  if (data.entryDate !== undefined) {
+    updateData.entryDate = data.entryDate ? new Date(data.entryDate) : null;
+  }
 
   // If status is transitioning to PAKKA
   if (data.yardStatus === 'PAKKA' && vehicle.yardStatus === 'KACHHA') {
     if (!updateData.pakkaDate) updateData.pakkaDate = new Date();
     updateData.billingStart = updateData.pakkaDate;
+  }
+
+  // If status is reverted back to KACHHA (Mistake recovery)
+  if (data.yardStatus === 'KACHHA' && vehicle.yardStatus !== 'KACHHA') {
+    if (data.pakkaDate === undefined) updateData.pakkaDate = null;
+    if (data.repoKitDate === undefined) updateData.repoKitDate = null;
+    if (data.releaseOrderDate === undefined) updateData.releaseOrderDate = null;
+    updateData.billingStart = null;
   }
 
   return prisma.$transaction(async (tx) => {

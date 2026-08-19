@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Rapid YMS",
+    "slug": "rapid-yms",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "rapidyms",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.rapidrepo.rapidyms"
+    },
+    "android": {
+      "package": "com.rapidrepo.rapidyms",
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-secure-store",
+      "@react-native-community/datetimepicker"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
