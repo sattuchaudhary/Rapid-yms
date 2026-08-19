@@ -40,10 +40,16 @@ const createBankSchema = z.object({
   bankCategory: z.enum(['DIRECT_BANK', 'THIRD_PARTY_BANK', 'SHIFT_BANK']).optional(),
   isShiftBank: z.boolean().optional(),
   parentId: z.string().nullable().optional(),
+  branchAddress: z.string().nullable().optional(),
+  customerCareEmail: z.string().nullable().optional(),
+  customerCarePhone: z.string().nullable().optional(),
   rates: ratesSchema.optional(),
   subBanks: z.array(
     z.object({
       name: z.string().min(1, 'Sub-bank Name is required'),
+      branchAddress: z.string().nullable().optional(),
+      customerCareEmail: z.string().nullable().optional(),
+      customerCarePhone: z.string().nullable().optional(),
       rates: ratesSchema,
     })
   ).optional(),
@@ -61,6 +67,9 @@ const updateBankSchema = z.object({
   isThirdParty: z.boolean().optional(),
   bankCategory: z.enum(['DIRECT_BANK', 'THIRD_PARTY_BANK', 'SHIFT_BANK']).optional(),
   isShiftBank: z.boolean().optional(),
+  branchAddress: z.string().nullable().optional(),
+  customerCareEmail: z.string().nullable().optional(),
+  customerCarePhone: z.string().nullable().optional(),
   parkingEnabled: z.boolean().optional(),
   kachhaParkingRate: z.number().nonnegative().optional(),
   pakkaParkingRate: z.number().nonnegative().optional(),
@@ -99,6 +108,9 @@ export const createBank = async (req: Request, res: Response, next: NextFunction
         parkingWaiverDays: parsed.parkingWaiverDays,
         bankCategory: parsed.bankCategory,
         isShiftBank: parsed.isShiftBank,
+        branchAddress: parsed.branchAddress,
+        customerCareEmail: parsed.customerCareEmail,
+        customerCarePhone: parsed.customerCarePhone,
       }
     );
     res.status(201).json({ success: true, data: bank });
@@ -127,6 +139,9 @@ export const updateBank = async (req: Request, res: Response, next: NextFunction
         parkingWaiverDays: parsed.parkingWaiverDays,
         bankCategory: parsed.bankCategory,
         isShiftBank: parsed.isShiftBank,
+        branchAddress: parsed.branchAddress,
+        customerCareEmail: parsed.customerCareEmail,
+        customerCarePhone: parsed.customerCarePhone,
       }
     );
     res.json({ success: true, data: bank });

@@ -452,6 +452,11 @@ model Bank {
   parkingPayer            ParkingPayer  @default(CUSTOMER)
   parkingWaiverDays       Int           @default(0)
 
+  // Branch & Contact Details
+  branchAddress           String?
+  customerCareEmail       String?
+  customerCarePhone       String?
+
   createdAt               DateTime      @default(now())
   updatedAt               DateTime      @updatedAt
 

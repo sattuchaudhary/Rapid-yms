@@ -26,6 +26,8 @@ import {
   Check,
   Trash2,
   Settings,
+  Mail,
+  Phone,
 } from 'lucide-react-native';
 
 const VEHICLE_TYPES = ['TW', 'THREE_W', 'FW', 'CV'] as const;
@@ -47,7 +49,10 @@ interface Bank {
   releaseOrderParkingRate?: number;
   parkingPayer?: 'CUSTOMER' | 'BANK';
   parkingWaiverDays?: number;
-  parkingRates: { vehicleType: string; dailyRate: number }[];
+  branchAddress?: string | null;
+  customerCareEmail?: string | null;
+  customerCarePhone?: string | null;
+  parkingRates: { vehicleType: string; dailyRate: number; kachhaRate?: number; pakkaRate?: number; releaseOrderRate?: number }[];
   parent?: { id: string; name: string };
 }
 
@@ -84,20 +89,29 @@ export default function BanksScreen() {
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [addType, setAddType] = useState<'direct' | 'third_party' | 'shift'>('direct');
   const [newBankName, setNewBankName] = useState('');
-  const [subBanks, setSubBanks] = useState([{ name: '', rates: { TW: '50', THREE_W: '100', FW: '150', CV: '400' } }]);
+  const [branchAddress, setBranchAddress] = useState('');
+  const [customerCareEmail, setCustomerCareEmail] = useState('');
+  const [customerCarePhone, setCustomerCarePhone] = useState('');
+  const [subBanks, setSubBanks] = useState([{ name: '', branchAddress: '', customerCareEmail: '', customerCarePhone: '', rates: { TW: '50', THREE_W: '100', FW: '150', CV: '400' } }]);
   const [newSubRates, setNewSubRates] = useState({ TW: '50', THREE_W: '100', FW: '150', CV: '400' });
   const [saving, setSaving] = useState(false);
 
-
-  // Edit rates modal state
+  // Edit rates & details modal state
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingBank, setEditingBank] = useState<Bank | null>(null);
+  const [editBankName, setEditBankName] = useState('');
+  const [editBranchAddress, setEditBranchAddress] = useState('');
+  const [editCustomerCareEmail, setEditCustomerCareEmail] = useState('');
+  const [editCustomerCarePhone, setEditCustomerCarePhone] = useState('');
   const [savingRates, setSavingRates] = useState(false);
 
   // Add sub-bank modal state
   const [addSubModalVisible, setAddSubModalVisible] = useState(false);
   const [targetThirdParty, setTargetThirdParty] = useState<Bank | null>(null);
   const [newSubName, setNewSubName] = useState('');
+  const [newSubAddress, setNewSubAddress] = useState('');
+  const [newSubEmail, setNewSubEmail] = useState('');
+  const [newSubPhone, setNewSubPhone] = useState('');
   const [savingNewSub, setSavingNewSub] = useState(false);
 
 
@@ -171,13 +185,16 @@ export default function BanksScreen() {
   const resetAddModal = () => {
     setAddType('direct');
     setNewBankName('');
+    setBranchAddress('');
+    setCustomerCareEmail('');
+    setCustomerCarePhone('');
     setVehiclePhaseRates({
       TW: { kachha: '50', pakka: '100', releaseOrder: '150' },
       THREE_W: { kachha: '80', pakka: '120', releaseOrder: '180' },
       FW: { kachha: '100', pakka: '150', releaseOrder: '200' },
       CV: { kachha: '200', pakka: '300', releaseOrder: '400' },
     });
-    setSubBanks([{ name: '', rates: { TW: '50', THREE_W: '100', FW: '150', CV: '400' } }]);
+    setSubBanks([{ name: '', branchAddress: '', customerCareEmail: '', customerCarePhone: '', rates: { TW: '50', THREE_W: '100', FW: '150', CV: '400' } }]);
   };
 
   const handleSaveBank = async () => {
@@ -193,6 +210,9 @@ export default function BanksScreen() {
         isThirdParty: addType === 'third_party',
         bankCategory: addType === 'shift' ? 'SHIFT_BANK' : (addType === 'third_party' ? 'THIRD_PARTY_BANK' : 'DIRECT_BANK'),
         isShiftBank: addType === 'shift',
+        branchAddress: branchAddress.trim() || undefined,
+        customerCareEmail: customerCareEmail.trim() || undefined,
+        customerCarePhone: customerCarePhone.trim() || undefined,
         parkingWaiverDays: Number(waiverDays || 0),
         parkingPayer: parkingPayer,
       };
@@ -230,6 +250,9 @@ export default function BanksScreen() {
           .filter(sb => sb.name.trim())
           .map(sb => ({
             name: sb.name.trim(),
+            branchAddress: sb.branchAddress?.trim() || undefined,
+            customerCareEmail: sb.customerCareEmail?.trim() || undefined,
+            customerCarePhone: sb.customerCarePhone?.trim() || undefined,
             rates: {
               TW: Number(sb.rates.TW),
               THREE_W: Number(sb.rates.THREE_W),
@@ -260,6 +283,10 @@ export default function BanksScreen() {
   // Edit Rates Handlers
   const handleOpenEditModal = (bank: Bank) => {
     setEditingBank(bank);
+    setEditBankName(bank.name || '');
+    setEditBranchAddress(bank.branchAddress || '');
+    setEditCustomerCareEmail(bank.customerCareEmail || '');
+    setEditCustomerCarePhone(bank.customerCarePhone || '');
     setWaiverDays(bank.parkingWaiverDays?.toString() || '2');
     setParkingPayer(bank.parkingPayer || 'CUSTOMER');
 
@@ -290,11 +317,14 @@ export default function BanksScreen() {
 
     setSavingRates(true);
     try {
-      // 1. Update Bank waiver days and parking payer
+      // 1. Update Bank details, waiver days, and parking payer
       await apiRequest(`/api/banks/${editingBank.id}`, {
         method: 'PUT',
         body: JSON.stringify({
-          name: editingBank.name,
+          name: editBankName.trim() || editingBank.name,
+          branchAddress: editBranchAddress.trim() || null,
+          customerCareEmail: editCustomerCareEmail.trim() || null,
+          customerCarePhone: editCustomerCarePhone.trim() || null,
           parkingWaiverDays: Number(waiverDays || 0),
           parkingPayer: parkingPayer,
         }),
@@ -319,20 +349,21 @@ export default function BanksScreen() {
       await Promise.all(promises);
       setEditModalVisible(false);
       loadBanks(true);
-      Alert.alert('Success', `Bank parking rates updated for "${editingBank.name}"`);
+      Alert.alert('Success', `Bank "${editBankName.trim() || editingBank.name}" details updated.`);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to update rates');
+      Alert.alert('Error', err.message || 'Failed to update bank');
     } finally {
       setSavingRates(false);
     }
   };
 
-
-
   // Add Sub-Bank to Network Handlers
   const handleOpenAddSubModal = (thirdParty: Bank) => {
     setTargetThirdParty(thirdParty);
     setNewSubName('');
+    setNewSubAddress('');
+    setNewSubEmail('');
+    setNewSubPhone('');
     setNewSubRates({ TW: '50', THREE_W: '100', FW: '150', CV: '400' });
     setAddSubModalVisible(true);
   };
@@ -358,6 +389,9 @@ export default function BanksScreen() {
           name: newSubName.trim(),
           isThirdParty: false,
           parentId: targetThirdParty.id,
+          branchAddress: newSubAddress.trim() || undefined,
+          customerCareEmail: newSubEmail.trim() || undefined,
+          customerCarePhone: newSubPhone.trim() || undefined,
           rates: {
             TW: Number(newSubRates.TW),
             THREE_W: Number(newSubRates.THREE_W),
@@ -491,6 +525,35 @@ export default function BanksScreen() {
                       </View>
                     )}
                   </View>
+
+                  {/* Branch Address & Customer Care Info */}
+                  {(bank.branchAddress || bank.customerCarePhone || bank.customerCareEmail) && (
+                    <View style={styles.bankContactContainer}>
+                      {!!bank.branchAddress && (
+                        <View style={styles.contactRow}>
+                          <Building size={13} color="#4F46E5" style={{ marginTop: 2, marginRight: 5 }} />
+                          <ThemedText style={styles.contactText} numberOfLines={2}>
+                            {bank.branchAddress}
+                          </ThemedText>
+                        </View>
+                      )}
+                      <View style={styles.contactBadgesRow}>
+                        {!!bank.customerCarePhone && (
+                          <View style={styles.contactBadge}>
+                            <Phone size={11} color="#059669" style={{ marginRight: 4 }} />
+                            <ThemedText style={styles.contactPhoneText}>{bank.customerCarePhone}</ThemedText>
+                          </View>
+                        )}
+                        {!!bank.customerCareEmail && (
+                          <View style={styles.contactBadge}>
+                            <Mail size={11} color="#2563EB" style={{ marginRight: 4 }} />
+                            <ThemedText style={styles.contactEmailText}>{bank.customerCareEmail}</ThemedText>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  )}
+
                   {bank.parkingRates?.length > 0 && (
                     <View style={styles.ratesGrid}>
                       {VEHICLE_TYPES.map(t => (
@@ -545,6 +608,35 @@ export default function BanksScreen() {
                         <View style={styles.subBankDot} />
                         <View style={{ flex: 1 }}>
                           <ThemedText style={styles.subBankName}>{sub.name}</ThemedText>
+
+                          {/* Sub-bank Contact Info */}
+                          {(sub.branchAddress || sub.customerCarePhone || sub.customerCareEmail) && (
+                            <View style={{ marginTop: 2, marginBottom: 4 }}>
+                              {!!sub.branchAddress && (
+                                <View style={styles.contactRow}>
+                                  <Building size={11} color="#64748B" style={{ marginTop: 1, marginRight: 4 }} />
+                                  <ThemedText style={[styles.contactText, { fontSize: 11 }]} numberOfLines={1}>
+                                    {sub.branchAddress}
+                                  </ThemedText>
+                                </View>
+                              )}
+                              <View style={styles.contactBadgesRow}>
+                                {!!sub.customerCarePhone && (
+                                  <View style={[styles.contactBadge, { paddingVertical: 2, paddingHorizontal: 5 }]}>
+                                    <Phone size={9} color="#059669" style={{ marginRight: 3 }} />
+                                    <ThemedText style={[styles.contactPhoneText, { fontSize: 10 }]}>{sub.customerCarePhone}</ThemedText>
+                                  </View>
+                                )}
+                                {!!sub.customerCareEmail && (
+                                  <View style={[styles.contactBadge, { paddingVertical: 2, paddingHorizontal: 5 }]}>
+                                    <Mail size={9} color="#2563EB" style={{ marginRight: 3 }} />
+                                    <ThemedText style={[styles.contactEmailText, { fontSize: 10 }]}>{sub.customerCareEmail}</ThemedText>
+                                  </View>
+                                )}
+                              </View>
+                            </View>
+                          )}
+
                           {sub.parkingRates?.length > 0 && (
                             <View style={styles.ratesGridSmall}>
                               {VEHICLE_TYPES.map(t => (
@@ -656,6 +748,38 @@ export default function BanksScreen() {
                   onChangeText={setNewBankName}
                 />
 
+                {/* Branch Address */}
+                <ThemedText style={styles.modalLabel}>📍 Branch / Office Address</ThemedText>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="e.g. Civil Lines, Main Road, Kanpur"
+                  placeholderTextColor="#94A3B8"
+                  value={branchAddress}
+                  onChangeText={setBranchAddress}
+                />
+
+                {/* Customer Care Contact Details */}
+                <ThemedText style={styles.modalLabel}>📞 Customer Care Contact</ThemedText>
+                <View style={{ gap: 8 }}>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Customer Care Mobile (e.g. 9876543210)"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="phone-pad"
+                    value={customerCarePhone}
+                    onChangeText={setCustomerCarePhone}
+                  />
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Customer Care Email (e.g. care@bank.com)"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    value={customerCareEmail}
+                    onChangeText={setCustomerCareEmail}
+                  />
+                </View>
+
                 {/* Rates for Direct Bank */}
                 {addType === 'direct' && (
                   <>
@@ -725,6 +849,38 @@ export default function BanksScreen() {
                             setSubBanks(prev => prev.map((s, i) => i === index ? { ...s, name: val } : s))
                           }
                         />
+                        <TextInput
+                          style={[styles.modalInput, { marginTop: 6 }]}
+                          placeholder="Branch Address (optional)"
+                          placeholderTextColor="#94A3B8"
+                          value={sb.branchAddress}
+                          onChangeText={val =>
+                            setSubBanks(prev => prev.map((s, i) => i === index ? { ...s, branchAddress: val } : s))
+                          }
+                        />
+                        <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+                          <TextInput
+                            style={[styles.modalInput, { flex: 1, fontSize: 12 }]}
+                            placeholder="Mobile No."
+                            placeholderTextColor="#94A3B8"
+                            keyboardType="phone-pad"
+                            value={sb.customerCarePhone}
+                            onChangeText={val =>
+                              setSubBanks(prev => prev.map((s, i) => i === index ? { ...s, customerCarePhone: val } : s))
+                            }
+                          />
+                          <TextInput
+                            style={[styles.modalInput, { flex: 1, fontSize: 12 }]}
+                            placeholder="Email ID"
+                            placeholderTextColor="#94A3B8"
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            value={sb.customerCareEmail}
+                            onChangeText={val =>
+                              setSubBanks(prev => prev.map((s, i) => i === index ? { ...s, customerCareEmail: val } : s))
+                            }
+                          />
+                        </View>
                         <View style={styles.ratesInputGrid}>
                           {VEHICLE_TYPES.map(t => (
                             <View key={t} style={styles.rateInputItem}>
@@ -753,7 +909,7 @@ export default function BanksScreen() {
                       onPress={() =>
                         setSubBanks(prev => [
                           ...prev,
-                          { name: '', rates: { TW: '50', THREE_W: '100', FW: '150', CV: '400' } },
+                          { name: '', branchAddress: '', customerCareEmail: '', customerCarePhone: '', rates: { TW: '50', THREE_W: '100', FW: '150', CV: '400' } },
                         ])
                       }
                       activeOpacity={0.7}
@@ -782,7 +938,7 @@ export default function BanksScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Edit Rates Modal */}
+      {/* Edit Rates & Details Modal */}
       <Modal
         visible={editModalVisible}
         animationType="slide"
@@ -797,7 +953,7 @@ export default function BanksScreen() {
           <View style={[styles.modalCard, { paddingBottom: 30 }]}>
             <View style={styles.modalHeader}>
               <ThemedText style={styles.modalTitle}>
-                Edit Rates - {editingBank?.name}
+                Edit Bank Details & Rates
               </ThemedText>
               <TouchableOpacity onPress={() => setEditModalVisible(false)} activeOpacity={0.7}>
                 <ThemedText style={styles.modalCloseBtn}>✕</ThemedText>
@@ -805,6 +961,48 @@ export default function BanksScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Bank Name */}
+              <ThemedText style={styles.modalLabel}>Bank Name *</ThemedText>
+              <TextInput
+                style={styles.modalInput}
+                value={editBankName}
+                onChangeText={setEditBankName}
+                placeholder="Bank Name"
+                placeholderTextColor="#94A3B8"
+              />
+
+              {/* Branch Address */}
+              <ThemedText style={styles.modalLabel}>📍 Branch / Office Address</ThemedText>
+              <TextInput
+                style={styles.modalInput}
+                value={editBranchAddress}
+                onChangeText={setEditBranchAddress}
+                placeholder="e.g. Civil Lines, Main Road, Kanpur"
+                placeholderTextColor="#94A3B8"
+              />
+
+              {/* Customer Care Contact */}
+              <ThemedText style={styles.modalLabel}>📞 Customer Care Contact</ThemedText>
+              <View style={{ gap: 8, marginBottom: 12 }}>
+                <TextInput
+                  style={styles.modalInput}
+                  value={editCustomerCarePhone}
+                  onChangeText={setEditCustomerCarePhone}
+                  placeholder="Customer Care Mobile (e.g. 9876543210)"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="phone-pad"
+                />
+                <TextInput
+                  style={styles.modalInput}
+                  value={editCustomerCareEmail}
+                  onChangeText={setEditCustomerCareEmail}
+                  placeholder="Customer Care Email (e.g. care@bank.com)"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
               <ThemedText style={styles.modalLabel}>Vehicle-Wise 3-Phase Rates (2W / 3W / 4W / CV)</ThemedText>
               
               {VEHICLE_TYPES.map(t => (
@@ -890,9 +1088,6 @@ export default function BanksScreen() {
               </View>
             </ScrollView>
 
-
-
-
             <TouchableOpacity
               style={[styles.saveBtn, savingRates && { opacity: 0.7 }]}
               onPress={handleSaveEditedRates}
@@ -902,7 +1097,7 @@ export default function BanksScreen() {
               {savingRates ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <ThemedText style={styles.saveBtnText}>Save Rates</ThemedText>
+                <ThemedText style={styles.saveBtnText}>Save Details & Rates</ThemedText>
               )}
             </TouchableOpacity>
           </View>
@@ -941,6 +1136,36 @@ export default function BanksScreen() {
                 value={newSubName}
                 onChangeText={setNewSubName}
               />
+
+              <ThemedText style={styles.modalLabel}>📍 Branch Address</ThemedText>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="e.g. Station Road Branch"
+                placeholderTextColor="#94A3B8"
+                value={newSubAddress}
+                onChangeText={setNewSubAddress}
+              />
+
+              <ThemedText style={styles.modalLabel}>📞 Customer Care Contact</ThemedText>
+              <View style={{ gap: 8, marginBottom: 10 }}>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="Customer Care Mobile"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="phone-pad"
+                  value={newSubPhone}
+                  onChangeText={setNewSubPhone}
+                />
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="Customer Care Email"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={newSubEmail}
+                  onChangeText={setNewSubEmail}
+                />
+              </View>
 
               <ThemedText style={styles.modalLabel}>Daily Parking Rates (₹/day)</ThemedText>
               <View style={styles.ratesInputGrid}>
@@ -1036,6 +1261,53 @@ const styles = StyleSheet.create({
   },
   bankName: { fontSize: 13, fontWeight: '700', color: '#0F172A' },
   bankType: { fontSize: 10, color: '#94A3B8', fontWeight: '500', marginTop: 0 },
+
+  bankContactContainer: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+  },
+  contactText: {
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: '500',
+    flex: 1,
+    lineHeight: 16,
+  },
+  contactBadgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 2,
+  },
+  contactBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  contactPhoneText: {
+    fontSize: 11,
+    color: '#059669',
+    fontWeight: '700',
+  },
+  contactEmailText: {
+    fontSize: 11,
+    color: '#2563EB',
+    fontWeight: '600',
+  },
 
   ratesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
   rateChip: {

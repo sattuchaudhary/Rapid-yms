@@ -10,6 +10,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -20,7 +22,9 @@ import { apiRequest, saveTokens, saveUserInfo, getServerUrl, setServerUrl, saveS
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Shield, Server, Mail, Lock, Check, Key, Eye, EyeOff } from 'lucide-react-native';
+import { Shield, Server, Mail, Lock, Check, Scan, Eye, EyeOff, RefreshCw } from 'lucide-react-native';
+
+const DEFAULT_SERVER_URL = 'https://rapid-yms.onrender.com';
 
 // Non-reversible secure credential hash generator for offline authentication
 const hashCredential = (email: string, pass: string) => {
@@ -43,6 +47,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [focusedField, setFocusedField] = useState<'email' | 'password' | 'server' | null>(null);
 
   // Server Settings Modal
   const [serverUrl, setServerUrlState] = useState('');
@@ -53,12 +58,20 @@ export default function LoginScreen() {
   const [forgotModalVisible, setForgotModalVisible] = useState(false);
 
   useEffect(() => {
-    // Load current server URL on mount
-    const loadUrl = async () => {
-      const url = await getServerUrl();
-      setServerUrlState(url);
+    // Load current server URL and pre-fill saved email on mount
+    const loadSavedCredentials = async () => {
+      try {
+        const url = await getServerUrl();
+        setServerUrlState(url);
+        const cachedEmail = await SecureStore.getItemAsync('yms_cached_email');
+        if (cachedEmail) {
+          setEmail(cachedEmail);
+        }
+      } catch (err) {
+        console.warn('[Login] Error loading saved credentials:', err);
+      }
     };
-    loadUrl();
+    loadSavedCredentials();
 
     // Check biometric compatibility
     const checkBiometrics = async () => {
@@ -75,15 +88,19 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !password) {
-      Alert.alert('Error', 'Please fill all details');
+    if (!cleanEmail) {
+      Alert.alert('Email Required', 'Please enter your email address.');
+      return;
+    }
+    if (!password) {
+      Alert.alert('Password Required', 'Please enter your password.');
       return;
     }
 
     setLoading(true);
     try {
       const netInfo = await NetInfo.fetch();
-      const isOnline = !!netInfo.isConnected;
+      const isOnline = !!(netInfo.isConnected && netInfo.isInternetReachable !== false);
 
       if (!isOnline) {
         // Secure Offline Authentication Fallback from cached hash
@@ -99,14 +116,14 @@ export default function LoginScreen() {
 
         if (isMatch) {
           console.log('[Login] Offline login authentication successful');
-          Alert.alert('Offline Mode', 'Network offline. Authenticated successfully using local credentials.');
+          await saveSessionDate();
           router.replace('/admin/dashboard');
           setLoading(false);
           return;
         } else {
           Alert.alert(
-            'Authentication Error',
-            'You are offline. To log in offline, you must enter the exact email and password of your last online session on this device.'
+            'Offline Authentication',
+            'Network is offline. To sign in offline, enter the exact email & password of your previous online session on this device.'
           );
           setLoading(false);
           return;
@@ -134,11 +151,14 @@ export default function LoginScreen() {
         // Redirect to admin dashboard
         router.replace('/admin/dashboard');
       } else {
-        Alert.alert('Login Failed', response.error || 'Check credentials');
+        Alert.alert('Login Failed', response.error || response.message || 'Invalid email or password. Please try again.');
       }
     } catch (error: any) {
       console.error('[Login] Error:', error);
-      Alert.alert('Login Error', error.message || 'Server connection failed. Set correct server IP.');
+      Alert.alert(
+        'Connection Error',
+        error.message || 'Unable to connect to server. Please check your internet or configure the Server IP in settings.'
+      );
     } finally {
       setLoading(false);
     }
@@ -148,10 +168,12 @@ export default function LoginScreen() {
     try {
       const cachedEmail = await SecureStore.getItemAsync('yms_cached_email');
       const cachedHash = await SecureStore.getItemAsync('yms_cached_auth_hash');
-      const legacyPassword = await SecureStore.getItemAsync('yms_cached_password');
 
-      if (!cachedEmail || (!cachedHash && !legacyPassword)) {
-        Alert.alert('Biometrics Setup Required', 'Please log in with your email and password at least once before using biometrics.');
+      if (!cachedEmail || !cachedHash) {
+        Alert.alert(
+          'Biometrics Setup Required',
+          'Please log in with your email and password at least once on this device before using biometrics.'
+        );
         return;
       }
 
@@ -165,27 +187,37 @@ export default function LoginScreen() {
         setLoading(true);
 
         const netInfo = await NetInfo.fetch();
-        const isOnline = !!netInfo.isConnected;
+        const isOnline = !!(netInfo.isConnected && netInfo.isInternetReachable !== false);
 
-        if (isOnline && legacyPassword) {
-          const response = await apiRequest('/api/auth/login', {
-            method: 'POST',
-            body: JSON.stringify({ email: cachedEmail, password: legacyPassword }),
-          });
+        if (isOnline) {
+          // If online, perform silent token refresh to ensure tokens are valid
+          const refreshToken = await SecureStore.getItemAsync('yms_refresh_token');
+          const baseUrl = await getServerUrl();
 
-          if (response.success) {
-            await saveTokens(response.accessToken, response.refreshToken);
-            await saveUserInfo(response.user);
-            await saveSessionDate();
-            router.replace('/admin/dashboard');
-          } else {
-            Alert.alert('Biometric Login Failed', response.error || 'Check credentials');
+          if (refreshToken) {
+            try {
+              const refreshRes = await fetch(`${baseUrl}/api/auth/refresh`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refreshToken }),
+              });
+              const resData = await refreshRes.json();
+              if (resData.success && resData.accessToken) {
+                await saveTokens(resData.accessToken, resData.refreshToken || refreshToken);
+                if (resData.user) await saveUserInfo(resData.user);
+                await saveSessionDate();
+                router.replace('/admin/dashboard');
+                return;
+              }
+            } catch (refErr) {
+              console.warn('[Biometrics] Token refresh failed, falling back to cached session:', refErr);
+            }
           }
-        } else {
-          // Biometrics authenticated successfully
-          Alert.alert('Authenticated', 'Authenticated successfully using biometrics.');
-          router.replace('/admin/dashboard');
         }
+
+        // Offline or token refresh completed
+        await saveSessionDate();
+        router.replace('/admin/dashboard');
       }
     } catch (e: any) {
       console.warn('[Biometrics Auth] Error:', e);
@@ -196,226 +228,265 @@ export default function LoginScreen() {
   };
 
   const handleSaveServer = async () => {
-    const url = serverUrl.trim();
+    let url = serverUrl.trim().replace(/\/+$/, '');
     if (!url) {
-      Alert.alert('Error', 'URL cannot be empty');
+      Alert.alert('Error', 'Server URL cannot be empty');
       return;
     }
-    // URL Pattern Regex Verification
-    const urlPattern = /^(https?:\/\/)[^\s$.?#].[^\s]*$/i;
-    if (!urlPattern.test(url)) {
-      Alert.alert('Invalid Endpoint', 'Please enter a valid URL starting with http:// or https://');
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = `https://${url}`;
+    }
+
+    try {
+      new URL(url);
+    } catch {
+      Alert.alert('Invalid Endpoint', 'Please enter a valid URL (e.g. https://your-server.com or http://192.168.1.50:5000)');
       return;
     }
+
     await setServerUrl(url);
+    setServerUrlState(url);
     setModalVisible(false);
-    Alert.alert('Success', 'Server URL updated');
+    Alert.alert('Success', `Server URL updated to:\n${url}`);
+  };
+
+  const handleResetServer = async () => {
+    await setServerUrl(DEFAULT_SERVER_URL);
+    setServerUrlState(DEFAULT_SERVER_URL);
+    setModalVisible(false);
+    Alert.alert('Reset Complete', 'Server URL reset to production default.');
   };
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: '#0B0F19' }}
     >
       <StatusBar style="light" />
-      <ScrollView contentContainerStyle={{ flexGrow: 1, paddingBottom: Math.max(insets.bottom, 16) }} keyboardShouldPersistTaps="handled">
-        <View style={styles.container}>
-          {/* Settings Icon */}
-          <TouchableOpacity
-            style={[styles.settingsBtn, { top: Math.max(insets.top, 16) + 10 }]}
-            onPress={() => setModalVisible(true)}
-            activeOpacity={0.7}
-          >
-            <Server size={22} color="#6366F1" />
-          </TouchableOpacity>
-
-          {/* Logo Header */}
-          <View style={styles.header}>
-            <View style={styles.logoBadge}>
-              <Shield size={38} color="#6366F1" />
-            </View>
-            <ThemedText style={styles.brandTitle}>ENTERPRISE YMS</ThemedText>
-            <ThemedText style={styles.brandSubtitle}>Yard Management SaaS Mobile</ThemedText>
-          </View>
-
-          {/* Login Form Container */}
-          <View style={styles.formCard}>
-            <ThemedText style={styles.formTitle}>Sign In</ThemedText>
-
-            {/* Email Field */}
-            <View style={styles.inputContainer}>
-              <Mail size={18} color="#64748B" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Email Address"
-                placeholderTextColor="#64748B"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-
-            {/* Password Field */}
-            <View style={styles.inputContainer}>
-              <Lock size={18} color="#64748B" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Password"
-                placeholderTextColor="#64748B"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                style={{ padding: 4 }}
-              >
-                {showPassword ? (
-                  <EyeOff size={18} color="#64748B" />
-                ) : (
-                  <Eye size={18} color="#64748B" />
-                )}
-              </TouchableOpacity>
-            </View>
-
-            {/* Login Button Row with Biometrics */}
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <TouchableOpacity
-                style={[styles.loginBtn, { flex: 1 }]}
-                onPress={handleLogin}
-                disabled={loading}
-                activeOpacity={0.8}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <ThemedText style={styles.loginBtnText}>Secure Log In</ThemedText>
-                )}
-              </TouchableOpacity>
-
-              {biometricsAvailable && (
-                <TouchableOpacity
-                  style={styles.biometricBtn}
-                  onPress={handleBiometricLogin}
-                  disabled={loading}
-                  activeOpacity={0.7}
-                >
-                  <Key size={24} color="#6366F1" />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Forgot Password Link */}
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <ScrollView
+          contentContainerStyle={[styles.scrollContainer, { paddingBottom: Math.max(insets.bottom, 24) }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
+            {/* Settings Icon */}
             <TouchableOpacity
-              onPress={() => setForgotModalVisible(true)}
-              style={styles.forgotBtn}
+              style={[styles.settingsBtn, { top: Math.max(insets.top, 16) + 10 }]}
+              onPress={() => setModalVisible(true)}
               activeOpacity={0.7}
             >
-              <ThemedText style={styles.forgotText}>Forgot Password?</ThemedText>
+              <Server size={20} color="#818CF8" />
             </TouchableOpacity>
-          </View>
 
-          {/* Server Config Modal */}
-          <Modal
-            animationType="slide"
-            transparent={true}
-            visible={modalVisible}
-            onRequestClose={() => setModalVisible(false)}
-          >
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              style={{ flex: 1 }}
+            {/* Logo Header */}
+            <View style={styles.header}>
+              <View style={styles.logoBadge}>
+                <Shield size={38} color="#6366F1" />
+              </View>
+              <ThemedText style={styles.brandTitle}>ENTERPRISE YMS</ThemedText>
+              <ThemedText style={styles.brandSubtitle}>Yard Management SaaS Mobile</ThemedText>
+            </View>
+
+            {/* Login Form Container */}
+            <View style={styles.formCard}>
+              <ThemedText style={styles.formTitle}>Sign In</ThemedText>
+
+              {/* Email Field */}
+              <View style={[styles.inputContainer, focusedField === 'email' && styles.inputContainerFocused]}>
+                <Mail size={18} color={focusedField === 'email' ? '#818CF8' : '#64748B'} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email Address"
+                  placeholderTextColor="#64748B"
+                  value={email}
+                  onChangeText={setEmail}
+                  onFocus={() => setFocusedField('email')}
+                  onBlur={() => setFocusedField(null)}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="email"
+                  textContentType="emailAddress"
+                />
+              </View>
+
+              {/* Password Field */}
+              <View style={[styles.inputContainer, focusedField === 'password' && styles.inputContainerFocused]}>
+                <Lock size={18} color={focusedField === 'password' ? '#818CF8' : '#64748B'} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Password"
+                  placeholderTextColor="#64748B"
+                  value={password}
+                  onChangeText={setPassword}
+                  onFocus={() => setFocusedField('password')}
+                  onBlur={() => setFocusedField(null)}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="password"
+                  textContentType="password"
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  style={{ padding: 4 }}
+                >
+                  {showPassword ? (
+                    <EyeOff size={18} color="#94A3B8" />
+                  ) : (
+                    <Eye size={18} color="#94A3B8" />
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {/* Login Button Row with Biometrics */}
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+                <TouchableOpacity
+                  style={[styles.loginBtn, { flex: 1 }]}
+                  onPress={handleLogin}
+                  disabled={loading}
+                  activeOpacity={0.8}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <ThemedText style={styles.loginBtnText}>Secure Log In</ThemedText>
+                  )}
+                </TouchableOpacity>
+
+                {biometricsAvailable && (
+                  <TouchableOpacity
+                    style={styles.biometricBtn}
+                    onPress={handleBiometricLogin}
+                    disabled={loading}
+                    activeOpacity={0.7}
+                  >
+                    <Scan size={22} color="#818CF8" />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Forgot Password Link */}
+              <TouchableOpacity
+                onPress={() => setForgotModalVisible(true)}
+                style={styles.forgotBtn}
+                activeOpacity={0.7}
+              >
+                <ThemedText style={styles.forgotText}>Forgot Password?</ThemedText>
+              </TouchableOpacity>
+            </View>
+
+            {/* Server Config Modal */}
+            <Modal
+              animationType="slide"
+              transparent={true}
+              visible={modalVisible}
+              onRequestClose={() => setModalVisible(false)}
+            >
+              <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={{ flex: 1 }}
+              >
+                <View style={styles.modalOverlay}>
+                  <View style={styles.modalContent}>
+                    <ThemedText style={styles.modalTitle}>Server Configuration</ThemedText>
+                    <ThemedText style={styles.modalSubtitle}>
+                      Configure API endpoint for custom LAN / Cloud server:
+                    </ThemedText>
+
+                    <TextInput
+                      style={styles.modalInput}
+                      placeholder="https://rapid-yms.onrender.com"
+                      placeholderTextColor="#64748B"
+                      value={serverUrl}
+                      onChangeText={setServerUrlState}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+
+                    <View style={styles.modalBtnRow}>
+                      <TouchableOpacity
+                        style={[styles.modalBtn, styles.modalResetBtn]}
+                        onPress={handleResetServer}
+                      >
+                        <RefreshCw size={13} color="#94A3B8" style={{ marginRight: 4 }} />
+                        <ThemedText style={styles.modalResetText}>Reset</ThemedText>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[styles.modalBtn, styles.modalCloseBtn]}
+                        onPress={() => setModalVisible(false)}
+                      >
+                        <ThemedText style={styles.modalCloseText}>Cancel</ThemedText>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[styles.modalBtn, styles.modalSaveBtn]}
+                        onPress={handleSaveServer}
+                      >
+                        <Check size={16} color="#FFF" style={{ marginRight: 4 }} />
+                        <ThemedText style={styles.modalSaveText}>Save</ThemedText>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              </KeyboardAvoidingView>
+            </Modal>
+
+            {/* Forgot Password Modal */}
+            <Modal
+              animationType="fade"
+              transparent={true}
+              visible={forgotModalVisible}
+              onRequestClose={() => setForgotModalVisible(false)}
             >
               <View style={styles.modalOverlay}>
                 <View style={styles.modalContent}>
-                  <ThemedText style={styles.modalTitle}>Server Configuration</ThemedText>
-                  <ThemedText style={styles.modalSubtitle}>
-                    Change API Server endpoint if testing on custom LAN IP:
+                  <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                    <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: '#1E1B4B', justifyContent: 'center', alignItems: 'center', marginBottom: 12, borderWidth: 1, borderColor: '#4338CA' }}>
+                      <Shield size={26} color="#818CF8" />
+                    </View>
+                    <ThemedText style={styles.modalTitle}>Reset Password</ThemedText>
+                  </View>
+                  
+                  <ThemedText style={{ color: '#94A3B8', fontSize: 13, lineHeight: 20, textAlign: 'center', marginBottom: 20 }}>
+                    Security compliance rules ke mutabiq, password reset ke liye apne <ThemedText style={{ fontWeight: '700', color: '#FFFFFF' }}>Yard Tenant Admin</ThemedText> ya crew supervisor se sampark karein. Wo Admin Panel se aapka temporary credentials generate kar sakte hain.
                   </ThemedText>
 
-                  <TextInput
-                    style={styles.modalInput}
-                    placeholder="http://192.168.1.XX:5000"
-                    placeholderTextColor="#64748B"
-                    value={serverUrl}
-                    onChangeText={setServerUrlState}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-
-                  <View style={styles.modalBtnRow}>
-                    <TouchableOpacity
-                      style={[styles.modalBtn, styles.modalCloseBtn]}
-                      onPress={() => setModalVisible(false)}
-                    >
-                      <ThemedText style={styles.modalCloseText}>Cancel</ThemedText>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.modalBtn, styles.modalSaveBtn]}
-                      onPress={handleSaveServer}
-                    >
-                      <Check size={16} color="#FFF" style={{ marginRight: 4 }} />
-                      <ThemedText style={styles.modalSaveText}>Save</ThemedText>
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity
+                    style={[styles.loginBtn, { marginTop: 0 }]}
+                    onPress={() => setForgotModalVisible(false)}
+                    activeOpacity={0.8}
+                  >
+                    <ThemedText style={styles.loginBtnText}>Got It</ThemedText>
+                  </TouchableOpacity>
                 </View>
               </View>
-            </KeyboardAvoidingView>
-          </Modal>
-
-          {/* Forgot Password Modal */}
-          <Modal
-            animationType="fade"
-            transparent={true}
-            visible={forgotModalVisible}
-            onRequestClose={() => setForgotModalVisible(false)}
-          >
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <View style={{ alignItems: 'center', marginBottom: 16 }}>
-                  <View style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: '#1E1B4B', justifyContent: 'center', alignItems: 'center', marginBottom: 10 }}>
-                    <Shield size={26} color="#6366F1" />
-                  </View>
-                  <ThemedText style={styles.modalTitle}>Forgot Password?</ThemedText>
-                </View>
-                
-                <ThemedText style={{ color: '#94A3B8', fontSize: 13, lineHeight: 20, textAlign: 'center', marginBottom: 20 }}>
-                  Security rules ke anusar, please reset ke liye apne **Yard Tenant Admin** ya crew supervisor se contact karein. Wo aapka credentials details panel se override kar sakte hain.
-                </ThemedText>
-
-                <TouchableOpacity
-                  style={[styles.loginBtn, { marginTop: 0 }]}
-                  onPress={() => setForgotModalVisible(false)}
-                >
-                  <ThemedText style={styles.loginBtnText}>Okay, Got It</ThemedText>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Modal>
-        </View>
-      </ScrollView>
+            </Modal>
+          </View>
+        </ScrollView>
+      </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
   container: {
     flex: 1,
     backgroundColor: '#0B0F19',
     paddingHorizontal: 24,
     justifyContent: 'center',
-    paddingBottom: 40,
+    paddingVertical: 32,
   },
   settingsBtn: {
     position: 'absolute',
-    top: 50,
     right: 24,
     width: 44,
     height: 44,
@@ -430,11 +501,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+    zIndex: 10,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 36,
-    marginTop: 45,
+    marginBottom: 32,
+    marginTop: 20,
   },
   logoBadge: {
     width: 80,
@@ -448,20 +520,21 @@ const styles = StyleSheet.create({
     borderColor: '#4F46E5',
     shadowColor: '#4F46E5',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.3,
     shadowRadius: 12,
-    elevation: 3,
+    elevation: 4,
   },
   brandTitle: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 1.5,
   },
   brandSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#94A3B8',
     marginTop: 4,
+    fontWeight: '500',
   },
   formCard: {
     backgroundColor: '#111827',
@@ -471,12 +544,12 @@ const styles = StyleSheet.create({
     borderColor: '#1F2937',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.2,
     shadowRadius: 10,
-    elevation: 3,
+    elevation: 4,
   },
   formTitle: {
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 20,
@@ -485,12 +558,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1F2937',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#374151',
-    borderRadius: 10,
-    paddingHorizontal: 12,
+    borderRadius: 12,
+    paddingHorizontal: 14,
     marginBottom: 16,
-    height: 50,
+    height: 52,
+  },
+  inputContainerFocused: {
+    borderColor: '#6366F1',
+    backgroundColor: '#1E1B4B',
   },
   inputIcon: {
     marginRight: 10,
@@ -502,32 +579,31 @@ const styles = StyleSheet.create({
   },
   loginBtn: {
     backgroundColor: '#4F46E5',
-    borderRadius: 10,
-    height: 50,
+    borderRadius: 12,
+    height: 52,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 8,
     shadowColor: '#4F46E5',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
     elevation: 3,
   },
   loginBtnText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
+    letterSpacing: 0.5,
   },
   biometricBtn: {
-    width: 50,
-    height: 50,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#374151',
+    width: 52,
+    height: 52,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#4338CA',
     backgroundColor: '#1E1B4B',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 8,
   },
   forgotBtn: {
     alignSelf: 'center',
@@ -538,11 +614,10 @@ const styles = StyleSheet.create({
     color: '#818CF8',
     fontSize: 13,
     fontWeight: '600',
-    textDecorationLine: 'underline',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -568,9 +643,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   modalSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#94A3B8',
     marginBottom: 16,
+    lineHeight: 18,
   },
   modalInput: {
     backgroundColor: '#1F2937',
@@ -580,20 +656,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     color: '#FFFFFF',
     height: 50,
-    fontSize: 15,
+    fontSize: 14,
     marginBottom: 20,
   },
   modalBtnRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 12,
+    gap: 8,
   },
   modalBtn: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  modalResetBtn: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#374151',
+    marginRight: 'auto',
+  },
+  modalResetText: {
+    color: '#94A3B8',
+    fontSize: 13,
+    fontWeight: '600',
   },
   modalCloseBtn: {
     backgroundColor: '#374151',
@@ -603,10 +690,12 @@ const styles = StyleSheet.create({
   },
   modalCloseText: {
     color: '#FFFFFF',
+    fontSize: 13,
     fontWeight: '600',
   },
   modalSaveText: {
     color: '#FFFFFF',
+    fontSize: 13,
     fontWeight: '600',
   },
 });

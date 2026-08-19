@@ -27,6 +27,9 @@ export interface BankParkingConfig {
   parkingWaiverDays?: number;
   bankCategory?: 'DIRECT_BANK' | 'THIRD_PARTY_BANK' | 'SHIFT_BANK';
   isShiftBank?: boolean;
+  branchAddress?: string | null;
+  customerCareEmail?: string | null;
+  customerCarePhone?: string | null;
 }
 
 export type RateVal = number | { dailyRate?: number; kachhaRate?: number; pakkaRate?: number; releaseOrderRate?: number };
@@ -44,7 +47,7 @@ export const createBankService = async (
   isThirdParty: boolean = false,
   parentId?: string | null,
   rates?: VehicleRatesInput,
-  subBanks?: Array<{ name: string; rates: VehicleRatesInput }>,
+  subBanks?: Array<{ name: string; rates: VehicleRatesInput; branchAddress?: string | null; customerCareEmail?: string | null; customerCarePhone?: string | null }>,
   parkingConfig?: BankParkingConfig
 ) => {
   return prisma.$transaction(async (tx) => {
@@ -83,6 +86,9 @@ export const createBankService = async (
         bankCategory: parkingConfig?.bankCategory || (isThirdParty ? 'THIRD_PARTY_BANK' : 'DIRECT_BANK'),
         isShiftBank: parkingConfig?.isShiftBank ?? (parkingConfig?.bankCategory === 'SHIFT_BANK'),
         parentId: parentId || null,
+        branchAddress: parkingConfig?.branchAddress?.trim() || null,
+        customerCareEmail: parkingConfig?.customerCareEmail?.trim() || null,
+        customerCarePhone: parkingConfig?.customerCarePhone?.trim() || null,
         parkingEnabled: parkingConfig?.parkingEnabled ?? true,
         kachhaParkingRate: parkingConfig?.kachhaParkingRate ?? 0,
         pakkaParkingRate: parkingConfig?.pakkaParkingRate ?? 0,
@@ -152,6 +158,9 @@ export const createBankService = async (
             name: sb.name.trim(),
             isThirdParty: false,
             parentId: bank.id,
+            branchAddress: sb.branchAddress?.trim() || null,
+            customerCareEmail: sb.customerCareEmail?.trim() || null,
+            customerCarePhone: sb.customerCarePhone?.trim() || null,
             parkingEnabled: parkingConfig?.parkingEnabled ?? true,
             kachhaParkingRate: parkingConfig?.kachhaParkingRate ?? 0,
             pakkaParkingRate: parkingConfig?.pakkaParkingRate ?? 0,
@@ -217,6 +226,9 @@ export const updateBankService = async (
     if (parkingConfig.parkingWaiverDays !== undefined) updateData.parkingWaiverDays = parkingConfig.parkingWaiverDays;
     if (parkingConfig.bankCategory !== undefined) updateData.bankCategory = parkingConfig.bankCategory;
     if (parkingConfig.isShiftBank !== undefined) updateData.isShiftBank = parkingConfig.isShiftBank;
+    if (parkingConfig.branchAddress !== undefined) updateData.branchAddress = parkingConfig.branchAddress?.trim() || null;
+    if (parkingConfig.customerCareEmail !== undefined) updateData.customerCareEmail = parkingConfig.customerCareEmail?.trim() || null;
+    if (parkingConfig.customerCarePhone !== undefined) updateData.customerCarePhone = parkingConfig.customerCarePhone?.trim() || null;
   }
 
   return prisma.bank.update({
