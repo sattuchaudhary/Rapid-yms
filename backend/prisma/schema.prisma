@@ -166,6 +166,15 @@ model User {
   name       String
   email      String
   phone      String?
+  address    String?
+  emergencyContact String?
+  dob        DateTime?
+  permissionLevel String?  @default("OPERATIONAL")
+  joiningDate DateTime?
+  photoUri   String?
+  docType    String?
+  docFrontUri String?
+  docBackUri String?
   password   String     // bcrypt hashed
   role       Role
   status     UserStatus @default(ACTIVE)

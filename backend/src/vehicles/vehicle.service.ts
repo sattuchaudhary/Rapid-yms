@@ -28,20 +28,21 @@ export const getVehicleSummaryService = async (tenantId: string, startDate?: str
     if (endDate) whereClause.entryDate.lte = new Date(endDate);
   }
 
-  const [total, pakka, kachha, released, shifting] = await Promise.all([
+  const [total, inYard, pakka, kachha, released, shifting] = await Promise.all([
     prisma.vehicle.count({ where: whereClause }),
+    prisma.vehicle.count({ where: { ...whereClause, yardStatus: { in: ['KACHHA', 'PAKKA'] } } }),
     prisma.vehicle.count({ where: { ...whereClause, yardStatus: 'PAKKA' } }),
     prisma.vehicle.count({ where: { ...whereClause, yardStatus: 'KACHHA' } }),
     prisma.vehicle.count({ where: { ...whereClause, yardStatus: 'RELEASED' } }),
     prisma.vehicle.count({
       where: {
         ...whereClause,
-        shifts: { some: { status: 'INITIATED' } },
+        shiftStatus: { in: ['SHIFT_PENDING', 'SHIFT_INITIATED'] },
       },
     }),
   ]);
 
-  return { all: total, pakka, kachha, released, shifting };
+  return { all: total, inYard, pakka, kachha, released, shifting };
 };
 
 // Helper to sign static S3/R2 URLs into temporary authenticated GET URLs

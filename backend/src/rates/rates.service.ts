@@ -17,7 +17,10 @@ export const upsertRateService = async (
   tenantId: string,
   bankId: string,
   vehicleType: VehicleType,
-  dailyRate: number
+  dailyRate: number,
+  kachhaRate?: number,
+  pakkaRate?: number,
+  releaseOrderRate?: number
 ) => {
   return prisma.parkingRate.upsert({
     where: {
@@ -29,12 +32,18 @@ export const upsertRateService = async (
     },
     update: {
       dailyRate,
+      ...(kachhaRate !== undefined && { kachhaRate }),
+      ...(pakkaRate !== undefined && { pakkaRate }),
+      ...(releaseOrderRate !== undefined && { releaseOrderRate }),
     },
     create: {
       tenantId,
       bankId,
       vehicleType,
       dailyRate,
+      kachhaRate: kachhaRate ?? dailyRate,
+      pakkaRate: pakkaRate ?? dailyRate,
+      releaseOrderRate: releaseOrderRate ?? dailyRate,
     },
   });
 };

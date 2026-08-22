@@ -1,0 +1,37 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2E86FF"/>
+      <stop offset="0.55" stop-color="#0A5CF0"/>
+      <stop offset="1" stop-color="#00308A"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.16"/>
+      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" rx="228" fill="url(#bg)"/>
+  <rect width="1024" height="1024" rx="228" fill="url(#sheen)"/>
+
+  <!-- Monoline "R" mark, built from a single continuous road-like stroke -->
+  <path d="
+    M 372 738
+    L 372 320
+    Q 372 286 406 286
+    L 574 286
+    Q 660 286 660 372
+    Q 660 458 574 458
+    L 462 458
+    L 668 738
+  "
+  fill="none"
+  stroke="#FFFFFF"
+  stroke-width="62"
+  stroke-linecap="round"
+  stroke-linejoin="round"/>
+
+  <!-- Yard / location pin accent node -->
+  <circle cx="714" cy="300" r="24" fill="#FFFFFF" opacity="0.95"/>
+</svg>

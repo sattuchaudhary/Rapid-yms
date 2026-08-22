@@ -1,0 +1,20 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Transparent background. Mark kept within center safe zone for Android adaptive icons. -->
+  <path d="
+    M 372 738
+    L 372 320
+    Q 372 286 406 286
+    L 574 286
+    Q 660 286 660 372
+    Q 660 458 574 458
+    L 462 458
+    L 668 738
+  "
+  fill="none"
+  stroke="#FFFFFF"
+  stroke-width="62"
+  stroke-linecap="round"
+  stroke-linejoin="round"/>
+
+  <circle cx="714" cy="300" r="24" fill="#FFFFFF" opacity="0.95"/>
+</svg>

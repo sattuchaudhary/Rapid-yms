@@ -10,14 +10,22 @@ import {
   Platform,
   PanResponder,
   Modal,
+  Image,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
 import {
   X,
   Building2,
   LogOut,
+  Landmark,
+  Users,
+  BarChart3,
+  Settings,
+  ChevronRight,
 } from 'lucide-react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -32,6 +40,55 @@ export interface DashboardDrawerProps {
   adminRole?: string;
   onLogout?: () => void;
 }
+
+interface DrawerMenuItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  route: string;
+  icon: React.ComponentType<any>;
+  iconColor: string;
+  iconBgColor: string;
+}
+
+const DRAWER_MENU_ITEMS: DrawerMenuItem[] = [
+  {
+    id: 'banks',
+    title: 'Bank Management',
+    subtitle: 'Parking rates & sub-banks',
+    route: '/tenant_admin/admin/banks',
+    icon: Landmark,
+    iconColor: '#0062FF',
+    iconBgColor: '#EFF6FF',
+  },
+  {
+    id: 'users',
+    title: 'User Management',
+    subtitle: 'Staff accounts & role access',
+    route: '/tenant_admin/admin/users',
+    icon: Users,
+    iconColor: '#7C3AED',
+    iconBgColor: '#F5F3FF',
+  },
+  {
+    id: 'reports',
+    title: 'Reports',
+    subtitle: 'Yard stats & revenue insights',
+    route: '/tenant_admin/admin/reports',
+    icon: BarChart3,
+    iconColor: '#0D9488',
+    iconBgColor: '#F0FDFA',
+  },
+  {
+    id: 'settings',
+    title: 'Settings',
+    subtitle: 'Yard config & preferences',
+    route: '/tenant_admin/admin/settings',
+    icon: Settings,
+    iconColor: '#475569',
+    iconBgColor: '#F1F5F9',
+  },
+];
 
 export default function DashboardDrawer({
   visible,
@@ -164,6 +221,18 @@ export default function DashboardDrawer({
     }
   };
 
+  const router = useRouter();
+
+  const handleNavigate = (path: string) => {
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      Haptics.selectionAsync().catch(() => {});
+    }
+    handleClose();
+    setTimeout(() => {
+      router.push(path as any);
+    }, 120);
+  };
+
   if (!visible && !showLogoutConfirm) return null;
 
   const backdropOpacity = animValue.interpolate({
@@ -247,7 +316,7 @@ export default function DashboardDrawer({
             </View>
           </Animated.View>
 
-          {/* Clean Empty Body Canvas (Reserved for future drawer menu items) */}
+          {/* Drawer Menu Items */}
           <Animated.View
             style={[
               styles.drawerBody,
@@ -256,7 +325,51 @@ export default function DashboardDrawer({
                 transform: [{ translateY: contentTranslateY }],
               },
             ]}
-          />
+          >
+            <Text style={styles.menuSectionHeader}>MANAGEMENT</Text>
+
+            <ScrollView
+              style={styles.menuListScroll}
+              contentContainerStyle={styles.menuListScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {DRAWER_MENU_ITEMS.map((item) => {
+                const IconComponent = item.icon;
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.menuItemCard}
+                    onPress={() => handleNavigate(item.route)}
+                    activeOpacity={0.75}
+                    accessibilityRole="button"
+                    accessibilityLabel={item.title}
+                  >
+                    <View
+                      style={[
+                        styles.menuIconCircle,
+                        { backgroundColor: item.iconBgColor },
+                      ]}
+                    >
+                      <IconComponent
+                        size={18}
+                        color={item.iconColor}
+                        strokeWidth={2.2}
+                      />
+                    </View>
+                    <View style={styles.menuTextContent}>
+                      <Text style={styles.menuItemTitle} numberOfLines={1}>
+                        {item.title}
+                      </Text>
+                      <Text style={styles.menuItemSubtitle} numberOfLines={1}>
+                        {item.subtitle}
+                      </Text>
+                    </View>
+                    <ChevronRight size={16} color="#94A3B8" strokeWidth={2} />
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </Animated.View>
 
           {/* Bottom Footer Actions & Dynamic Live App Version */}
           <Animated.View
@@ -280,9 +393,16 @@ export default function DashboardDrawer({
               </TouchableOpacity>
             )}
 
-            {/* Live Dynamic App Version */}
+            {/* Live Dynamic App Version & Branding Row */}
             <View style={styles.versionContainer}>
-              <Text style={styles.versionText}>Rapid YMS v{appVersion}</Text>
+              <Image
+                source={require('../../../../../assets/app logo and icon/wordmark-premium.png')}
+                style={styles.drawerWordmark}
+                resizeMode="contain"
+              />
+              <View style={styles.versionBadge}>
+                <Text style={styles.versionText}>v{appVersion}</Text>
+              </View>
             </View>
           </Animated.View>
         </Animated.View>
@@ -421,6 +541,53 @@ const styles = StyleSheet.create({
   },
   drawerBody: {
     flex: 1,
+    paddingTop: 16,
+  },
+  menuSectionHeader: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 0.8,
+    marginBottom: 10,
+    paddingLeft: 4,
+  },
+  menuListScroll: {
+    flex: 1,
+  },
+  menuListScrollContent: {
+    paddingBottom: 16,
+    gap: 10,
+  },
+  menuItemCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    gap: 12,
+  },
+  menuIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuTextContent: {
+    flex: 1,
+  },
+  menuItemTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  menuItemSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
   },
   drawerFooter: {
     borderTopWidth: 1,
@@ -446,14 +613,29 @@ const styles = StyleSheet.create({
     color: '#E11D48',
   },
   versionContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 4,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  drawerWordmark: {
+    width: 155,
+    height: 36,
+    opacity: 0.92,
+  },
+  versionBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   versionText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#94A3B8',
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748B',
     letterSpacing: 0.3,
   },
 

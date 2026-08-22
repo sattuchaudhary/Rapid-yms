@@ -4,17 +4,30 @@
     "slug": "rapid-yms",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/app logo and icon/app-icon-premium-1024.png",
     "scheme": "rapidyms",
     "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/app logo and icon/app-icon-premium-1024.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A5CF0"
+    },
     "ios": {
-      "bundleIdentifier": "com.rapidrepo.rapidyms"
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rapidrepo.rapidyms",
+      "icon": "./assets/app logo and icon/app-icon-premium-1024.png"
     },
     "android": {
       "package": "com.rapidrepo.rapidyms",
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/app logo and icon/adaptive-icon-foreground-premium-432.png",
+        "backgroundColor": "#0A5CF0"
+      }
     },
     "web": {
-      "output": "static"
+      "output": "static",
+      "favicon": "./assets/app logo and icon/favicon-premium-32.png"
     },
     "plugins": [
       "expo-router",

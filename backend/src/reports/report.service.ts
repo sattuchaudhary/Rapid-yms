@@ -206,7 +206,7 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
   startOfYear.setHours(0, 0, 0, 0);
 
   const [
-    totalVehicles,
+    inYardVehicles,
     kachhaCount,
     pakkaCount,
     releasedToday,
@@ -228,6 +228,8 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
     activePakka,
     todayEntry,
     shiftPendingCount,
+    totalAllVehiclesCount,
+    releasedTotalCount,
   ] = await Promise.all([
     // Active vehicles inside yard
     prisma.vehicle.count({ where: { tenantId, yardStatus: { in: ['KACHHA', 'PAKKA'] } } }),
@@ -344,8 +346,16 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
     prisma.vehicle.count({
       where: {
         tenantId,
-        shiftStatus: { in: ['SHIFT_PENDING', 'SHIFT_INITIATED'] }
+        shiftStatus: { in: ['SHIFT_PENDING', 'SHIFT_INITIATED'] },
       }
+    }),
+    // Total registered vehicles count (all time)
+    prisma.vehicle.count({
+      where: { tenantId }
+    }),
+    // Total released count (all time)
+    prisma.vehicle.count({
+      where: { tenantId, yardStatus: 'RELEASED' }
     })
   ]);
 
@@ -354,7 +364,7 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
   const dailyRevenueThisYear = revenueThisYearAgg._sum.paidAmount || 0;
 
   const maxCapacity = 500;
-  const occupiedSlots = totalVehicles;
+  const occupiedSlots = inYardVehicles;
   const occupancyPercentage = Math.min(100, Math.round((occupiedSlots / maxCapacity) * 100));
 
   // Load Rate Master rules for exact Bank + Vehicle Type rates
@@ -461,7 +471,8 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
 
   return {
     stats: {
-      totalVehicles,
+      totalVehicles: totalAllVehiclesCount,
+      inYardVehicles,
       todayEntry,
       occupancy: {
         capacity: maxCapacity,
@@ -480,9 +491,14 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
         today: releasedToday,
         thisMonth: releasedThisMonth,
         thisYear: releasedThisYear,
+        total: releasedTotalCount,
       },
       pendingReleases,
       shiftPendingCount: shiftPendingCount || 0,
+      shiftVehicles: {
+        pending: shiftPendingCount || 0,
+        total: shiftPendingCount || 0,
+      },
       dailyRevenue: {
         today: {
           amount: totalRevenueToday,

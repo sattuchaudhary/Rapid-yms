@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Text, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { getAuthToken, getUserInfo } from '@/services/api';
@@ -37,7 +37,6 @@ export default function IndexScreen() {
               return;
             case 'EXECUTIVE':
               router.replace('/tenant_admin/executive' as any);
-              return;
             case 'GUARD':
             default:
               router.replace('/tenant_admin/guard' as any);
@@ -58,7 +57,19 @@ export default function IndexScreen() {
   return (
     <View style={styles.container}>
       <StatusBar style="dark" backgroundColor="#F8FAFC" />
-      <ActivityIndicator size="large" color="#4F46E5" />
+      <View style={styles.brandingBox}>
+        <Image
+          source={require('../../assets/app logo and icon/app-icon-premium-512.png')}
+          style={styles.logoIcon}
+          resizeMode="contain"
+        />
+        <Image
+          source={require('../../assets/app logo and icon/wordmark-premium.png')}
+          style={styles.wordmarkLogo}
+          resizeMode="contain"
+        />
+      </View>
+      <ActivityIndicator size="small" color="#0A5CF0" style={styles.loader} />
       <Text style={styles.text}>Loading Rapid YMS...</Text>
     </View>
   );
@@ -70,11 +81,35 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  brandingBox: {
+    alignItems: 'center',
+    marginBottom: 28,
+  },
+  logoIcon: {
+    width: 88,
+    height: 88,
+    borderRadius: 20,
+    marginBottom: 16,
+    shadowColor: '#0A5CF0',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  wordmarkLogo: {
+    width: 220,
+    height: 48,
+  },
+  loader: {
+    marginTop: 8,
   },
   text: {
     color: '#64748B',
-    marginTop: 16,
-    fontSize: 14,
+    marginTop: 12,
+    fontSize: 13,
     fontWeight: '600',
+    letterSpacing: 0.3,
   },
 });

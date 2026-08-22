@@ -195,8 +195,13 @@ export const getOfflineCredentials = async (): Promise<{ hash: string; session: 
 export const clearTokens = async () => {
   await safeStorage.deleteItem(JWT_KEY);
   await safeStorage.deleteItem(REFRESH_KEY);
-  await safeStorage.deleteItem(BIOMETRIC_REFRESH_KEY);
+  // Keep BIOMETRIC_REFRESH_KEY and OFFLINE_CREDS_KEY so biometric login works after logout
   await safeStorage.deleteItem(USER_INFO_KEY);
+};
+
+export const clearBiometricSession = async () => {
+  await safeStorage.deleteItem(BIOMETRIC_REFRESH_KEY);
+  await safeStorage.deleteItem(OFFLINE_CREDS_KEY);
 };
 
 export const saveUserInfo = async (user: UserSession) => {
@@ -336,6 +341,16 @@ export const updateVehicle = async (id: string, data: any): Promise<any> => {
     body: JSON.stringify(data),
   });
 };
+
+export const getDashboardStats = async (params: { startDate?: string; endDate?: string } = {}): Promise<any> => {
+  const queryParts: string[] = [];
+  if (params.startDate) queryParts.push(`startDate=${encodeURIComponent(params.startDate)}`);
+  if (params.endDate) queryParts.push(`endDate=${encodeURIComponent(params.endDate)}`);
+
+  const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+  return await apiRequest(`/api/reports/dashboard${queryString}`);
+};
+
 
 
 

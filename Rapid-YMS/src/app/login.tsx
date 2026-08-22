@@ -14,6 +14,7 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
   Dimensions,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -27,35 +28,26 @@ import {
   Fingerprint,
   AlertCircle,
   X,
-  Globe,
-  Radio,
   AtSign,
   HelpCircle,
   Send,
   CheckCircle2,
-  Truck,
-  Package,
-  MapPin,
-  ShieldCheck,
 } from 'lucide-react-native';
 
 import {
   apiRequest,
   saveTokens,
   saveUserInfo,
-  getServerUrl,
-  setServerUrl,
   saveCachedEmail,
   getCachedEmail,
   saveOfflineCredentials,
   getOfflineCredentials,
   hashCredential,
   getBiometricRefreshToken,
-  DEFAULT_SERVER_URL,
 } from '@/services/api';
 import { UserSession } from '@/types/roles';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function LoginScreen() {
@@ -75,30 +67,38 @@ export default function LoginScreen() {
 
   // Modals
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
-  const [serverModalVisible, setServerModalVisible] = useState(false);
   const [forgotModalVisible, setForgotModalVisible] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotError, setForgotError] = useState<string | null>(null);
   const [forgotSubmitted, setForgotSubmitted] = useState(false);
 
-  // Server state
-  const [currentServerUrl, setCurrentServerUrl] = useState(DEFAULT_SERVER_URL);
-  const [customServerInput, setCustomServerInput] = useState('');
+  // Keyboard Open State
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
   // Refs for input chaining
   const passwordInputRef = useRef<TextInput>(null);
+
+  // Keyboard Event Listeners
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setIsKeyboardOpen(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setIsKeyboardOpen(false)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Initial Load
   useEffect(() => {
     let isMounted = true;
     const init = async () => {
       try {
-        const savedUrl = await getServerUrl();
-        if (isMounted) {
-          setCurrentServerUrl(savedUrl);
-          setCustomServerInput(savedUrl);
-        }
-
         const cachedEmail = await getCachedEmail();
         if (isMounted && cachedEmail) {
           setEmail(cachedEmail);
@@ -223,61 +223,65 @@ export default function LoginScreen() {
   const handleBiometricAuth = async () => {
     setErrorMessage(null);
     try {
+      const refreshToken = await getBiometricRefreshToken();
+      const offlineData = await getOfflineCredentials();
+
+      if (!refreshToken && !offlineData) {
+        Alert.alert(
+          'Biometric Login',
+          'Please sign in with your email and password once to enable biometric login on this device.'
+        );
+        return;
+      }
+
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: 'Authenticate for Rapid YMS',
         fallbackLabel: 'Use Password',
         disableDeviceFallback: false,
       });
 
-      if (result.success) {
-        setLoading(true);
-        const refreshToken = await getBiometricRefreshToken();
-        if (!refreshToken) {
-          setLoading(false);
-          setErrorMessage('Biometric token expired. Please sign in with password once.');
-          return;
-        }
+      if (!result.success) {
+        return;
+      }
 
-        const net = await NetInfo.fetch();
-        if (net.isConnected === false) {
-          const offlineData = await getOfflineCredentials();
-          if (offlineData) {
+      setLoading(true);
+
+      const net = await NetInfo.fetch();
+
+      // 1. Try Refresh with Server if Online
+      if (net.isConnected !== false && refreshToken) {
+        try {
+          const response = await apiRequest('/api/auth/refresh', {
+            method: 'POST',
+            body: JSON.stringify({ refreshToken }),
+          });
+
+          if (response && response.accessToken && response.user) {
+            await saveTokens(response.accessToken, response.refreshToken || refreshToken);
+            await saveUserInfo(response.user);
             setLoading(false);
-            navigateByRole(offlineData.session);
+            navigateByRole(response.user);
             return;
           }
-        }
-
-        const response = await apiRequest('/api/auth/refresh', {
-          method: 'POST',
-          body: JSON.stringify({ refreshToken }),
-        });
-
-        if (response && response.accessToken && response.user) {
-          await saveTokens(response.accessToken, response.refreshToken || refreshToken);
-          await saveUserInfo(response.user);
-          setLoading(false);
-          navigateByRole(response.user);
-        } else {
-          throw new Error('Biometric session expired. Please enter password.');
+        } catch (serverErr) {
+          console.warn('[Biometric Refresh Error]', serverErr);
         }
       }
+
+      // 2. Offline / Saved Credentials Fallback
+      if (offlineData && offlineData.session) {
+        await saveUserInfo(offlineData.session);
+        setLoading(false);
+        navigateByRole(offlineData.session);
+        return;
+      }
+
+      setLoading(false);
+      setErrorMessage('Biometric session expired. Please sign in with your password.');
     } catch (err: any) {
       setLoading(false);
       setErrorMessage(err.message || 'Biometric authentication was cancelled.');
     }
-  };
-
-  // Server Settings Save
-  const handleSaveServer = async (url: string) => {
-    let clean = url.trim().replace(/\/+$/, '');
-    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
-      clean = `https://${clean}`;
-    }
-    await setServerUrl(clean);
-    setCurrentServerUrl(clean);
-    setServerModalVisible(false);
-    Alert.alert('Server Configured', `API endpoint set to:\n${clean}`);
   };
 
   const handleForgotSubmit = () => {
@@ -299,78 +303,40 @@ export default function LoginScreen() {
       style={styles.keyboardContainer}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <StatusBar style="dark" backgroundColor="#ECEFFE" />
+      <StatusBar style="dark" backgroundColor="#ECEFFE" translucent={true} />
       <ScrollView
-        style={[styles.rootContainer, { paddingTop: insets.top }]}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }]}
+        style={styles.rootContainer}
+        contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="none"
         showsVerticalScrollIndicator={false}
       >
-        {/* Ambient Top Glow / Header */}
-        <View style={styles.topAmbient}>
-          {/* Top Bar with Server Selector */}
-          <View style={styles.topBar}>
-            <TouchableOpacity
-              style={styles.serverBadge}
-              onPress={() => setServerModalVisible(true)}
-              activeOpacity={0.75}
-              accessibilityRole="button"
-              accessibilityLabel="Configure API server endpoint"
-            >
-              <Globe size={13} color="#0062FF" />
-              <Text style={styles.serverBadgeText} numberOfLines={1}>
-                {currentServerUrl.replace('https://', '').replace('http://', '')}
-              </Text>
-              <View style={[styles.onlineDot, !isOnline && styles.offlineDot]} />
-            </TouchableOpacity>
+        {/* Sleek Enterprise Brand Header - Automatically hides when keyboard opens */}
+        {!isKeyboardOpen && (
+          <View style={[styles.topHeader, { paddingTop: insets.top + 24 }]}>
+            <View style={styles.ambientGlowPrimary} />
+            <View style={styles.ambientGlowSecondary} />
+
+            <View style={styles.brandHeroContainer}>
+              {/* Official Wordmark Logo */}
+              <Image
+                source={require('../../assets/app logo and icon/wordmark-premium.png')}
+                style={styles.brandWordmark}
+                resizeMode="contain"
+              />
+            </View>
           </View>
+        )}
 
-          {/* Custom Hero Illustration */}
-          <View style={styles.heroContainer}>
-            {/* Ambient blobs */}
-            <View style={styles.blobOne} />
-            <View style={styles.blobTwo} />
-
-            {/* Ground / lot marking */}
-            <View style={styles.laneMarkingRow}>
-              {Array.from({ length: 7 }).map((_, i) => (
-                <View key={i} style={styles.laneDash} />
-              ))}
-            </View>
-
-            {/* Floating badge: Package */}
-            <View style={[styles.floatBadge, styles.floatBadgeTopLeft]}>
-              <Package size={16} color="#0062FF" />
-            </View>
-
-            {/* Floating badge: MapPin */}
-            <View style={[styles.floatBadge, styles.floatBadgeTopRight]}>
-              <MapPin size={16} color="#7C3AED" />
-            </View>
-
-            {/* Floating badge: Shield */}
-            <View style={[styles.floatBadge, styles.floatBadgeBottomRight]}>
-              <ShieldCheck size={15} color="#16A34A" />
-            </View>
-
-            {/* Central hero badge */}
-            <View style={styles.heroBadgeOuter}>
-              <View style={styles.heroBadgeInner}>
-                <Truck size={38} color="#FFFFFF" strokeWidth={1.8} />
-              </View>
-            </View>
-
-            <Text style={styles.heroCaption}>Manage your yard, on the move</Text>
-          </View>
-        </View>
-
-        {/* Form Sheet Card */}
-        <View style={styles.formCanvas}>
-          {/* Title Header */}
+        {/* Form Sheet Card - Slides to top when keyboard opens */}
+        <View style={[styles.formCanvas, isKeyboardOpen && { marginTop: insets.top + 10, paddingTop: 22 }]}>
+          {/* Modern Title Header */}
           <View style={styles.titleSection}>
-            <Text style={styles.titleText}>Login</Text>
-            <Text style={styles.taglineText}>Enterprise Yard Management System</Text>
+            <View style={styles.titleRow}>
+              <Text style={styles.titleText}>Login</Text>
+              <View style={styles.titleIndicatorDot} />
+            </View>
+            <Text style={styles.subtitleText}>Enter your credentials to access yard control</Text>
           </View>
 
           {/* Error Banner */}
@@ -523,24 +489,27 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </>
           )}
-
-          {/* Bottom Support Link */}
-          <View style={styles.bottomSection}>
-            <Text style={styles.bottomMutedText}>Need yard access assistance? </Text>
-            <TouchableOpacity
-              onPress={() =>
-                Alert.alert(
-                  'Yard Crew Support',
-                  'Please contact your Yard Administrator or Manager to provision credentials or reset security permissions.'
-                )
-              }
-              accessibilityRole="button"
-            >
-              <Text style={styles.bottomHighlightText}>Contact Admin</Text>
-            </TouchableOpacity>
-          </View>
         </View>
       </ScrollView>
+
+      {/* Fixed Bottom Support Bar - Protected by Safe Area (Hidden when typing) */}
+      {!isKeyboardOpen && (
+        <View style={[styles.fixedBottomBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          <Text style={styles.bottomMutedText}>Need yard access assistance? </Text>
+          <TouchableOpacity
+            onPress={() =>
+              Alert.alert(
+                'Yard Crew Support',
+                'Please contact your Yard Administrator or Manager to provision credentials or reset security permissions.'
+              )
+            }
+            accessibilityRole="button"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.bottomHighlightText}>Contact Admin</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Forgot Password Modal */}
       <Modal
@@ -635,98 +604,6 @@ export default function LoginScreen() {
           </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
       </Modal>
-
-      {/* Server Endpoint Configuration Modal */}
-      <Modal
-        visible={serverModalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setServerModalVisible(false)}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1, justifyContent: 'flex-end' }}
-        >
-          <TouchableWithoutFeedback onPress={() => setServerModalVisible(false)}>
-            <View style={styles.modalBackdrop}>
-              <TouchableWithoutFeedback>
-                <View style={styles.modalSheet}>
-                  <View style={styles.modalHandle} />
-
-                  <View style={styles.modalHeader}>
-                    <View style={styles.modalIconBox}>
-                      <Globe size={22} color="#0062FF" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.modalTitle}>API Server Endpoint</Text>
-                      <Text style={styles.modalSubtitle}>Select or configure backend API connection</Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.closeBtn}
-                      onPress={() => setServerModalVisible(false)}
-                      accessibilityRole="button"
-                      accessibilityLabel="Close"
-                    >
-                      <X size={18} color="#6B7280" />
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={styles.modalBody}>
-                    <Text style={styles.presetLabel}>Quick Presets:</Text>
-                    <TouchableOpacity
-                      style={[
-                        styles.presetOption,
-                        currentServerUrl === DEFAULT_SERVER_URL && styles.presetOptionActive,
-                      ]}
-                      onPress={() => handleSaveServer(DEFAULT_SERVER_URL)}
-                    >
-                      <Radio size={16} color={currentServerUrl === DEFAULT_SERVER_URL ? '#0062FF' : '#9CA3AF'} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.presetTitle}>Cloud Production</Text>
-                        <Text style={styles.presetUrl}>{DEFAULT_SERVER_URL}</Text>
-                      </View>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[
-                        styles.presetOption,
-                        currentServerUrl.includes('192.168.') && styles.presetOptionActive,
-                      ]}
-                      onPress={() => handleSaveServer('http://192.168.1.100:5000')}
-                    >
-                      <Radio size={16} color={currentServerUrl.includes('192.168.') ? '#0062FF' : '#9CA3AF'} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.presetTitle}>Local Network Development</Text>
-                        <Text style={styles.presetUrl}>http://192.168.1.100:5000</Text>
-                      </View>
-                    </TouchableOpacity>
-
-                    <Text style={[styles.presetLabel, { marginTop: 14 }]}>Custom Endpoint URL:</Text>
-                    <View style={styles.customInputRow}>
-                      <TextInput
-                        style={styles.customInput}
-                        placeholder="https://your-server.com"
-                        placeholderTextColor="#9CA3AF"
-                        value={customServerInput}
-                        onChangeText={setCustomServerInput}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                      />
-                      <TouchableOpacity
-                        style={styles.saveServerBtn}
-                        onPress={() => handleSaveServer(customServerInput)}
-                        accessibilityRole="button"
-                      >
-                        <Text style={styles.saveServerBtnText}>Apply</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
-              </TouchableWithoutFeedback>
-            </View>
-          </TouchableWithoutFeedback>
-        </KeyboardAvoidingView>
-      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -742,154 +619,129 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    backgroundColor: '#e4ebffff',
+    paddingBottom: 70,
   },
-  topAmbient: {
+  topHeader: {
     backgroundColor: '#ECEFFE',
-    paddingHorizontal: 20,
-    paddingBottom: 8,
-  },
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingVertical: 4,
-  },
-  serverBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 5,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-  },
-  serverBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#1E293B',
-    maxWidth: 160,
-  },
-  onlineDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-  },
-  offlineDot: {
-    backgroundColor: '#EF4444',
-  },
-
-  // ---- Custom Hero Illustration ----
-  heroContainer: {
-    height: 160,
-    marginTop: 2,
+    paddingBottom: 60,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
     overflow: 'hidden',
+    width: '100%',
+    paddingHorizontal: 0,
   },
-  blobOne: {
+  ambientGlowPrimary: {
     position: 'absolute',
-    width: SCREEN_WIDTH * 0.75,
-    height: SCREEN_WIDTH * 0.75,
-    borderRadius: SCREEN_WIDTH * 0.375,
-    backgroundColor: 'rgba(0, 98, 255, 0.10)',
-    top: -SCREEN_WIDTH * 0.35,
-    left: -SCREEN_WIDTH * 0.15,
-  },
-  blobTwo: {
-    position: 'absolute',
-    width: SCREEN_WIDTH * 0.55,
-    height: SCREEN_WIDTH * 0.55,
-    borderRadius: SCREEN_WIDTH * 0.275,
-    backgroundColor: 'rgba(124, 58, 237, 0.08)',
-    bottom: -SCREEN_WIDTH * 0.3,
-    right: -SCREEN_WIDTH * 0.15,
-  },
-  laneMarkingRow: {
-    position: 'absolute',
-    bottom: 24,
-    flexDirection: 'row',
-    gap: 10,
-    opacity: 0.5,
-  },
-  laneDash: {
-    width: 16,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: '#94A3B8',
-  },
-  heroBadgeOuter: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
+    width: 380,
+    height: 380,
+    borderRadius: 190,
     backgroundColor: 'rgba(0, 98, 255, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    top: -90,
+    left: -40,
   },
-  heroBadgeInner: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: '#0062FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroCaption: {
+  ambientGlowSecondary: {
     position: 'absolute',
-    bottom: 2,
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748B',
-    letterSpacing: 0.2,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(124, 58, 237, 0.08)',
+    bottom: -70,
+    right: -40,
   },
-  floatBadge: {
-    position: 'absolute',
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: '#FFFFFF',
+  brandHeroContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+    width: '100%',
+    maxWidth: 460,
+    alignSelf: 'center',
+    paddingHorizontal: 12,
+    zIndex: 2,
   },
-  floatBadgeTopLeft: {
-    top: 10,
-    left: 36,
-    transform: [{ rotate: '-8deg' }],
+  brandWordmark: {
+    width: Math.min(SCREEN_WIDTH - 24, 440),
+    height: Math.min(SCREEN_WIDTH - 24, 440) / 3.4,
+    maxWidth: 440,
   },
-  floatBadgeTopRight: {
-    top: 6,
-    right: 42,
-    transform: [{ rotate: '10deg' }],
-  },
-  floatBadgeBottomRight: {
-    bottom: 34,
-    right: 26,
-    transform: [{ rotate: '-6deg' }],
-  },
-  // ---- End Hero Illustration ----
 
   formCanvas: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
+    width: '100%',
+    maxWidth: 500,
+    alignSelf: 'center',
+    minHeight: SCREEN_HEIGHT * 0.65,
+    backgroundColor: '#e4ebffff',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    borderTopWidth: 1.5,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+    marginTop: -8,
     paddingHorizontal: 28,
-    paddingTop: 24,
-    paddingBottom: 28,
+    paddingTop: 32,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
+    elevation: 8,
+    zIndex: 10,
   },
   titleSection: {
-    marginBottom: 16,
+    marginBottom: 24,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  portalPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(0, 98, 255, 0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 98, 255, 0.18)',
+  },
+  portalPillDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#0062FF',
+  },
+  portalPillText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#0062FF',
+    letterSpacing: 0.8,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   titleText: {
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: 32,
+    fontWeight: '900',
     color: '#0F172A',
-    letterSpacing: -0.5,
+    letterSpacing: -0.6,
   },
-  taglineText: {
-    fontSize: 13,
-    color: '#64748B',
+  titleIndicatorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#0062FF',
+    marginTop: 6,
+  },
+  subtitleText: {
+    fontSize: 13.5,
+    color: '#475569',
     marginTop: 4,
     fontWeight: '500',
+    lineHeight: 18,
   },
   errorBanner: {
     flexDirection: 'row',
@@ -915,7 +767,7 @@ const styles = StyleSheet.create({
   inputUnderlineBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
     borderRadius: 16,
@@ -1007,15 +859,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#374151',
   },
-  bottomSection: {
+  fixedBottomBar: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 16,
+    paddingTop: 14,
+    backgroundColor: '#e4ebffff',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.7)',
   },
   bottomMutedText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: '#64748B',
+    fontWeight: '500',
   },
   bottomHighlightText: {
     fontSize: 13,
@@ -1105,61 +961,5 @@ const styles = StyleSheet.create({
   },
   modalBody: {
     gap: 10,
-  },
-  presetLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#334155',
-  },
-  presetOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#F8FAFC',
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  presetOptionActive: {
-    borderColor: '#0062FF',
-    backgroundColor: '#EFF2FE',
-  },
-  presetTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0F172A',
-  },
-  presetUrl: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  customInputRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  customInput: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    height: 46,
-    fontSize: 14,
-    color: '#0F172A',
-  },
-  saveServerBtn: {
-    backgroundColor: '#0062FF',
-    paddingHorizontal: 18,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  saveServerBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 14,
   },
 });
