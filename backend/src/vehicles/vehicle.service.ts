@@ -1,5 +1,5 @@
 import prisma from '../common/prisma';
-import { VehicleType, YardStatus } from '@prisma/client';
+import { VehicleType, YardStatus, ShiftStatus } from '@prisma/client';
 import { AppError } from '../common/error.handler';
 import { calculateParkingCharges } from '../billing/parkingChargeEngine';
 
@@ -11,6 +11,8 @@ export interface VehicleFilters {
   search?: string;
   vehicleType?: VehicleType;
   yardStatus?: YardStatus;
+  shiftStatus?: ShiftStatus;
+  shifting?: boolean;
   bankName?: string;
   repoAgency?: string;
   paymentStatus?: string;
@@ -109,6 +111,10 @@ export const getTenantVehiclesService = async (tenantId: string, filters: Vehicl
   // Exact filters
   if (filters.vehicleType) whereClause.vehicleType = filters.vehicleType;
   if (filters.yardStatus) whereClause.yardStatus = filters.yardStatus;
+  if (filters.shiftStatus) whereClause.shiftStatus = filters.shiftStatus;
+  if (filters.shifting) {
+    whereClause.shiftStatus = { in: ['SHIFT_PENDING', 'SHIFT_INITIATED'] };
+  }
   if (filters.bankName) whereClause.bankName = { contains: filters.bankName, mode: 'insensitive' };
   if (filters.repoAgency) whereClause.repoAgency = { contains: filters.repoAgency, mode: 'insensitive' };
 

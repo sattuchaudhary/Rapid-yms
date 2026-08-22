@@ -90,6 +90,8 @@ export const getVehicles = async (req: AuthRequest, res: Response, next: NextFun
       search: req.query.search as string,
       vehicleType: req.query.vehicleType as any,
       yardStatus: req.query.yardStatus as any,
+      shiftStatus: req.query.shiftStatus as any,
+      shifting: req.query.shifting === 'true' || req.query.shifting === '1',
       bankName: req.query.bankName as string,
       repoAgency: req.query.repoAgency as string,
       startDate: req.query.startDate as string,

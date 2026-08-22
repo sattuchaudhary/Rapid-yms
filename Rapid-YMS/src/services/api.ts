@@ -298,6 +298,8 @@ export interface FetchVehicleParams {
   search?: string;
   vehicleType?: string;
   yardStatus?: string;
+  shiftStatus?: string;
+  shifting?: boolean;
   bankName?: string;
   repoAgency?: string;
   startDate?: string;
@@ -311,6 +313,8 @@ export const getVehicles = async (params: FetchVehicleParams = {}): Promise<any>
   if (params.search) queryParts.push(`search=${encodeURIComponent(params.search)}`);
   if (params.vehicleType) queryParts.push(`vehicleType=${encodeURIComponent(params.vehicleType)}`);
   if (params.yardStatus) queryParts.push(`yardStatus=${encodeURIComponent(params.yardStatus)}`);
+  if (params.shiftStatus) queryParts.push(`shiftStatus=${encodeURIComponent(params.shiftStatus)}`);
+  if (params.shifting) queryParts.push(`shifting=true`);
   if (params.bankName) queryParts.push(`bankName=${encodeURIComponent(params.bankName)}`);
   if (params.repoAgency) queryParts.push(`repoAgency=${encodeURIComponent(params.repoAgency)}`);
   if (params.startDate) queryParts.push(`startDate=${encodeURIComponent(params.startDate)}`);

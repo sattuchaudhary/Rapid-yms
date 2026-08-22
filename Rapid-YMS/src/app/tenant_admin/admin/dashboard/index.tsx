@@ -111,8 +111,22 @@ export default function AdminDashboardScreen() {
   };
 
   const handleCardPress = (metricKey: 'total' | 'inYard' | 'pakka' | 'kachha' | 'released' | 'shifting') => {
-    // Navigate to Vehicles screen
-    router.push('/tenant_admin/admin/vehicles' as any);
+    let category = 'ALL';
+    if (metricKey === 'pakka') category = 'PAKKA';
+    else if (metricKey === 'kachha') category = 'KACHHA';
+    else if (metricKey === 'released') category = 'RELEASED';
+    else if (metricKey === 'shifting') category = 'SHIFTING';
+    else if (metricKey === 'inYard' || metricKey === 'total') category = 'ALL';
+
+    const filterParam = selectedFilter === 'today' ? 'today' : selectedFilter === 'this_month' ? 'this_month' : 'all_time';
+
+    router.push({
+      pathname: '/tenant_admin/admin/vehicles',
+      params: {
+        category,
+        filter: filterParam,
+      },
+    } as any);
   };
 
   const handleTabPress = (tab: AdminDashboardTabKey) => {

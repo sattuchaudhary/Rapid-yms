@@ -8,7 +8,7 @@ import {
   RefreshControl,
   TouchableOpacity,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import {
   Building2,
@@ -30,12 +30,33 @@ const PAGE_SIZE = 25;
 
 export default function VehiclesScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ category?: string; filter?: string }>();
   const [activeTab, setActiveTab] = useState<AdminDashboardTabKey>('vehicles');
   const [selectedCategory, setSelectedCategory] = useState<VehicleCategoryKey>('ALL');
   const [activeFilter, setActiveFilter] = useState<VehicleFilterState>({
     preset: 'all_time',
     label: 'All Time (Day 1 - Today)',
   });
+
+  // Sync category and filter if navigated from dashboard metric cards
+  useEffect(() => {
+    if (params.category) {
+      const validCategories: VehicleCategoryKey[] = ['ALL', 'PAKKA', 'KACHHA', 'RELEASED', 'SHIFTING'];
+      const upper = params.category.toUpperCase() as VehicleCategoryKey;
+      if (validCategories.includes(upper)) {
+        setSelectedCategory(upper);
+      }
+    }
+    if (params.filter) {
+      if (params.filter === 'today') {
+        setActiveFilter({ preset: 'today', label: 'Today' });
+      } else if (params.filter === 'this_month') {
+        setActiveFilter({ preset: 'this_month', label: 'This Month' });
+      } else if (params.filter === 'all_time') {
+        setActiveFilter({ preset: 'all_time', label: 'All Time (Day 1 - Today)' });
+      }
+    }
+  }, [params.category, params.filter]);
 
   // Search State (Header Expandable Search - Option 2)
   const [searchQuery, setSearchQuery] = useState('');
@@ -126,15 +147,14 @@ export default function VehiclesScreen() {
 
         const dateParams = getDateRangeParams();
         const statusFilter =
-          selectedCategory === 'ALL'
-            ? undefined
-            : selectedCategory === 'SHIFTING'
+          selectedCategory === 'ALL' || selectedCategory === 'SHIFTING'
             ? undefined
             : selectedCategory;
 
         const res = await getVehicles({
           ...dateParams,
           yardStatus: statusFilter,
+          shifting: selectedCategory === 'SHIFTING' ? true : undefined,
           search: debouncedSearch || undefined,
           page: targetPage,
           limit: PAGE_SIZE,
