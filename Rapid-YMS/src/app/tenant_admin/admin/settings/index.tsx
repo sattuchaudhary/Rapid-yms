@@ -4,12 +4,18 @@ import {
   View,
   Text,
   TouchableOpacity,
+  ScrollView,
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ArrowLeft, Settings, Sliders, Bell } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  ClipboardList,
+  Printer,
+  ChevronRight,
+} from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 export default function SettingsScreen() {
@@ -21,6 +27,13 @@ export default function SettingsScreen() {
       Haptics.selectionAsync().catch(() => {});
     }
     router.back();
+  };
+
+  const handleNavigate = (path: string) => {
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    }
+    router.push(path as any);
   };
 
   return (
@@ -38,30 +51,55 @@ export default function SettingsScreen() {
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>Settings</Text>
-          <Text style={styles.headerSubtitle}>Yard preferences & system configs</Text>
         </View>
       </View>
 
-      {/* Content Placeholder */}
-      <View style={styles.content}>
-        <View style={styles.iconCircle}>
-          <Settings size={36} color="#475569" strokeWidth={2} />
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Settings Group */}
+        <View style={styles.groupContainer}>
+          {/* 1. Inventory Customization Option */}
+          <TouchableOpacity
+            style={styles.settingRow}
+            activeOpacity={0.7}
+            onPress={() => handleNavigate('/tenant_admin/admin/settings/inventory-customization')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: '#EEF2FF' }]}>
+              <ClipboardList size={20} color="#4F46E5" />
+            </View>
+            <View style={styles.rowTextContainer}>
+              <Text style={styles.rowTitle}>Inventory Customization</Text>
+              <Text style={styles.rowSubtitle}>
+                Customize new vehicle inward checklist & fields
+              </Text>
+            </View>
+            <ChevronRight size={18} color="#94A3B8" />
+          </TouchableOpacity>
+
+          <View style={styles.separator} />
+
+          {/* 2. Print Setup Option */}
+          <TouchableOpacity
+            style={styles.settingRow}
+            activeOpacity={0.7}
+            onPress={() => handleNavigate('/tenant_admin/admin/settings/inventory-customization')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: '#F0FDF4' }]}>
+              <Printer size={20} color="#16A34A" />
+            </View>
+            <View style={styles.rowTextContainer}>
+              <Text style={styles.rowTitle}>Print & Gate Pass Layout</Text>
+              <Text style={styles.rowSubtitle}>
+                Configure gate receipt headers & print options
+              </Text>
+            </View>
+            <ChevronRight size={18} color="#94A3B8" />
+          </TouchableOpacity>
         </View>
-        <Text style={styles.title}>Yard Settings</Text>
-        <Text style={styles.description}>
-          Configure notifications, gate print receipts, general yard operational timings, and system preferences.
-        </Text>
-        <View style={styles.badgeContainer}>
-          <View style={styles.featurePill}>
-            <Sliders size={14} color="#475569" />
-            <Text style={styles.featureText}>Yard Configurations</Text>
-          </View>
-          <View style={styles.featurePill}>
-            <Bell size={14} color="#475569" />
-            <Text style={styles.featureText}>Notification Rules</Text>
-          </View>
-        </View>
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -93,65 +131,64 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '700',
     color: '#0F172A',
   },
-  headerSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 1,
-  },
-  content: {
+  scrollView: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
   },
-  iconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+  scrollContent: {
+    padding: 16,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 8,
-  },
-  description: {
-    fontSize: 14,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 20,
-  },
-  badgeContainer: {
-    flexDirection: 'row',
-    gap: 10,
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-  },
-  featurePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+  groupContainer: {
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
   },
-  featureText: {
-    fontSize: 12,
+  settingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 14,
+  },
+  iconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowTextContainer: {
+    flex: 1,
+  },
+  rowTitle: {
+    fontSize: 15,
     fontWeight: '600',
-    color: '#475569',
+    color: '#0F172A',
+  },
+  rowSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginLeft: 70,
   },
 });

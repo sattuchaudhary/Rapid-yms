@@ -26,6 +26,15 @@ export default function AdminLayout() {
         }}
       />
       <Stack.Screen
+        name="vehicles/add"
+        options={{
+          headerShown: false,
+          animation: 'slide_from_right',
+          gestureEnabled: true,
+          gestureDirection: 'horizontal',
+        }}
+      />
+      <Stack.Screen
         name="vehicles/details/[id]"
         options={{
           headerShown: false,
@@ -99,6 +108,15 @@ export default function AdminLayout() {
       />
       <Stack.Screen
         name="settings/index"
+        options={{
+          headerShown: false,
+          animation: 'slide_from_right',
+          gestureEnabled: true,
+          gestureDirection: 'horizontal',
+        }}
+      />
+      <Stack.Screen
+        name="settings/inventory-customization"
         options={{
           headerShown: false,
           animation: 'slide_from_right',

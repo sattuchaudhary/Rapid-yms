@@ -355,7 +355,92 @@ export const getDashboardStats = async (params: { startDate?: string; endDate?: 
   return await apiRequest(`/api/reports/dashboard${queryString}`);
 };
 
+export const getVehicleParkingCalculation = async (
+  vehicleId: string,
+  params: {
+    releasePersonType?: 'CUSTOMER' | 'BUYER';
+    todayDate?: string;
+    releaseOrderDate?: string;
+  } = {}
+): Promise<any> => {
+  const queryParts: string[] = [];
+  if (params.releasePersonType) queryParts.push(`releasePersonType=${encodeURIComponent(params.releasePersonType)}`);
+  if (params.todayDate) queryParts.push(`todayDate=${encodeURIComponent(params.todayDate)}`);
+  if (params.releaseOrderDate) queryParts.push(`releaseOrderDate=${encodeURIComponent(params.releaseOrderDate)}`);
 
+  const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+  return await apiRequest(`/api/vehicles/${vehicleId}/parking-calculation${queryString}`);
+};
 
+export const directReleaseVehicle = async (vehicleId: string, data: any): Promise<any> => {
+  return await apiRequest(`/api/releases/${vehicleId}/direct`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+};
 
+export const uploadFileToStorage = async (
+  fileUri: string,
+  folder = 'releases',
+  fileType = 'image/jpeg'
+): Promise<string> => {
+  try {
+    const presignRes = await apiRequest(
+      `/api/uploads/presigned-url?fileType=${encodeURIComponent(fileType)}&folder=${encodeURIComponent(folder)}&fileSize=250000`
+    );
 
+    if (presignRes?.success && presignRes?.data) {
+      const { uploadUrl, publicUrl } = presignRes.data;
+
+      if (!uploadUrl.includes('mock-s3-bucket')) {
+        const blob = await fetch(fileUri).then((r) => r.blob());
+        const uploadRes = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': fileType },
+          body: blob,
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error('S3 direct upload failed');
+        }
+      }
+      return publicUrl;
+    }
+    return fileUri;
+  } catch (err) {
+    console.warn('[uploadFileToStorage] upload error, falling back to uri:', err);
+    return fileUri;
+  }
+};
+
+export const analyzeRoDocument = async (
+  vehicleId: string,
+  payload: {
+    fileUrl?: string;
+    fileBase64?: string;
+    mimeType?: string;
+    fileName?: string;
+    fileSizeBytes?: number;
+  }
+): Promise<any> => {
+  return await apiRequest(`/api/releases/${vehicleId}/ro-document/analyze`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+};
+
+export const saveRoManualOverride = async (
+  vehicleId: string,
+  payload: {
+    documentId: string;
+    fieldName: string;
+    oldValue?: string;
+    newValue: string;
+    reason: string;
+  }
+): Promise<any> => {
+  return await apiRequest(`/api/releases/${vehicleId}/ro-document/manual-edit`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+};

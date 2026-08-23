@@ -33,10 +33,30 @@
       "expo-router",
       "expo-sqlite",
       "expo-secure-store",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow Rapid YMS to save vehicle inspection photos to your gallery.",
+          "savePhotosPermission": "Allow Rapid YMS to save vehicle inspection photos to your gallery."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "owner": "rapidbuddy",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c58eb3dc-2755-4687-ab38-62810de448c1"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/c58eb3dc-2755-4687-ab38-62810de448c1"
     }
   }
 }

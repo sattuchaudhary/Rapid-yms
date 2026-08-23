@@ -24,6 +24,7 @@ import {
   Share2,
   X,
   History,
+  Trash2,
 } from 'lucide-react-native';
 import VehicleDetailHeader from './header';
 import VehicleDateTimeline from './date';
@@ -31,18 +32,19 @@ import VehicleInfo from './vehicleinfo';
 import VehiclePhotos from './photos';
 import ParkingCharge from './parkingcharge';
 import VehicleDetailBottomBar from './bottombar';
-import { getVehicleById } from '@/services/api';
+import { getVehicleById, apiRequest } from '@/services/api';
 
-export type VehicleDetailTab = 'date' | 'info' | 'photos' | 'charges';
+export type VehicleDetailTab = 'info' | 'photos' | 'charges' | 'date';
 
 export default function VehicleDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const [activeTab, setActiveTab] = useState<VehicleDetailTab>('date');
+  const [activeTab, setActiveTab] = useState<VehicleDetailTab>('info');
   const [vehicle, setVehicle] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // 3-Dots Action Sheet Modal
@@ -103,21 +105,64 @@ export default function VehicleDetailScreen() {
     }
   };
 
-  const handleReleasePress = () => {
+  const handleDeleteVehicle = () => {
+    setMenuModalVisible(false);
+    const vehiclePlate = (vehicle?.vehicleNumber || 'this vehicle').toUpperCase();
+
     Alert.alert(
-      'Release Vehicle',
-      `Are you sure you want to release ${vehicle?.vehicleNumber || 'this vehicle'} from yard stock?`,
+      'Delete Vehicle Entry',
+      `Are you sure you want to permanently delete "${vehiclePlate}"? All inspection photos, pakka documents, release records, and billing data will be deleted.\n\nThis action cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Proceed to Release',
-          style: 'default',
-          onPress: () => {
-            Alert.alert('Release Process', 'Release gate pass generation modal will open.');
+          text: 'Delete Permanently',
+          style: 'destructive',
+          onPress: async () => {
+            if (!vehicle?.id) return;
+            try {
+              setDeleting(true);
+              await apiRequest(`/api/vehicles/${vehicle.id}`, {
+                method: 'DELETE',
+              });
+
+              Alert.alert('Deleted', `Vehicle ${vehiclePlate} has been deleted successfully.`, [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    router.replace('/tenant_admin/admin/vehicles' as any);
+                  },
+                },
+              ]);
+            } catch (err: any) {
+              Alert.alert('Delete Failed', err?.message || 'Could not delete vehicle entry.');
+            } finally {
+              setDeleting(false);
+            }
           },
         },
       ]
     );
+  };
+
+  const handleReleasePress = () => {
+    if (vehicle?.yardStatus === 'RELEASED') {
+      Alert.alert('Vehicle Status', `${vehicle?.vehicleNumber || 'Vehicle'} has already been released.`);
+      return;
+    }
+
+    if (vehicle?.id) {
+      if (vehicle.yardStatus === 'PAKKA') {
+        router.push({
+          pathname: '/tenant_admin/admin/vehicles/release/pakka-release',
+          params: { id: vehicle.id },
+        } as any);
+      } else {
+        router.push({
+          pathname: '/tenant_admin/admin/vehicles/release/kachha-release',
+          params: { id: vehicle.id },
+        } as any);
+      }
+    }
   };
 
   const handleInYardPress = () => {
@@ -147,101 +192,101 @@ export default function VehicleDetailScreen() {
         onMenuPress={handleMenuPress}
       />
 
-      {/* 2. Premium 4-Segment Controller (Dates, Info, Photos, Charges) */}
+      {/* 2. Premium 4-Segment Controller (Info, Photos, Charges, Dates) */}
       <View style={styles.tabsWrapper}>
         <View style={styles.segmentedTrack}>
-          {/* Tab 1: Dates */}
-          <TouchableOpacity
-            style={[styles.segmentBtn, activeTab === 'date' && styles.segmentBtnActive]}
-            onPress={() => handleTabChange('date')}
-            activeOpacity={0.8}
-          >
-            <Calendar
-              size={13.5}
-              color={activeTab === 'date' ? '#0062FF' : '#64748B'}
-              strokeWidth={2.4}
-            />
-            <Text style={[styles.segmentText, activeTab === 'date' && styles.segmentTextActive]}>
-              Dates
-            </Text>
-          </TouchableOpacity>
-
-          {/* Tab 2: Vehicle Info */}
+          {/* Tab 1: Info */}
           <TouchableOpacity
             style={[styles.segmentBtn, activeTab === 'info' && styles.segmentBtnActive]}
             onPress={() => handleTabChange('info')}
             activeOpacity={0.8}
           >
             <Info
-              size={13.5}
+              size={13}
               color={activeTab === 'info' ? '#0062FF' : '#64748B'}
-              strokeWidth={2.4}
+              strokeWidth={2.2}
             />
             <Text style={[styles.segmentText, activeTab === 'info' && styles.segmentTextActive]}>
               Info
             </Text>
           </TouchableOpacity>
 
-          {/* Tab 3: Photos */}
+          {/* Tab 2: Photos */}
           <TouchableOpacity
             style={[styles.segmentBtn, activeTab === 'photos' && styles.segmentBtnActive]}
             onPress={() => handleTabChange('photos')}
             activeOpacity={0.8}
           >
             <Camera
-              size={13.5}
+              size={13}
               color={activeTab === 'photos' ? '#0062FF' : '#64748B'}
-              strokeWidth={2.4}
+              strokeWidth={2.2}
             />
             <Text style={[styles.segmentText, activeTab === 'photos' && styles.segmentTextActive]}>
               Photos
             </Text>
           </TouchableOpacity>
 
-          {/* Tab 4: Parking Charges */}
+          {/* Tab 3: Charges */}
           <TouchableOpacity
             style={[styles.segmentBtn, activeTab === 'charges' && styles.segmentBtnActive]}
             onPress={() => handleTabChange('charges')}
             activeOpacity={0.8}
           >
             <Receipt
-              size={13.5}
+              size={13}
               color={activeTab === 'charges' ? '#0062FF' : '#64748B'}
-              strokeWidth={2.4}
+              strokeWidth={2.2}
             />
             <Text style={[styles.segmentText, activeTab === 'charges' && styles.segmentTextActive]}>
               Charges
             </Text>
           </TouchableOpacity>
+
+          {/* Tab 4: Dates */}
+          <TouchableOpacity
+            style={[styles.segmentBtn, activeTab === 'date' && styles.segmentBtnActive]}
+            onPress={() => handleTabChange('date')}
+            activeOpacity={0.8}
+          >
+            <Calendar
+              size={13}
+              color={activeTab === 'date' ? '#0062FF' : '#64748B'}
+              strokeWidth={2.2}
+            />
+            <Text style={[styles.segmentText, activeTab === 'date' && styles.segmentTextActive]}>
+              Dates
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
 
-      {/* 3. Section Content Body */}
+      {/* 3. Main Content Container */}
       <View style={styles.contentArea}>
         {loading ? (
           <View style={styles.centerLoading}>
             <ActivityIndicator size="large" color="#0062FF" />
-            <Text style={styles.loadingText}>Loading details...</Text>
+            <Text style={styles.loadingText}>Loading vehicle details...</Text>
           </View>
         ) : error ? (
           <View style={styles.centerLoading}>
             <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity style={styles.retryBtn} onPress={fetchVehicle} activeOpacity={0.8}>
+            <TouchableOpacity style={styles.retryBtn} onPress={fetchVehicle}>
               <Text style={styles.retryBtnText}>Retry</Text>
             </TouchableOpacity>
           </View>
-        ) : vehicle ? (
+        ) : (
           <>
-            {activeTab === 'date' && <VehicleDateTimeline vehicle={vehicle} />}
             {activeTab === 'info' && <VehicleInfo vehicle={vehicle} />}
-            {activeTab === 'photos' && <VehiclePhotos vehicle={vehicle} />}
+            {activeTab === 'photos' && <VehiclePhotos vehicle={vehicle} onRefresh={fetchVehicle} />}
             {activeTab === 'charges' && <ParkingCharge vehicle={vehicle} />}
+            {activeTab === 'date' && <VehicleDateTimeline vehicle={vehicle} />}
           </>
-        ) : null}
+        )}
       </View>
 
-      {/* 4. Bottom Action Bar (Release • In Yard) */}
-      {!loading && vehicle && (
+      {/* 4. Bottom Action Bar */}
+      {!loading && !error && vehicle && (
         <VehicleDetailBottomBar
           vehicle={vehicle}
           onReleasePress={handleReleasePress}
@@ -249,24 +294,24 @@ export default function VehicleDetailScreen() {
         />
       )}
 
-      {/* 5. 3-Dots Action Sheet Modal */}
+      {/* 5. 3-Dots Quick Actions Modal */}
       <Modal
         visible={menuModalVisible}
         transparent
-        animationType="slide"
+        animationType="fade"
         onRequestClose={() => setMenuModalVisible(false)}
       >
         <TouchableWithoutFeedback onPress={() => setMenuModalVisible(false)}>
           <View style={styles.menuModalBackdrop}>
             <TouchableWithoutFeedback>
-              <View style={[styles.menuModalSheet, { paddingBottom: insets.bottom + 16 }]}>
-                {/* Handle */}
+              <View style={[styles.menuModalSheet, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+                {/* Pull Handle */}
                 <View style={styles.menuSheetHandle} />
 
-                {/* Header */}
+                {/* Modal Header */}
                 <View style={styles.menuSheetHeader}>
                   <View>
-                    <Text style={styles.menuSheetTitle}>Vehicle Options</Text>
+                    <Text style={styles.menuSheetTitle}>Vehicle Actions</Text>
                     <Text style={styles.menuSheetSub}>{vehicleNumber.toUpperCase()}</Text>
                   </View>
                   <TouchableOpacity
@@ -330,6 +375,21 @@ export default function VehicleDetailScreen() {
                       <Text style={styles.menuOptionSub}>Share summary via WhatsApp or Message</Text>
                     </View>
                   </TouchableOpacity>
+
+                  {/* Option 4: Delete Vehicle Entry */}
+                  <TouchableOpacity
+                    style={[styles.menuOptionRow, { borderColor: '#FEE2E2', backgroundColor: '#FEF2F2' }]}
+                    onPress={handleDeleteVehicle}
+                    activeOpacity={0.75}
+                  >
+                    <View style={[styles.menuOptionIconBox, { backgroundColor: '#FEE2E2' }]}>
+                      <Trash2 size={19} color="#DC2626" strokeWidth={2.2} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.menuOptionTitle, { color: '#DC2626' }]}>Delete Vehicle Entry</Text>
+                      <Text style={[styles.menuOptionSub, { color: '#EF4444' }]}>Permanently remove this vehicle & all photos</Text>
+                    </View>
+                  </TouchableOpacity>
                 </View>
 
                 {/* Cancel Button */}
@@ -345,6 +405,17 @@ export default function VehicleDetailScreen() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      {/* Deleting Progress Overlay */}
+      {deleting && (
+        <View style={styles.deletingOverlay}>
+          <View style={styles.deletingCard}>
+            <ActivityIndicator size="large" color="#DC2626" />
+            <Text style={styles.deletingTitle}>Deleting Vehicle...</Text>
+            <Text style={styles.deletingSub}>Permanently deleting vehicle record & assets</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -522,5 +593,33 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '700',
     color: '#475569',
+  },
+
+  // Deleting Loading Overlay
+  deletingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 999,
+  },
+  deletingCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    width: 280,
+    gap: 8,
+  },
+  deletingTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 6,
+  },
+  deletingSub: {
+    fontSize: 11.5,
+    color: '#64748B',
+    textAlign: 'center',
   },
 });

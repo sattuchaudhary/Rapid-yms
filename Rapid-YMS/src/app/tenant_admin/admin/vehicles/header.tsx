@@ -19,6 +19,10 @@ import {
   X,
   RotateCcw,
   Search,
+  MoreVertical,
+  ChevronRight,
+  RefreshCw,
+  Download,
 } from 'lucide-react-native';
 
 export type TimeFilterPreset =
@@ -44,6 +48,8 @@ export interface VehiclesHeaderProps {
   onSearchChange?: (text: string) => void;
   isHeaderSearchActive?: boolean;
   onToggleHeaderSearch?: (active: boolean) => void;
+  onRefreshPress?: () => void;
+  onExportPress?: () => void;
 }
 
 const MONTHS = [
@@ -63,11 +69,14 @@ export default function VehiclesHeader({
   onSearchChange,
   isHeaderSearchActive = false,
   onToggleHeaderSearch,
+  onRefreshPress,
+  onExportPress,
 }: VehiclesHeaderProps) {
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'ios' ? 44 : 12);
 
   const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [optionsMenuVisible, setOptionsMenuVisible] = useState(false);
   const [activeFilter, setActiveFilter] = useState<VehicleFilterState>(initialFilter);
   const [isSearching, setIsSearching] = useState(isHeaderSearchActive);
   const inputRef = useRef<TextInput>(null);
@@ -78,10 +87,13 @@ export default function VehiclesHeader({
   const [tempYear, setTempYear] = useState<number>(currentYear);
 
   const handleOpenFilter = () => {
+    setOptionsMenuVisible(false);
     setTempPreset(activeFilter.preset);
     if (activeFilter.month) setTempMonth(activeFilter.month);
     if (activeFilter.year) setTempYear(activeFilter.year);
-    setFilterModalVisible(true);
+    setTimeout(() => {
+      setFilterModalVisible(true);
+    }, 150);
   };
 
   const handleApplyFilter = () => {
@@ -120,6 +132,7 @@ export default function VehiclesHeader({
     setTempPreset('all_time');
     setActiveFilter(defaultFilter);
     setFilterModalVisible(false);
+    setOptionsMenuVisible(false);
     if (onFilterChange) {
       onFilterChange(defaultFilter);
     }
@@ -144,7 +157,7 @@ export default function VehiclesHeader({
   return (
     <>
       <View style={[styles.headerWrapper, { paddingTop: topPadding }]}>
-        {/* Expanded Search Header Bar (Option 2) */}
+        {/* Expanded Search Header Bar */}
         {isSearching ? (
           <View style={styles.headerBar}>
             <TouchableOpacity
@@ -180,17 +193,14 @@ export default function VehiclesHeader({
               )}
             </View>
 
+            {/* 3-Dot Menu in Search Bar */}
             <TouchableOpacity
               style={[styles.iconButton, isFiltered && styles.iconButtonFiltered]}
-              onPress={handleOpenFilter}
+              onPress={() => setOptionsMenuVisible(true)}
               activeOpacity={0.7}
-              accessibilityLabel="Filter by date and time"
+              accessibilityLabel="More options"
             >
-              <Filter
-                size={19}
-                color={isFiltered ? '#0062FF' : '#0F172A'}
-                strokeWidth={2.2}
-              />
+              <MoreVertical size={20} color="#0F172A" strokeWidth={2.2} />
               {isFiltered && <View style={styles.filterDot} />}
             </TouchableOpacity>
           </View>
@@ -223,9 +233,9 @@ export default function VehiclesHeader({
               )}
             </View>
 
-            {/* Right: Search Icon + Date Filter Icon */}
+            {/* Right: Search Icon + 3-Dot More Menu */}
             <View style={styles.rightActionsRow}>
-              {/* Option 2 Header Search Trigger */}
+              {/* Header Search Trigger */}
               <TouchableOpacity
                 style={styles.iconButton}
                 onPress={handleStartSearch}
@@ -236,25 +246,148 @@ export default function VehiclesHeader({
                 <Search size={20} color="#0F172A" strokeWidth={2.2} />
               </TouchableOpacity>
 
-              {/* Date Filter Button */}
+              {/* 3-Dot Options Button */}
               <TouchableOpacity
                 style={[styles.iconButton, isFiltered && styles.iconButtonFiltered]}
-                onPress={handleOpenFilter}
+                onPress={() => setOptionsMenuVisible(true)}
                 activeOpacity={0.7}
                 accessibilityRole="button"
-                accessibilityLabel="Filter by date and time"
+                accessibilityLabel="More options and filters"
               >
-                <Filter
-                  size={20}
-                  color={isFiltered ? '#0062FF' : '#0F172A'}
-                  strokeWidth={2.2}
-                />
+                <MoreVertical size={20} color="#0F172A" strokeWidth={2.2} />
                 {isFiltered && <View style={styles.filterDot} />}
               </TouchableOpacity>
             </View>
           </View>
         )}
       </View>
+
+      {/* 3-Dot Options Bottom Sheet Drawer */}
+      <Modal
+        visible={optionsMenuVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setOptionsMenuVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setOptionsMenuVisible(false)}>
+          <View style={styles.optionsOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.optionsDrawer, { paddingBottom: Math.max(insets.bottom + 12, 24) }]}>
+                {/* Grab Handle */}
+                <View style={styles.drawerHandle} />
+
+                {/* Drawer Header */}
+                <View style={styles.optionsHeader}>
+                  <View>
+                    <Text style={styles.optionsTitle}>Quick Options</Text>
+                    <Text style={styles.optionsSubtitle}>Filter & vehicle management tools</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.optionsCloseBtn}
+                    onPress={() => setOptionsMenuVisible(false)}
+                    activeOpacity={0.7}
+                  >
+                    <X size={17} color="#64748B" strokeWidth={2.2} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Option 1: Time Filter */}
+                <TouchableOpacity
+                  style={styles.optionRowItem}
+                  onPress={handleOpenFilter}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.optionIconBox, { backgroundColor: '#EFF6FF' }]}>
+                    <Filter size={18} color="#0062FF" strokeWidth={2.2} />
+                  </View>
+                  <View style={styles.optionContentBox}>
+                    <View style={styles.optionTitleLine}>
+                      <Text style={styles.optionMainTitle}>Time Filter</Text>
+                      {isFiltered && (
+                        <View style={styles.activePill}>
+                          <Text style={styles.activePillText}>{activeFilter.label}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.optionSubTitle}>
+                      Filter records by day, month, or custom year
+                    </Text>
+                  </View>
+                  <ChevronRight size={16} color="#94A3B8" strokeWidth={2} />
+                </TouchableOpacity>
+
+                {/* Option 2: Reset Filter (Visible if filtered) */}
+                {isFiltered && (
+                  <TouchableOpacity
+                    style={styles.optionRowItem}
+                    onPress={handleResetFilter}
+                    activeOpacity={0.75}
+                  >
+                    <View style={[styles.optionIconBox, { backgroundColor: '#FEF2F2' }]}>
+                      <RotateCcw size={18} color="#EF4444" strokeWidth={2.2} />
+                    </View>
+                    <View style={styles.optionContentBox}>
+                      <Text style={[styles.optionMainTitle, { color: '#EF4444' }]}>
+                        Reset Filter
+                      </Text>
+                      <Text style={styles.optionSubTitle}>
+                        Return to All Time (Day 1 - Today)
+                      </Text>
+                    </View>
+                    <ChevronRight size={16} color="#94A3B8" strokeWidth={2} />
+                  </TouchableOpacity>
+                )}
+
+                {/* Option 3: Export Data */}
+                {onExportPress && (
+                  <TouchableOpacity
+                    style={styles.optionRowItem}
+                    onPress={() => {
+                      setOptionsMenuVisible(false);
+                      onExportPress();
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <View style={[styles.optionIconBox, { backgroundColor: '#F0FDF4' }]}>
+                      <Download size={18} color="#16A34A" strokeWidth={2.2} />
+                    </View>
+                    <View style={styles.optionContentBox}>
+                      <Text style={styles.optionMainTitle}>Export Data</Text>
+                      <Text style={styles.optionSubTitle}>
+                        Download CSV stock report for current records
+                      </Text>
+                    </View>
+                    <ChevronRight size={16} color="#94A3B8" strokeWidth={2} />
+                  </TouchableOpacity>
+                )}
+
+                {/* Option 4: Refresh List */}
+                {onRefreshPress && (
+                  <TouchableOpacity
+                    style={styles.optionRowItem}
+                    onPress={() => {
+                      setOptionsMenuVisible(false);
+                      onRefreshPress();
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <View style={[styles.optionIconBox, { backgroundColor: '#F8FAFC' }]}>
+                      <RefreshCw size={18} color="#475569" strokeWidth={2.2} />
+                    </View>
+                    <View style={styles.optionContentBox}>
+                      <Text style={styles.optionMainTitle}>Refresh Records</Text>
+                      <Text style={styles.optionSubTitle}>
+                        Fetch latest vehicle updates from server
+                      </Text>
+                    </View>
+                    <ChevronRight size={16} color="#94A3B8" strokeWidth={2} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
 
       {/* Filter Bottom Sheet Modal */}
       <Modal
@@ -803,4 +936,111 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
+
+  // 3-Dot Options Bottom Sheet Drawer Styles
+  optionsOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    justifyContent: 'flex-end',
+  },
+  optionsDrawer: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 18,
+    elevation: 20,
+  },
+  drawerHandle: {
+    width: 38,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#CBD5E1',
+    alignSelf: 'center',
+    marginBottom: 14,
+  },
+  optionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  optionsTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.2,
+  },
+  optionsSubtitle: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  optionsCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  optionRowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 12,
+    marginBottom: 10,
+  },
+  optionIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  optionContentBox: {
+    flex: 1,
+  },
+  optionTitleLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+    marginBottom: 2,
+  },
+  optionMainTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  optionSubTitle: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  activePill: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  activePillText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#0062FF',
+  },
 });
+

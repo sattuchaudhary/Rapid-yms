@@ -152,6 +152,7 @@ model Tenant {
   vehicleStatusHistories VehicleStatusHistory[]
   parkingTransactions    ParkingTransaction[]
   shiftHistories         VehicleShiftHistory[]
+  releaseOrderDocuments  ReleaseOrderDocument[]
 
   @@map("tenants")
 }
@@ -184,12 +185,14 @@ model User {
   updatedAt  DateTime   @updatedAt
 
   // Relations
-  tenant        Tenant                 @relation(fields: [tenantId], references: [id])
-  vehicles      Vehicle[]              @relation("EnteredBy")
-  releases      Release[]              @relation("ApprovedBy")
-  auditLogs     AuditLog[]
-  statusChanges VehicleStatusHistory[] @relation("StatusChangedBy")
-  shiftHistories VehicleShiftHistory[] @relation("ShiftInitiatedBy")
+  tenant            Tenant                   @relation(fields: [tenantId], references: [id])
+  vehicles          Vehicle[]                @relation("EnteredBy")
+  releases          Release[]                @relation("ApprovedBy")
+  auditLogs         AuditLog[]
+  statusChanges     VehicleStatusHistory[]   @relation("StatusChangedBy")
+  shiftHistories    VehicleShiftHistory[]    @relation("ShiftInitiatedBy")
+  createdRoDocs     ReleaseOrderDocument[]   @relation("CreatedRoDocs")
+  editedExtractions ReleaseOrderExtraction[] @relation("EditedExtractions")
 
   @@unique([email, tenantId])
   @@map("users")
@@ -249,17 +252,18 @@ model Vehicle {
   updatedAt     DateTime    @updatedAt
 
   // Relations
-  tenant              Tenant                 @relation(fields: [tenantId], references: [id])
-  enteredBy           User?                  @relation("EnteredBy", fields: [enteredById], references: [id])
-  photos              VehiclePhoto[]
-  inventory           VehicleInventory[]
-  billing             ParkingBilling?
-  release             Release?
-  yardLocation        YardLocation?          @relation(fields: [yardLocationId], references: [id])
-  bank                Bank?                  @relation("VehicleBank", fields: [bankId], references: [id])
-  statusHistory       VehicleStatusHistory[]
-  parkingTransactions ParkingTransaction[]
-  shiftHistories      VehicleShiftHistory[]
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id])
+  enteredBy             User?                  @relation("EnteredBy", fields: [enteredById], references: [id])
+  photos                VehiclePhoto[]
+  inventory             VehicleInventory[]
+  billing               ParkingBilling?
+  release               Release?
+  yardLocation          YardLocation?          @relation(fields: [yardLocationId], references: [id])
+  bank                  Bank?                  @relation("VehicleBank", fields: [bankId], references: [id])
+  statusHistory         VehicleStatusHistory[]
+  parkingTransactions   ParkingTransaction[]
+  shiftHistories        VehicleShiftHistory[]
+  releaseOrderDocuments ReleaseOrderDocument[]
 
   @@unique([vehicleNumber, tenantId])
   @@index([tenantId, yardStatus])
@@ -630,5 +634,62 @@ model StorageAccount {
 
   @@map("storage_accounts")
 }
+
+// ============================================
+// RELEASE ORDER DOCUMENTS (OCR & Intelligence)
+// ============================================
+
+model ReleaseOrderDocument {
+  id                 String   @id @default(uuid())
+  tenantId           String
+  vehicleId          String
+  fileUrl            String
+  fileHash           String   // SHA-256 hash for integrity & deduplication
+  mimeType           String
+  documentType       String   @default("RELEASE_ORDER")
+  documentConfidence Float    @default(0)
+  ocrProvider        String   @default("ocr_space")
+  ocrVersion         String   @default("1.0")
+  status             String   @default("READY_FOR_REVIEW")
+  needsManualReview  Boolean  @default(false)
+  rawOcrText         String?  @db.Text
+  analysisMetadata   Json?
+  createdById        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  tenant             Tenant   @relation(fields: [tenantId], references: [id])
+  vehicle            Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  createdBy          User?    @relation("CreatedRoDocs", fields: [createdById], references: [id])
+  extractions        ReleaseOrderExtraction[]
+
+  @@index([tenantId, vehicleId])
+  @@index([fileHash, tenantId])
+  @@map("release_order_documents")
+}
+
+model ReleaseOrderExtraction {
+  id                     String               @id @default(uuid())
+  releaseOrderDocumentId String
+  fieldName              String
+  fieldValue             String
+  confidence             Float                @default(0)
+  sourcePage             Int                  @default(1)
+  sourceText             String?
+  boundingBox            Json?
+  manuallyEdited         Boolean              @default(false)
+  editedById             String?
+  editedAt               DateTime?
+  editReason             String?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+
+  releaseOrderDocument   ReleaseOrderDocument @relation(fields: [releaseOrderDocumentId], references: [id], onDelete: Cascade)
+  editedBy               User?                @relation("EditedExtractions", fields: [editedById], references: [id])
+
+  @@index([releaseOrderDocumentId, fieldName])
+  @@map("release_order_extractions")
+}
+
 
 

@@ -8,9 +8,21 @@ import {
   completeHandover,
   directRelease,
 } from './release.controller';
+import {
+  analyzeRoDocument,
+  recordManualRoEdit,
+  getRoDocumentHistory,
+} from './roDoc.controller';
 import { authenticate, authorize } from '../auth/auth.middleware';
 
 const router = Router();
+
+// ============================================
+// Release Order Document Intelligence & OCR
+// ============================================
+router.post('/:vehicleId/ro-document/analyze', authenticate, analyzeRoDocument);
+router.post('/:vehicleId/ro-document/manual-edit', authenticate, recordManualRoEdit);
+router.get('/:vehicleId/ro-document/history', authenticate, getRoDocumentHistory);
 
 // Retrieve specific vehicle's release state
 router.get('/:vehicleId', authenticate, getReleaseStatus);
@@ -30,3 +42,4 @@ router.post('/:vehicleId/direct', authenticate, authorize('TENANT_ADMIN', 'MANAG
 router.put('/:vehicleId/handover', authenticate, authorize('TENANT_ADMIN', 'MANAGER', 'SUPERVISOR', 'GUARD'), completeHandover);
 
 export default router;
+

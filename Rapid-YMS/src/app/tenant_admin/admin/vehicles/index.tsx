@@ -7,7 +7,11 @@ import {
   ActivityIndicator,
   RefreshControl,
   TouchableOpacity,
+  Alert,
+  Platform,
 } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import {
@@ -21,6 +25,7 @@ import VehicleCategoryTabs, {
   VehicleCategoryKey,
   VehicleCategoryCounts,
 } from './VehicleCategoryTabs';
+import ExportVehiclesModal from './ExportVehiclesModal';
 import AdminDashboardBottomNavBar, {
   AdminDashboardTabKey,
 } from '../navigation/admindashbordbottomnavbar';
@@ -33,6 +38,7 @@ export default function VehiclesScreen() {
   const params = useLocalSearchParams<{ category?: string; filter?: string }>();
   const [activeTab, setActiveTab] = useState<AdminDashboardTabKey>('vehicles');
   const [selectedCategory, setSelectedCategory] = useState<VehicleCategoryKey>('ALL');
+  const [exportModalVisible, setExportModalVisible] = useState(false);
   const [activeFilter, setActiveFilter] = useState<VehicleFilterState>({
     preset: 'all_time',
     label: 'All Time (Day 1 - Today)',
@@ -311,7 +317,7 @@ export default function VehiclesScreen() {
     <View style={styles.container}>
       <StatusBar style="dark" backgroundColor="#FFFFFF" />
 
-      {/* 1. Vehicles Header with Option 2 Expandable Search & Date/Time Filter */}
+      {/* 1. Vehicles Header with Expandable Search & 3-Dot Options Menu */}
       <VehiclesHeader
         title="Vehicle List"
         onBackPress={handleBackPress}
@@ -319,6 +325,8 @@ export default function VehiclesScreen() {
         initialFilter={activeFilter}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        onRefreshPress={handleRefresh}
+        onExportPress={() => setExportModalVisible(true)}
       />
 
       {/* 2. Category Tabs: All(count), Pakka(count), Kachha(count), Released(count), Shifting(count) */}
@@ -370,6 +378,12 @@ export default function VehiclesScreen() {
           />
         )}
       </View>
+
+      {/* Export Vehicles Modal with Category & Date Range Filter */}
+      <ExportVehiclesModal
+        visible={exportModalVisible}
+        onClose={() => setExportModalVisible(false)}
+      />
 
       {/* 4. Bottom Navigation Bar */}
       <AdminDashboardBottomNavBar

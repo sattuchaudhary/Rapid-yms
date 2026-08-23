@@ -20,6 +20,7 @@ import paymentRoutes from './billing/payment.routes';
 import storageRoutes from './storage/storage.routes';
 import bankRoutes    from './banks/banks.routes';
 import notificationsRoutes from './notifications/notifications.routes';
+import inventoryRoutes from './inventory/inventory.routes';
 
 import { errorHandler } from './common/error.handler';
 
@@ -59,6 +60,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/storage-accounts', storageRoutes);
 app.use('/api/banks',    bankRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/inventory', inventoryRoutes);
 
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 

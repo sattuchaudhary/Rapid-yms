@@ -39,6 +39,8 @@ export default function AdminDashboardScreen() {
     shifting: 0,
   });
 
+
+
   const loadSession = async () => {
     try {
       const session = await getUserInfo();
@@ -131,7 +133,9 @@ export default function AdminDashboardScreen() {
 
   const handleTabPress = (tab: AdminDashboardTabKey) => {
     setActiveTab(tab);
-    if (tab === 'vehicles') {
+    if (tab === 'add') {
+      router.push('/tenant_admin/admin/vehicles/add' as any);
+    } else if (tab === 'vehicles') {
       router.push('/tenant_admin/admin/vehicles' as any);
     }
   };
