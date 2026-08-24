@@ -70,8 +70,18 @@ export async function performRealRoOcr(
       throw new Error(backendResponse?.error || 'Document Intelligence processing failed');
     }
   } catch (err: any) {
-    console.warn('[RO Document Intelligence Error, falling back to local extractor]:', err.message);
-    // Offline / Network fallback
+    console.warn('[RO Document Intelligence Backend Error, trying direct OCR raw extraction]:', err.message);
+    try {
+      // Direct raw OCR extraction via general scan API
+      const generalResult = await extractRawTextFromDocument(documentUri);
+      if (generalResult?.rawText) {
+        console.log('[RO Direct OCR Success] Extracted text length:', generalResult.rawText.length);
+        return parseRoText(generalResult.rawText, fallbackVehicle);
+      }
+    } catch (rawOcrErr: any) {
+      console.warn('[Direct OCR Raw Extraction Also Failed]:', rawOcrErr.message);
+    }
+    // Offline / Complete failure fallback
     return parseRoText('', fallbackVehicle);
   }
 }

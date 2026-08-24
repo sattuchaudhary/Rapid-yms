@@ -177,7 +177,7 @@ export function parseRoText(text: string, fallbackVehicle?: any): ParsedRoDocume
 
   // 2. RO Date Detection
   let detectedDate: Date | null = null;
-  const dateRegex = /(?:Date\s*[:\-\.]?\s*)?(\d{1,2})[-/\. ](Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{1,2})[-/\. ](\d{2,4})/i;
+  const dateRegex = /(?:Date\s*[:\-\.]?\s*|Dated\s*[:\-\.]?\s*)?(\d{1,2})[-/\. ](Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?|\d{1,2})[-/\. ](\d{2,4})/i;
   const dateMatch = normalized.match(dateRegex);
 
   if (dateMatch) {
@@ -198,7 +198,7 @@ export function parseRoText(text: string, fallbackVehicle?: any): ParsedRoDocume
       month = parseInt(monthStr, 10) - 1;
     }
 
-    if (!isNaN(day) && !isNaN(year) && day >= 1 && day <= 31) {
+    if (!isNaN(day) && !isNaN(year) && day >= 1 && day <= 31 && month >= 0 && month <= 11) {
       detectedDate = new Date(year, month, day);
     }
   }
@@ -207,7 +207,13 @@ export function parseRoText(text: string, fallbackVehicle?: any): ParsedRoDocume
 
   // 3. Waive-off Days Detection
   let waiverDays = 2;
-  if (/two\s*days|2\s*days|48\s*hours/i.test(normalized)) {
+  const waiverNumMatch = normalized.match(/(?:waive|waiver|grace|free|valid\s*for|within)\s*(?:period\s*of)?\s*[:\-\.]?\s*(\d+)\s*(?:days?|hours?|hrs?)/i);
+  if (waiverNumMatch && waiverNumMatch[1]) {
+    const num = parseInt(waiverNumMatch[1], 10);
+    if (num > 0) {
+      waiverDays = /hour|hr/i.test(waiverNumMatch[0]) ? Math.max(1, Math.ceil(num / 24)) : num;
+    }
+  } else if (/two\s*days|2\s*days|48\s*hours/i.test(normalized)) {
     waiverDays = 2;
   } else if (/one\s*day|1\s*day|24\s*hours/i.test(normalized)) {
     waiverDays = 1;
@@ -217,6 +223,8 @@ export function parseRoText(text: string, fallbackVehicle?: any): ParsedRoDocume
     waiverDays = 4;
   } else if (/five\s*days|5\s*days/i.test(normalized)) {
     waiverDays = 5;
+  } else if (/seven\s*days|7\s*days|one\s*week/i.test(normalized)) {
+    waiverDays = 7;
   }
 
   const approvedTill = new Date(finalDate);
@@ -250,10 +258,11 @@ export function parseRoText(text: string, fallbackVehicle?: any): ParsedRoDocume
 
   // 5. Authorized Customer
   let authorizedCustomer = '';
-  const handoverMatch = normalized.match(/(?:hand\s*over.*?to|deliver.*?to|customer\s*name|borrower\s*name|buyer\s*name)\s*(?:Mr\.?|Mrs\.?|Ms\.?)?\s*[:\-\.]?\s*([A-Za-z ]{3,35})/i);
+  const customerPattern = /(?:hand\s*over.*?to|deliver.*?to|customer\s*name|borrower\s*name|buyer\s*name|party\s*name|authorized\s*person)\s*[:\-\.]?\s*(?:Mr\.?|Mrs\.?|Ms\.?|M\/s\.?|Shri\.?|Smt\.?)?\s*([A-Za-z ]{3,35})/i;
+  const handoverMatch = normalized.match(customerPattern);
   if (handoverMatch && handoverMatch[1]?.trim()) {
     const raw = handoverMatch[1].trim().split(/[,.\n]/)[0].replace(/the specimen.*/i, '').trim();
-    if (raw.length >= 3 && !/specimen|signature|loan|captioned|vehicle/i.test(raw)) {
+    if (raw.length >= 3 && !/specimen|signature|loan|captioned|vehicle|possession/i.test(raw)) {
       authorizedCustomer = raw.toUpperCase();
     }
   }
@@ -271,9 +280,16 @@ export function parseRoText(text: string, fallbackVehicle?: any): ParsedRoDocume
     regNo = fallbackVehicle?.vehicleNumber || '';
   }
 
-  // 7. Loan Number
+  // 7. RO / Reference Number
+  let roNumber = '';
+  const roNumMatch = normalized.match(/(?:RO\s*(?:No\.?|Number|Ref)|Release\s*Order\s*(?:No\.?|Number)|Ref\s*(?:No\.?|Number)|Letter\s*No\.?)\s*[:\-\.]?\s*([A-Za-z0-9\/\-_]+)/i);
+  if (roNumMatch && roNumMatch[1]) {
+    roNumber = roNumMatch[1].trim();
+  }
+
+  // 8. Loan Number
   let loanNo = '';
-  const loanMatch = normalized.match(/Loan\s*(?:No\.?|Number|Agreement)?\s*[:\-\.]?\s*([0-9A-Z]+)/i);
+  const loanMatch = normalized.match(/Loan\s*(?:No\.?|Number|Agreement|A\/c)?\s*[:\-\.]?\s*([0-9A-Z]+)/i);
   if (loanMatch && loanMatch[1]) {
     loanNo = loanMatch[1];
   }

@@ -42,25 +42,26 @@ export const analyzeRoDocument = async (req: AuthRequest, res: Response, next: N
       throw new AppError('Either fileUrl or fileBase64 must be provided for OCR analysis', 400);
     }
 
-    // 1. Tenant-isolated Vehicle Lookup
-    const vehicle = await prisma.vehicle.findFirst({
-      where: { id: vehicleId, tenantId },
-      include: { bank: true },
-    });
-
-    if (!vehicle) {
-      throw new AppError('Vehicle not found in this yard tenant', 404);
+    // 1. Tenant-isolated Vehicle Lookup (optional if temp/preview)
+    let vehicle = null;
+    if (vehicleId && vehicleId !== 'temp' && !vehicleId.startsWith('temp_')) {
+      vehicle = await prisma.vehicle.findFirst({
+        where: { id: vehicleId, tenantId },
+        include: { bank: true },
+      });
     }
 
-    const vehicleContext = {
-      id: vehicle.id,
-      vehicleNumber: vehicle.vehicleNumber,
-      bankName: vehicle.bankName || vehicle.bank?.name,
-      customerName: vehicle.customerName || undefined,
-      customerPhone: vehicle.customerPhone || undefined,
-      chassisNumber: vehicle.chassisNumber || undefined,
-      engineNumber: vehicle.engineNumber || undefined,
-    };
+    const vehicleContext = vehicle
+      ? {
+          id: vehicle.id,
+          vehicleNumber: vehicle.vehicleNumber,
+          bankName: vehicle.bankName || vehicle.bank?.name,
+          customerName: vehicle.customerName || undefined,
+          customerPhone: vehicle.customerPhone || undefined,
+          chassisNumber: vehicle.chassisNumber || undefined,
+          engineNumber: vehicle.engineNumber || undefined,
+        }
+      : undefined;
 
     // 2. Audit Log: OCR Started
     await prisma.auditLog.create({
@@ -70,8 +71,8 @@ export const analyzeRoDocument = async (req: AuthRequest, res: Response, next: N
         module: 'release_ocr',
         action: 'OCR_STARTED',
         details: {
-          vehicleId,
-          vehicleNumber: vehicle.vehicleNumber,
+          vehicleId: vehicle ? vehicle.id : 'temp_scan',
+          vehicleNumber: vehicle ? vehicle.vehicleNumber : 'UNKNOWN',
           mimeType: validatedData.mimeType,
           fileUrl: validatedData.fileUrl ? validatedData.fileUrl.split('?')[0] : 'base64_payload',
         },
@@ -90,7 +91,16 @@ export const analyzeRoDocument = async (req: AuthRequest, res: Response, next: N
       vehicleContext
     );
 
-    // 4. Persist Document Record & Extractions in Database
+    // 4. Persist Document Record & Extractions in Database if vehicle exists
+    if (!vehicle) {
+      return res.json({
+        success: true,
+        data: {
+          ...analysis,
+          documentId: undefined,
+        },
+      });
+    }
     const savedDoc = await prisma.$transaction(async (tx) => {
       const docRecord = await tx.releaseOrderDocument.create({
         data: {
