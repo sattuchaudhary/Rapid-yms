@@ -1404,15 +1404,15 @@ export const getVehicleParkingCalculationService = async (
 
   const kachhaParkingRate = (vehicleRate?.kachhaRate && vehicleRate.kachhaRate > 0)
     ? vehicleRate.kachhaRate
-    : (bankConfig?.kachhaParkingRate || vehicleRate?.dailyRate || 100);
+    : (bankConfig?.kachhaParkingRate || vehicleRate?.dailyRate || 0);
 
   const pakkaParkingRate = (vehicleRate?.pakkaRate && vehicleRate.pakkaRate > 0)
     ? vehicleRate.pakkaRate
-    : (bankConfig?.pakkaParkingRate || vehicleRate?.dailyRate || 150);
+    : (bankConfig?.pakkaParkingRate || vehicleRate?.dailyRate || 0);
 
   const releaseOrderParkingRate = (vehicleRate?.releaseOrderRate && vehicleRate.releaseOrderRate > 0)
     ? vehicleRate.releaseOrderRate
-    : (bankConfig?.releaseOrderParkingRate || vehicleRate?.dailyRate || 200);
+    : (bankConfig?.releaseOrderParkingRate || vehicleRate?.dailyRate || 0);
 
   const parkingWaiverDays = bankConfig?.parkingWaiverDays ?? 0;
   const parkingPayer = bankConfig?.parkingPayer ?? 'CUSTOMER';

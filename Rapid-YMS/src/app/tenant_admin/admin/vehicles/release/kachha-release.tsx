@@ -142,7 +142,7 @@ export default function KachhaReleaseScreen() {
   const [releaseDate, setReleaseDate] = useState<Date>(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
 
-  const [dailyRate, setDailyRate] = useState<number>(150);
+  const [dailyRate, setDailyRate] = useState<number>(0);
   const [repoCharge, setRepoCharge] = useState<string>('2500');
   const [gstOnParking, setGstOnParking] = useState(false);
   const [gstOnRepo, setGstOnRepo] = useState(false);
@@ -322,12 +322,17 @@ export default function KachhaReleaseScreen() {
           setEntryDate(new Date(data.entryDate));
         }
 
-        const vType = data.vehicleType || 'FW';
+        const vType = data.vehicleType;
         const bankRate = data.bank?.parkingRates?.find?.((r: any) => r.vehicleType === vType);
-        const resolvedDaily =
-          bankRate?.dailyRate ||
-          (vType === 'TW' ? 60 : vType === 'THREE_W' ? 100 : vType === 'FW' ? 150 : 250);
-        setDailyRate(resolvedDaily);
+        const resolvedKachhaRate =
+          (bankRate?.kachhaRate && Number(bankRate.kachhaRate) > 0)
+            ? Number(bankRate.kachhaRate)
+            : (data.bank?.kachhaParkingRate && Number(data.bank.kachhaParkingRate) > 0)
+            ? Number(data.bank.kachhaParkingRate)
+            : (bankRate?.dailyRate && Number(bankRate.dailyRate) > 0)
+            ? Number(bankRate.dailyRate)
+            : 0;
+        setDailyRate(resolvedKachhaRate);
       } else {
         Alert.alert('Not Found', 'Vehicle details could not be loaded.');
       }

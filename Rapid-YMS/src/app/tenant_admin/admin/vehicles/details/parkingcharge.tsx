@@ -28,11 +28,24 @@ export default function ParkingCharge({ vehicle }: ParkingChargeProps) {
   const diffTime = Math.max(0, releaseDate.getTime() - entryDate.getTime());
   const totalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
 
-  // Lookup rate from vehicle's bank parking rates or defaults
-  const vehicleType = vehicle.vehicleType || 'FW';
+  // Lookup rate from vehicle's bank parking rates or bank model
+  const vehicleType = vehicle.vehicleType;
   const bankRate = vehicle.bank?.parkingRates?.find?.((r: any) => r.vehicleType === vehicleType);
 
-  const dailyRate = bankRate?.dailyRate || (vehicleType === 'TW' ? 60 : vehicleType === 'THREE_W' ? 100 : vehicleType === 'FW' ? 150 : 250);
+  const dailyRate =
+    (bankRate?.kachhaRate && Number(bankRate.kachhaRate) > 0 && vehicle.yardStatus === 'KACHHA')
+      ? Number(bankRate.kachhaRate)
+      : (bankRate?.pakkaRate && Number(bankRate.pakkaRate) > 0 && vehicle.yardStatus === 'PAKKA')
+      ? Number(bankRate.pakkaRate)
+      : (bankRate?.dailyRate && Number(bankRate.dailyRate) > 0)
+      ? Number(bankRate.dailyRate)
+      : (vehicle.bank?.kachhaParkingRate && Number(vehicle.bank.kachhaParkingRate) > 0 && vehicle.yardStatus === 'KACHHA')
+      ? Number(vehicle.bank.kachhaParkingRate)
+      : (vehicle.bank?.pakkaParkingRate && Number(vehicle.bank.pakkaParkingRate) > 0 && vehicle.yardStatus === 'PAKKA')
+      ? Number(vehicle.bank.pakkaParkingRate)
+      : (vehicle.bank?.releaseOrderParkingRate && Number(vehicle.bank.releaseOrderParkingRate) > 0)
+      ? Number(vehicle.bank.releaseOrderParkingRate)
+      : 0;
 
   // Gross & Net Calculations
   const grossAmount = vehicle.billing?.grossAmount || (totalDays * dailyRate);

@@ -312,11 +312,16 @@ export default function PakkaReleaseScreen() {
         if (data.customerName) setRecipientName(data.customerName);
         if (data.customerPhone) setRecipientPhone(data.customerPhone);
 
-        const vType = data.vehicleType || 'FW';
+        const vType = data.vehicleType;
         const bankRate = data.bank?.parkingRates?.find?.((r: any) => r.vehicleType === vType);
         const resolvedDaily =
-          bankRate?.dailyRate ||
-          (vType === 'TW' ? 60 : vType === 'THREE_W' ? 100 : vType === 'FW' ? 150 : 250);
+          (bankRate?.pakkaRate && Number(bankRate.pakkaRate) > 0)
+            ? Number(bankRate.pakkaRate)
+            : (data.bank?.pakkaParkingRate && Number(data.bank.pakkaParkingRate) > 0)
+            ? Number(data.bank.pakkaParkingRate)
+            : (bankRate?.dailyRate && Number(bankRate.dailyRate) > 0)
+            ? Number(bankRate.dailyRate)
+            : 0;
         setDailyRate(resolvedDaily);
       }
     } catch (err: any) {

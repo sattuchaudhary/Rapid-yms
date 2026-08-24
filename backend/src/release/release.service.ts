@@ -282,14 +282,37 @@ export const directReleaseVehicleService = async (
     });
   }
 
+  let vehicleRate = null;
+  if (bankConfig?.id && vehicle.vehicleType) {
+    vehicleRate = await prisma.parkingRate.findFirst({
+      where: {
+        tenantId,
+        bankId: bankConfig.id,
+        vehicleType: vehicle.vehicleType,
+      },
+    });
+  }
+
+  const kachhaParkingRate = (vehicleRate?.kachhaRate && vehicleRate.kachhaRate > 0)
+    ? vehicleRate.kachhaRate
+    : (bankConfig?.kachhaParkingRate || vehicleRate?.dailyRate || 0);
+
+  const pakkaParkingRate = (vehicleRate?.pakkaRate && vehicleRate.pakkaRate > 0)
+    ? vehicleRate.pakkaRate
+    : (bankConfig?.pakkaParkingRate || vehicleRate?.dailyRate || 0);
+
+  const releaseOrderParkingRate = (vehicleRate?.releaseOrderRate && vehicleRate.releaseOrderRate > 0)
+    ? vehicleRate.releaseOrderRate
+    : (bankConfig?.releaseOrderParkingRate || vehicleRate?.dailyRate || 0);
+
   const calcResult = calculateParkingCharges({
     kachhaStartDate: vehicle.kachhaStartDate || vehicle.entryDate,
     pakkaDate: vehicle.pakkaDate,
     releaseOrderDate: vehicle.releaseOrderDate,
     actualReleaseDate: now,
-    kachhaParkingRate: bankConfig?.kachhaParkingRate ?? 0,
-    pakkaParkingRate: bankConfig?.pakkaParkingRate ?? 0,
-    releaseOrderParkingRate: bankConfig?.releaseOrderParkingRate ?? 0,
+    kachhaParkingRate,
+    pakkaParkingRate,
+    releaseOrderParkingRate,
     parkingWaiverDays: bankConfig?.parkingWaiverDays ?? 0,
     parkingPayer: bankConfig?.parkingPayer ?? 'CUSTOMER',
     releasePersonType: releasePerson,
