@@ -11,6 +11,7 @@ import {
   softDeleteVehiclesService,
   restoreVehiclesService,
   getTrashVehiclesService,
+  bulkImportVehiclesService,
   deleteVehiclePhotoService,
   getVehicleParkingCalculationService,
   getVehicleParkingTransactionsService,
@@ -250,6 +251,25 @@ export const bulkDeleteVehicles = async (req: AuthRequest, res: Response, next: 
 
     const { vehicleIds, deleteAll } = req.body;
     const result = await bulkDeleteVehiclesService(tenantId, userId, { vehicleIds, deleteAll });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const bulkImportVehicles = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const userId = req.user!.id;
+    const role = req.user!.role;
+
+    const allowedRoles = ['SUPER_ADMIN', 'TENANT_ADMIN', 'MANAGER'];
+    if (!allowedRoles.includes(role)) {
+      return res.status(403).json({ success: false, error: 'Unauthorized: Only Managers/Admins can import bulk vehicle data.' });
+    }
+
+    const { vehicles } = req.body;
+    const result = await bulkImportVehiclesService(tenantId, userId, vehicles);
     res.json({ success: true, ...result });
   } catch (err) {
     next(err);

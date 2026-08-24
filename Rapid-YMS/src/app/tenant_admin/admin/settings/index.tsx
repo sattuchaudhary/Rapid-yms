@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Trash2,
   AlertTriangle,
+  FileSpreadsheet,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
@@ -65,7 +66,27 @@ export default function SettingsScreen() {
 
         {/* Settings Group 1 */}
         <View style={styles.groupContainer}>
-          {/* 1. Inventory Customization Option */}
+          {/* 1. Bulk Vehicle Import Option */}
+          <TouchableOpacity
+            style={styles.settingRow}
+            activeOpacity={0.7}
+            onPress={() => handleNavigate('/tenant_admin/admin/settings/bulk-upload')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: '#EFF6FF' }]}>
+              <FileSpreadsheet size={20} color="#0062FF" />
+            </View>
+            <View style={styles.rowTextContainer}>
+              <Text style={styles.rowTitle}>Bulk Vehicle Import</Text>
+              <Text style={styles.rowSubtitle}>
+                Upload vehicle list via Excel / CSV spreadsheet
+              </Text>
+            </View>
+            <ChevronRight size={18} color="#94A3B8" />
+          </TouchableOpacity>
+
+          <View style={styles.separator} />
+
+          {/* 2. Inventory Customization Option */}
           <TouchableOpacity
             style={styles.settingRow}
             activeOpacity={0.7}
@@ -85,7 +106,7 @@ export default function SettingsScreen() {
 
           <View style={styles.separator} />
 
-          {/* 2. Print Setup Option */}
+          {/* 3. Print Setup Option */}
           <TouchableOpacity
             style={styles.settingRow}
             activeOpacity={0.7}

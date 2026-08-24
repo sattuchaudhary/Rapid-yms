@@ -1059,6 +1059,231 @@ export const getTrashVehiclesService = async (tenantId: string) => {
   });
 };
 
+export interface ImportVehicleRow {
+  vehicleNumber: string;
+  vehicleType?: string;
+  bankName?: string;
+  bankId?: string;
+  chassisNumber?: string;
+  engineNumber?: string;
+  brand?: string;
+  model?: string;
+  color?: string;
+  repoAgency?: string;
+  repoDate?: string;
+  entryDate?: string;
+  customerName?: string;
+  customerPhone?: string;
+  yardStatus?: 'KACHHA' | 'PAKKA';
+  yardLocationId?: string;
+}
+
+export const bulkImportVehiclesService = async (
+  tenantId: string,
+  userId: string,
+  rows: ImportVehicleRow[]
+) => {
+  if (!rows || !Array.isArray(rows) || rows.length === 0) {
+    throw new AppError('No vehicle data provided for import', 400);
+  }
+
+  // Check tenant quota
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+  });
+  if (!tenant) throw new AppError('Tenant not found', 404);
+
+  const existingCount = await prisma.vehicle.count({
+    where: { tenantId, isDeleted: false },
+  });
+
+  if (tenant.maxVehicles !== -1 && existingCount + rows.length > tenant.maxVehicles) {
+    throw new AppError(
+      `SaaS Quota Exceeded: Your plan limit is ${tenant.maxVehicles} vehicles. Current: ${existingCount}, Trying to import: ${rows.length}.`,
+      402
+    );
+  }
+
+  // Pre-fetch all banks in tenant for instant ID lookup
+  const tenantBanks = await prisma.bank.findMany({
+    where: { tenantId },
+    include: { parkingRates: true },
+  });
+
+  // Pre-fetch existing vehicle numbers in tenant
+  const normalizedVehicleNumbers = rows
+    .map((r) => (r.vehicleNumber || '').toUpperCase().trim())
+    .filter(Boolean);
+
+  const existingVehicles = await prisma.vehicle.findMany({
+    where: {
+      tenantId,
+      vehicleNumber: { in: normalizedVehicleNumbers },
+    },
+    select: { vehicleNumber: true },
+  });
+  const existingSet = new Set(existingVehicles.map((v) => v.vehicleNumber.toUpperCase()));
+
+  const defaultDailyRates: Record<VehicleType, number> = {
+    TW: 50.0,
+    THREE_W: 100.0,
+    FW: 150.0,
+    CV: 250.0,
+  };
+
+  const toInsert: any[] = [];
+  const skippedDuplicates: string[] = [];
+  const errors: { row: number; vehicleNumber: string; message: string }[] = [];
+
+  const seenInBatch = new Set<string>();
+
+  rows.forEach((row, index) => {
+    const rawVNum = (row.vehicleNumber || '').toUpperCase().trim();
+    if (!rawVNum || rawVNum.length < 4) {
+      errors.push({
+        row: index + 1,
+        vehicleNumber: rawVNum || 'EMPTY',
+        message: 'Invalid or missing Vehicle Number',
+      });
+      return;
+    }
+
+    if (existingSet.has(rawVNum) || seenInBatch.has(rawVNum)) {
+      skippedDuplicates.push(rawVNum);
+      return;
+    }
+    seenInBatch.add(rawVNum);
+
+    // Normalize Vehicle Type
+    let vType: VehicleType = 'TW';
+    const rawType = (row.vehicleType || '').toUpperCase().trim();
+    if (['TW', 'TWO_WHEELER', '2W', 'BIKE'].includes(rawType)) vType = 'TW';
+    else if (['THREE_W', '3W', 'AUTO'].includes(rawType)) vType = 'THREE_W';
+    else if (['FW', 'FOUR_WHEELER', '4W', 'CAR'].includes(rawType)) vType = 'FW';
+    else if (['CV', 'COMMERCIAL', 'TRUCK', 'BUS'].includes(rawType)) vType = 'CV';
+
+    // Normalize Yard Status
+    let yardStatus: YardStatus = 'KACHHA';
+    const rawStatus = (row.yardStatus || '').toUpperCase().trim();
+    if (rawStatus === 'PAKKA') yardStatus = 'PAKKA';
+
+    // Bank resolution
+    const rawBankName = (row.bankName || '').trim() || 'Direct';
+    const matchedBank = tenantBanks.find(
+      (b) => b.name.toLowerCase() === rawBankName.toLowerCase()
+    );
+    const bankId = matchedBank ? matchedBank.id : null;
+    const finalBankName = matchedBank ? matchedBank.name : rawBankName;
+
+    // Rate calculation
+    let dailyRate = defaultDailyRates[vType] || 100.0;
+    if (matchedBank?.parkingRates) {
+      const customRate = matchedBank.parkingRates.find((pr) => pr.vehicleType === vType);
+      if (customRate) dailyRate = customRate.dailyRate;
+    }
+
+    // Dates
+    const entryDate = row.entryDate && !isNaN(Date.parse(row.entryDate))
+      ? new Date(row.entryDate)
+      : new Date();
+    const repoDate = row.repoDate && !isNaN(Date.parse(row.repoDate))
+      ? new Date(row.repoDate)
+      : entryDate;
+
+    toInsert.push({
+      tenantId,
+      enteredById: userId,
+      vehicleNumber: rawVNum,
+      chassisNumber: (row.chassisNumber || '').trim() || null,
+      engineNumber: (row.engineNumber || '').trim() || null,
+      vehicleType: vType,
+      brand: (row.brand || '').trim() || null,
+      model: (row.model || '').trim() || null,
+      color: (row.color || '').trim() || null,
+      bankName: finalBankName,
+      bankId,
+      repoAgency: (row.repoAgency || '').trim() || null,
+      repoDate,
+      entryDate,
+      kachhaStartDate: entryDate,
+      pakkaDate: yardStatus === 'PAKKA' ? entryDate : null,
+      billingStart: yardStatus === 'PAKKA' ? entryDate : null,
+      customerName: (row.customerName || '').trim() || null,
+      customerPhone: (row.customerPhone || '').trim() || null,
+      yardStatus,
+      dailyRate,
+    });
+  });
+
+  if (toInsert.length === 0) {
+    return {
+      importedCount: 0,
+      skippedCount: skippedDuplicates.length,
+      skippedVehicles: skippedDuplicates,
+      errors,
+      message: 'No new valid vehicles to import.',
+    };
+  }
+
+  // Insert in atomic transaction
+  const insertedCount = await prisma.$transaction(async (tx) => {
+    let count = 0;
+    for (const vData of toInsert) {
+      const { dailyRate, ...vehiclePayload } = vData;
+      const created = await tx.vehicle.create({
+        data: vehiclePayload,
+      });
+
+      // Create Parking Billing record stub
+      await tx.parkingBilling.create({
+        data: {
+          tenantId,
+          vehicleId: created.id,
+          dailyRate,
+          billingStartDate: created.entryDate,
+        },
+      });
+
+      // Status history
+      await tx.vehicleStatusHistory.create({
+        data: {
+          tenantId,
+          vehicleId: created.id,
+          toStatus: created.yardStatus,
+          changedById: userId,
+          reason: 'Bulk Excel/CSV Import',
+        },
+      });
+      count++;
+    }
+
+    // Audit Log
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        userId,
+        module: 'vehicles',
+        action: 'bulk_imported',
+        details: {
+          count,
+          skippedDuplicatesCount: skippedDuplicates.length,
+          firstFewVehicles: toInsert.slice(0, 10).map((v) => v.vehicleNumber),
+        },
+      },
+    });
+
+    return count;
+  });
+
+  return {
+    importedCount: insertedCount,
+    skippedCount: skippedDuplicates.length,
+    skippedVehicles: skippedDuplicates,
+    errors,
+    message: `Successfully imported ${insertedCount} vehicle(s) into yard.`,
+  };
+};
+
 export const deleteVehiclePhotoService = async (tenantId: string, vehicleId: string, photoId: string) => {
   const photo = await prisma.vehiclePhoto.findFirst({
     where: { id: photoId, vehicleId, tenantId },

@@ -377,6 +377,13 @@ export const bulkDeleteVehicles = async (payload: { vehicleIds?: string[]; delet
   });
 };
 
+export const bulkImportVehicles = async (vehicles: any[]): Promise<any> => {
+  return await apiRequest('/api/vehicles/bulk-import', {
+    method: 'POST',
+    body: JSON.stringify({ vehicles }),
+  });
+};
+
 export const getDashboardStats = async (params: { startDate?: string; endDate?: string } = {}): Promise<any> => {
   const queryParts: string[] = [];
   if (params.startDate) queryParts.push(`startDate=${encodeURIComponent(params.startDate)}`);

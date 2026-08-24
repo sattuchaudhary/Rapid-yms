@@ -10,6 +10,7 @@ import {
   createYardLocation,
   deleteVehicle,
   bulkDeleteVehicles,
+  bulkImportVehicles,
   softDeleteVehicles,
   restoreVehicles,
   getTrashVehicles,
@@ -36,6 +37,9 @@ router.get('/shift-pending', authenticate, getShiftPendingVehicles);
 router.get('/:id/shift-charge', authenticate, calculateStayCharge);
 router.post('/:id/initiate-shift', authenticate, initiateVehicleShift);
 router.post('/:id/complete-shift', authenticate, completeVehicleShift);
+
+// Bulk Import & Excel Operations
+router.post('/bulk-import', authenticate, bulkImportVehicles);
 
 // 48-Hour Recovery & Trash Endpoints
 router.get('/trash', authenticate, getTrashVehicles);

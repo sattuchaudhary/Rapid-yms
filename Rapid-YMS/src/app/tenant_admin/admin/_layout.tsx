@@ -125,6 +125,15 @@ export default function AdminLayout() {
         }}
       />
       <Stack.Screen
+        name="settings/bulk-upload"
+        options={{
+          headerShown: false,
+          animation: 'slide_from_right',
+          gestureEnabled: true,
+          gestureDirection: 'horizontal',
+        }}
+      />
+      <Stack.Screen
         name="settings/delete-vehicles"
         options={{
           headerShown: false,
