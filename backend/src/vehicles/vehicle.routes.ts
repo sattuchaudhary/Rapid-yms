@@ -9,6 +9,10 @@ import {
   getYardLocations,
   createYardLocation,
   deleteVehicle,
+  bulkDeleteVehicles,
+  softDeleteVehicles,
+  restoreVehicles,
+  getTrashVehicles,
   deleteVehiclePhoto,
   getVehicleParkingCalculation,
   recalculateVehicleParking,
@@ -32,6 +36,15 @@ router.get('/shift-pending', authenticate, getShiftPendingVehicles);
 router.get('/:id/shift-charge', authenticate, calculateStayCharge);
 router.post('/:id/initiate-shift', authenticate, initiateVehicleShift);
 router.post('/:id/complete-shift', authenticate, completeVehicleShift);
+
+// 48-Hour Recovery & Trash Endpoints
+router.get('/trash', authenticate, getTrashVehicles);
+router.post('/trash', authenticate, softDeleteVehicles);
+router.post('/restore', authenticate, restoreVehicles);
+
+// Permanent Bulk Operations
+router.post('/bulk-delete', authenticate, bulkDeleteVehicles);
+router.delete('/bulk', authenticate, bulkDeleteVehicles);
 
 // All vehicle endpoints require authenticated user
 router.get('/', authenticate, getVehicles);

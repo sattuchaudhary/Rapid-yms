@@ -18,12 +18,13 @@ export interface VehicleFilters {
   paymentStatus?: string;
   startDate?: string;
   endDate?: string;
+  isDeleted?: boolean;
   page?: number;
   limit?: number;
 }
 
 export const getVehicleSummaryService = async (tenantId: string, startDate?: string, endDate?: string) => {
-  const whereClause: any = { tenantId };
+  const whereClause: any = { tenantId, isDeleted: false };
   if (startDate || endDate) {
     whereClause.entryDate = {};
     if (startDate) whereClause.entryDate.gte = new Date(startDate);
@@ -79,7 +80,10 @@ const signVehiclePhotos = async (tenantId: string, photos: any[]) => {
 };
 
 export const getTenantVehiclesService = async (tenantId: string, filters: VehicleFilters) => {
-  const whereClause: any = { tenantId };
+  const whereClause: any = {
+    tenantId,
+    isDeleted: filters.isDeleted !== undefined ? filters.isDeleted : false,
+  };
 
   // Global search
   if (filters.search) {
@@ -761,6 +765,297 @@ export const deleteVehicleService = async (id: string, tenantId: string, userId:
     });
 
     return deleted;
+  });
+};
+
+export const bulkDeleteVehiclesService = async (
+  tenantId: string,
+  userId: string,
+  options: { vehicleIds?: string[]; deleteAll?: boolean }
+) => {
+  const { vehicleIds, deleteAll } = options;
+
+  const whereClause: any = { tenantId };
+  if (!deleteAll) {
+    if (!vehicleIds || !Array.isArray(vehicleIds) || vehicleIds.length === 0) {
+      throw new AppError('No vehicles specified for deletion', 400);
+    }
+    whereClause.id = { in: vehicleIds };
+  }
+
+  const targetVehicles = await prisma.vehicle.findMany({
+    where: whereClause,
+    select: { id: true, vehicleNumber: true, yardLocationId: true },
+  });
+
+  if (targetVehicles.length === 0) {
+    return { count: 0, message: 'No matching vehicles found to delete' };
+  }
+
+  const ids = targetVehicles.map((v) => v.id);
+  const locationIds = targetVehicles
+    .map((v) => v.yardLocationId)
+    .filter((locId): locId is string => Boolean(locId));
+
+  return prisma.$transaction(async (tx) => {
+    // 1. Free all allocated yard slots
+    if (locationIds.length > 0) {
+      await tx.yardLocation.updateMany({
+        where: { id: { in: locationIds }, tenantId },
+        data: { isOccupied: false },
+      });
+    }
+
+    // 2. Delete linked Releases
+    await tx.release.deleteMany({
+      where: { vehicleId: { in: ids }, tenantId },
+    });
+
+    // 3. Delete linked Parking Billings
+    await tx.parkingBilling.deleteMany({
+      where: { vehicleId: { in: ids }, tenantId },
+    });
+
+    // 4. Delete linked Parking Transactions
+    await tx.parkingTransaction.deleteMany({
+      where: { vehicleId: { in: ids }, tenantId },
+    });
+
+    // 5. Delete linked Shift Histories
+    await tx.vehicleShiftHistory.deleteMany({
+      where: { vehicleId: { in: ids }, tenantId },
+    });
+
+    // 6. Delete linked Status Histories
+    await tx.vehicleStatusHistory.deleteMany({
+      where: { vehicleId: { in: ids }, tenantId },
+    });
+
+    // 7. Delete linked Release Order Extractions & Documents
+    const roDocs = await tx.releaseOrderDocument.findMany({
+      where: { vehicleId: { in: ids }, tenantId },
+      select: { id: true },
+    });
+    if (roDocs.length > 0) {
+      const roDocIds = roDocs.map((doc) => doc.id);
+      await tx.releaseOrderExtraction.deleteMany({
+        where: { releaseOrderDocumentId: { in: roDocIds } },
+      });
+      await tx.releaseOrderDocument.deleteMany({
+        where: { id: { in: roDocIds } },
+      });
+    }
+
+    // 8. Delete linked Photos & Inventory
+    await tx.vehiclePhoto.deleteMany({
+      where: { vehicleId: { in: ids }, tenantId },
+    });
+    await tx.vehicleInventory.deleteMany({
+      where: { vehicleId: { in: ids }, tenantId },
+    });
+
+    // 9. Delete Vehicles
+    const deleteResult = await tx.vehicle.deleteMany({
+      where: { id: { in: ids }, tenantId },
+    });
+
+    // 10. Audit Log
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        userId,
+        module: 'vehicles',
+        action: 'bulk_deleted',
+        details: {
+          count: deleteResult.count,
+          deletedVehicleNumbers: targetVehicles.slice(0, 50).map((v) => v.vehicleNumber),
+          deleteAll: !!deleteAll,
+        },
+      },
+    });
+
+    return {
+      count: deleteResult.count,
+      message: `Successfully deleted ${deleteResult.count} vehicle(s)`,
+    };
+  });
+};
+
+export const softDeleteVehiclesService = async (
+  tenantId: string,
+  userId: string,
+  options: { vehicleIds?: string[]; deleteAll?: boolean }
+) => {
+  const { vehicleIds, deleteAll } = options;
+  const whereClause: any = { tenantId, isDeleted: false };
+  if (!deleteAll) {
+    if (!vehicleIds || !Array.isArray(vehicleIds) || vehicleIds.length === 0) {
+      throw new AppError('No vehicles specified for deletion', 400);
+    }
+    whereClause.id = { in: vehicleIds };
+  }
+
+  const targetVehicles = await prisma.vehicle.findMany({
+    where: whereClause,
+    select: { id: true, vehicleNumber: true, yardLocationId: true },
+  });
+
+  if (targetVehicles.length === 0) {
+    return { count: 0, message: 'No active vehicles found to delete' };
+  }
+
+  const ids = targetVehicles.map((v) => v.id);
+  const locationIds = targetVehicles
+    .map((v) => v.yardLocationId)
+    .filter((locId): locId is string => Boolean(locId));
+
+  return prisma.$transaction(async (tx) => {
+    // Free yard slot so space is available for other operations
+    if (locationIds.length > 0) {
+      await tx.yardLocation.updateMany({
+        where: { id: { in: locationIds }, tenantId },
+        data: { isOccupied: false },
+      });
+    }
+
+    // Mark vehicles as soft-deleted with timestamp
+    const result = await tx.vehicle.updateMany({
+      where: { id: { in: ids }, tenantId },
+      data: {
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedById: userId,
+        yardLocationId: null,
+      },
+    });
+
+    // Record Audit Log
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        userId,
+        module: 'vehicles',
+        action: 'moved_to_trash',
+        details: {
+          count: result.count,
+          vehicleNumbers: targetVehicles.slice(0, 50).map((v) => v.vehicleNumber),
+          note: 'Moved to 48-hour recovery trash bin',
+        },
+      },
+    });
+
+    return {
+      count: result.count,
+      message: `Moved ${result.count} vehicle(s) to Trash. You can restore them within 48 hours.`,
+    };
+  });
+};
+
+export const restoreVehiclesService = async (
+  tenantId: string,
+  userId: string,
+  options: { vehicleIds?: string[]; restoreAll?: boolean }
+) => {
+  const { vehicleIds, restoreAll } = options;
+  const whereClause: any = { tenantId, isDeleted: true };
+  if (!restoreAll) {
+    if (!vehicleIds || !Array.isArray(vehicleIds) || vehicleIds.length === 0) {
+      throw new AppError('No vehicles specified for restore', 400);
+    }
+    whereClause.id = { in: vehicleIds };
+  }
+
+  const targetVehicles = await prisma.vehicle.findMany({
+    where: whereClause,
+    select: { id: true, vehicleNumber: true },
+  });
+
+  if (targetVehicles.length === 0) {
+    return { count: 0, message: 'No deleted vehicles found to restore' };
+  }
+
+  const ids = targetVehicles.map((v) => v.id);
+
+  return prisma.$transaction(async (tx) => {
+    const result = await tx.vehicle.updateMany({
+      where: { id: { in: ids }, tenantId },
+      data: {
+        isDeleted: false,
+        deletedAt: null,
+        deletedById: null,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        userId,
+        module: 'vehicles',
+        action: 'restored_from_trash',
+        details: {
+          count: result.count,
+          vehicleNumbers: targetVehicles.slice(0, 50).map((v) => v.vehicleNumber),
+        },
+      },
+    });
+
+    return {
+      count: result.count,
+      message: `Successfully restored ${result.count} vehicle(s) back to active inventory`,
+    };
+  });
+};
+
+export const getTrashVehiclesService = async (tenantId: string) => {
+  const now = new Date();
+  const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000;
+  const thresholdDate = new Date(now.getTime() - FORTY_EIGHT_HOURS_MS);
+
+  // 1. Check for expired vehicles (>48 hours) and permanently purge them
+  const expiredVehicles = await prisma.vehicle.findMany({
+    where: {
+      tenantId,
+      isDeleted: true,
+      deletedAt: { lte: thresholdDate },
+    },
+    select: { id: true },
+  });
+
+  if (expiredVehicles.length > 0) {
+    const expiredIds = expiredVehicles.map((v) => v.id);
+    await bulkDeleteVehiclesService(tenantId, 'system-auto-purge', {
+      vehicleIds: expiredIds,
+    }).catch((err) => console.warn('[Auto-purge error]', err));
+  }
+
+  // 2. Fetch active vehicles in trash
+  const trashedVehicles = await prisma.vehicle.findMany({
+    where: {
+      tenantId,
+      isDeleted: true,
+    },
+    include: {
+      photos: true,
+      bank: true,
+    },
+    orderBy: { deletedAt: 'desc' },
+  });
+
+  // Calculate remaining time for each vehicle
+  return trashedVehicles.map((v) => {
+    const deletedTime = v.deletedAt ? new Date(v.deletedAt).getTime() : now.getTime();
+    const expiryTime = deletedTime + FORTY_EIGHT_HOURS_MS;
+    const msRemaining = Math.max(0, expiryTime - now.getTime());
+    const hoursRemaining = Math.floor(msRemaining / (1000 * 60 * 60));
+    const minutesRemaining = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
+
+    return {
+      ...v,
+      msRemaining,
+      hoursRemaining,
+      minutesRemaining,
+      timeRemainingFormatted: `${hoursRemaining}h ${minutesRemaining}m left`,
+    };
   });
 };
 

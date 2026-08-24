@@ -15,6 +15,8 @@ import {
   ClipboardList,
   Printer,
   ChevronRight,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
@@ -59,7 +61,9 @@ export default function SettingsScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Settings Group */}
+        <Text style={styles.sectionHeader}>GENERAL CONFIGURATION</Text>
+
+        {/* Settings Group 1 */}
         <View style={styles.groupContainer}>
           {/* 1. Inventory Customization Option */}
           <TouchableOpacity
@@ -97,6 +101,33 @@ export default function SettingsScreen() {
               </Text>
             </View>
             <ChevronRight size={18} color="#94A3B8" />
+          </TouchableOpacity>
+        </View>
+
+        <Text style={[styles.sectionHeader, { marginTop: 24, color: '#DC2626' }]}>DATA MANAGEMENT & DANGER ZONE</Text>
+
+        {/* Settings Group 2 - Data & Vehicle Clean */}
+        <View style={[styles.groupContainer, { borderColor: '#FEE2E2' }]}>
+          <TouchableOpacity
+            style={styles.settingRow}
+            activeOpacity={0.7}
+            onPress={() => handleNavigate('/tenant_admin/admin/settings/delete-vehicles')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: '#FEF2F2' }]}>
+              <Trash2 size={20} color="#EF4444" />
+            </View>
+            <View style={styles.rowTextContainer}>
+              <View style={styles.titleWithBadge}>
+                <Text style={[styles.rowTitle, { color: '#B91C1C' }]}>Clear / Delete Vehicles</Text>
+                <View style={styles.dangerBadge}>
+                  <Text style={styles.dangerBadgeText}>ADMIN ONLY</Text>
+                </View>
+              </View>
+              <Text style={styles.rowSubtitle}>
+                Select & permanently delete vehicles or clear yard data
+              </Text>
+            </View>
+            <ChevronRight size={18} color="#EF4444" />
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -190,5 +221,30 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#F1F5F9',
     marginLeft: 70,
+  },
+  sectionHeader: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  titleWithBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dangerBadge: {
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  dangerBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#DC2626',
+    letterSpacing: 0.4,
   },
 });

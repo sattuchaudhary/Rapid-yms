@@ -7,6 +7,10 @@ import {
   updateVehicleService,
   addVehiclePhotoService,
   deleteVehicleService,
+  bulkDeleteVehiclesService,
+  softDeleteVehiclesService,
+  restoreVehiclesService,
+  getTrashVehiclesService,
   deleteVehiclePhotoService,
   getVehicleParkingCalculationService,
   getVehicleParkingTransactionsService,
@@ -40,43 +44,27 @@ const createVehicleSchema = z.object({
   })).optional(),
 });
 
-const updateVehicleSchema = z.object({
-  vehicleNumber: z.string().optional(),
-  chassisNumber: z.string().nullable().optional(),
-  engineNumber: z.string().nullable().optional(),
-  vehicleType: z.enum(['TW', 'THREE_W', 'FW', 'CV']).optional(),
-  brand: z.string().nullable().optional(),
-  model: z.string().nullable().optional(),
-  color: z.string().nullable().optional(),
-  bankName: z.string().nullable().optional(),
-  bankId: z.string().nullable().optional(),
-  repoAgency: z.string().nullable().optional(),
-  repoDate: z.string().nullable().optional(),
-  entryDate: z.string().nullable().optional(),
-  customerName: z.string().nullable().optional(),
-  customerPhone: z.string().nullable().optional(),
-  customerSign: z.string().nullable().optional(),
-  yardLocationId: z.string().nullable().optional(),
+const updateVehicleSchema = createVehicleSchema.partial().extend({
   yardStatus: z.enum(['KACHHA', 'PAKKA', 'RELEASED']).optional(),
   repoKitDate: z.string().nullable().optional(),
   kachhaStartDate: z.string().nullable().optional(),
   pakkaDate: z.string().nullable().optional(),
   releaseOrderDate: z.string().nullable().optional(),
   releasePersonType: z.enum(['CUSTOMER', 'BUYER']).optional(),
-  inventory: z.array(z.object({
-    itemName: z.string(),
-    isPresent: z.boolean(),
-    remarks: z.string().optional(),
-  })).optional(),
+  entryDate: z.string().nullable().optional(),
 });
 
 
 export const getVehicleSummary = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const tenantId = req.user!.tenantId;
-    const startDate = req.query.startDate as string;
-    const endDate = req.query.endDate as string;
-    const summary = await getVehicleSummaryService(tenantId, startDate, endDate);
+    const { startDate, endDate } = req.query;
+
+    const summary = await getVehicleSummaryService(
+      tenantId,
+      startDate as string,
+      endDate as string
+    );
     res.json({ success: true, data: summary });
   } catch (err) {
     next(err);
@@ -86,20 +74,33 @@ export const getVehicleSummary = async (req: AuthRequest, res: Response, next: N
 export const getVehicles = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const tenantId = req.user!.tenantId;
-    const filters = {
-      search: req.query.search as string,
-      vehicleType: req.query.vehicleType as any,
-      yardStatus: req.query.yardStatus as any,
-      shiftStatus: req.query.shiftStatus as any,
-      shifting: req.query.shifting === 'true' || req.query.shifting === '1',
-      bankName: req.query.bankName as string,
-      repoAgency: req.query.repoAgency as string,
-      startDate: req.query.startDate as string,
-      endDate: req.query.endDate as string,
-      page: req.query.page ? parseInt(req.query.page as string, 10) : 1,
-      limit: req.query.limit ? parseInt(req.query.limit as string, 10) : 50,
-    };
-    const result = await getTenantVehiclesService(tenantId, filters);
+    const {
+      search,
+      vehicleType,
+      yardStatus,
+      shiftStatus,
+      shifting,
+      bankName,
+      repoAgency,
+      startDate,
+      endDate,
+      page,
+      limit,
+    } = req.query;
+
+    const result = await getTenantVehiclesService(tenantId, {
+      search: search as string,
+      vehicleType: vehicleType as any,
+      yardStatus: yardStatus as any,
+      shiftStatus: shiftStatus as any,
+      shifting: shifting === 'true',
+      bankName: bankName as string,
+      repoAgency: repoAgency as string,
+      startDate: startDate as string,
+      endDate: endDate as string,
+      page: page ? parseInt(page as string) : undefined,
+      limit: limit ? parseInt(limit as string) : undefined,
+    });
     res.json({ success: true, ...result });
   } catch (err) {
     next(err);
@@ -121,8 +122,8 @@ export const createVehicle = async (req: AuthRequest, res: Response, next: NextF
   try {
     const tenantId = req.user!.tenantId;
     const userId = req.user!.id;
-    const validatedData = createVehicleSchema.parse(req.body);
-    const vehicle = await createVehicleEntryService(tenantId, userId, validatedData);
+    const parsedData = createVehicleSchema.parse(req.body);
+    const vehicle = await createVehicleEntryService(tenantId, userId, parsedData);
     res.status(201).json({ success: true, data: vehicle });
   } catch (err) {
     next(err);
@@ -134,23 +135,22 @@ export const updateVehicle = async (req: AuthRequest, res: Response, next: NextF
     const { id } = req.params;
     const tenantId = req.user!.tenantId;
     const userId = req.user!.id;
-    const validatedData = updateVehicleSchema.parse(req.body);
-    const vehicle = await updateVehicleService(id, tenantId, userId, validatedData);
+    const parsedData = updateVehicleSchema.parse(req.body);
+    const vehicle = await updateVehicleService(id, tenantId, userId, parsedData);
     res.json({ success: true, data: vehicle });
   } catch (err) {
     next(err);
   }
 };
 
-// Add upload photo handler (for testing, we support providing a mock S3 URL or direct base64/link)
 export const addVehiclePhoto = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params; // vehicleId
+    const { id } = req.params;
     const tenantId = req.user!.tenantId;
-    const { photoType, s3Url, fileSize, lat, lng } = req.body;
+    const { photoType, s3Url, fileSize, gps } = req.body;
 
     if (!photoType || !s3Url) {
-      return res.status(400).json({ success: false, error: 'photoType and s3Url required' });
+      return res.status(400).json({ success: false, error: 'photoType and s3Url are required' });
     }
 
     const photo = await addVehiclePhotoService(
@@ -158,8 +158,8 @@ export const addVehiclePhoto = async (req: AuthRequest, res: Response, next: Nex
       id,
       photoType,
       s3Url,
-      fileSize ? parseInt(fileSize) : 0,
-      lat && lng ? { lat: parseFloat(lat), lng: parseFloat(lng) } : undefined
+      fileSize,
+      gps
     );
 
     res.status(201).json({ success: true, data: photo });
@@ -183,6 +183,74 @@ export const deleteVehicle = async (req: AuthRequest, res: Response, next: NextF
 
     await deleteVehicleService(id, tenantId, userId);
     res.json({ success: true, message: 'Vehicle profile deleted successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const softDeleteVehicles = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const userId = req.user!.id;
+    const role = req.user!.role;
+
+    const allowedRoles = ['SUPER_ADMIN', 'TENANT_ADMIN', 'MANAGER'];
+    if (!allowedRoles.includes(role)) {
+      return res.status(403).json({ success: false, error: 'Unauthorized: Only Managers/Admins can delete vehicles.' });
+    }
+
+    const { vehicleIds, deleteAll } = req.body;
+    const result = await softDeleteVehiclesService(tenantId, userId, { vehicleIds, deleteAll });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const restoreVehicles = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const userId = req.user!.id;
+    const role = req.user!.role;
+
+    const allowedRoles = ['SUPER_ADMIN', 'TENANT_ADMIN', 'MANAGER'];
+    if (!allowedRoles.includes(role)) {
+      return res.status(403).json({ success: false, error: 'Unauthorized: Only Managers/Admins can restore vehicles.' });
+    }
+
+    const { vehicleIds, restoreAll } = req.body;
+    const result = await restoreVehiclesService(tenantId, userId, { vehicleIds, restoreAll });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getTrashVehicles = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const trashed = await getTrashVehiclesService(tenantId);
+    res.json({ success: true, data: trashed });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const bulkDeleteVehicles = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const userId = req.user!.id;
+    const role = req.user!.role;
+
+    // Check authorization: only admin, manager are allowed to bulk delete
+    const allowedRoles = ['SUPER_ADMIN', 'TENANT_ADMIN', 'MANAGER'];
+    if (!allowedRoles.includes(role)) {
+      return res.status(403).json({ success: false, error: 'Unauthorized: Only Managers/Admins can permanently delete vehicles.' });
+    }
+
+    const { vehicleIds, deleteAll } = req.body;
+    const result = await bulkDeleteVehiclesService(tenantId, userId, { vehicleIds, deleteAll });
+    res.json({ success: true, ...result });
   } catch (err) {
     next(err);
   }

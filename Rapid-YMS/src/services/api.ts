@@ -346,6 +346,37 @@ export const updateVehicle = async (id: string, data: any): Promise<any> => {
   });
 };
 
+export const deleteVehicleById = async (id: string): Promise<any> => {
+  return await apiRequest(`/api/vehicles/${id}`, {
+    method: 'DELETE',
+  });
+};
+
+export const softDeleteVehicles = async (payload: { vehicleIds?: string[]; deleteAll?: boolean }): Promise<any> => {
+  return await apiRequest('/api/vehicles/trash', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+};
+
+export const restoreVehicles = async (payload: { vehicleIds?: string[]; restoreAll?: boolean }): Promise<any> => {
+  return await apiRequest('/api/vehicles/restore', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+};
+
+export const getTrashVehicles = async (): Promise<any> => {
+  return await apiRequest('/api/vehicles/trash');
+};
+
+export const bulkDeleteVehicles = async (payload: { vehicleIds?: string[]; deleteAll?: boolean }): Promise<any> => {
+  return await apiRequest('/api/vehicles/bulk-delete', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+};
+
 export const getDashboardStats = async (params: { startDate?: string; endDate?: string } = {}): Promise<any> => {
   const queryParts: string[] = [];
   if (params.startDate) queryParts.push(`startDate=${encodeURIComponent(params.startDate)}`);
