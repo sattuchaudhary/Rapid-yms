@@ -31,28 +31,23 @@ import {
   Phone,
   CreditCard,
   X,
-  Calculator,
-  ShieldCheck,
-  Receipt,
   Car,
-  RotateCcw,
   Check,
   ChevronDown,
   Lock,
-  Banknote,
-  Smartphone,
-  Layers,
-  FileCheck,
   Sparkles,
-  Stamp,
-  PenTool,
   Clock,
   UserCheck,
   UserX,
   AlertCircle,
-  HelpCircle,
   Edit3,
-  Building2,
+  ArrowRight,
+  ArrowLeft,
+  ShieldCheck,
+  ShieldAlert,
+  Percent,
+  CheckCircle,
+  HelpCircle,
 } from 'lucide-react-native';
 import ReleaseHeader from './header';
 import GatePassModal from './GatePassModal';
@@ -67,7 +62,6 @@ import {
   getVehicles,
   directReleaseVehicle,
   uploadFileToStorage,
-  saveRoManualOverride,
 } from '@/services/api';
 import { parseRoText, ParsedRoDocument } from '@/utils/roOcrParser';
 import { performRealRoOcr } from '@/services/ocrService';
@@ -89,86 +83,203 @@ const INDIAN_ID_TYPES: IndianIdType[] = [
 
 const PAYMENT_MODES: { key: PaymentMode; label: string }[] = [
   { key: 'Cash', label: 'Cash' },
-  { key: 'Online', label: 'Online (UPI / QR / Bank)' },
-  { key: 'Cash + Online', label: 'Cash + Online' },
+  { key: 'Online', label: 'Online (UPI / Bank)' },
+  { key: 'Cash + Online', label: 'Split (Cash + Online)' },
   { key: 'Cheque', label: 'Cheque' },
   { key: 'DD', label: 'Demand Draft (DD)' },
   { key: 'NEFT/RTGS', label: 'NEFT / RTGS' },
 ];
+
+export interface IdentifierMatch {
+  field: 'registration' | 'engine' | 'chassis';
+  label: string;
+  yardVal: string;
+  docVal: string;
+  pct: number;
+  isMatched: boolean;
+  statusText: string;
+}
+
+/**
+ * Robust Multi-Identifier Matcher
+ * Supports partial matching on last 4-6 digits for Engine and Chassis.
+ */
+function calculateIdentifierMatch(
+  yardRaw: string | undefined | null,
+  docRaw: string | undefined | null,
+  type: 'registration' | 'engine' | 'chassis'
+): IdentifierMatch {
+  const cleanYard = (yardRaw || '').toUpperCase().replace(/[\s\-_.\/]/g, '');
+  const cleanDoc = (docRaw || '').toUpperCase().replace(/[\s\-_.\/]/g, '');
+  const label = type === 'registration' ? 'Vehicle Plate' : type === 'engine' ? 'Engine No' : 'Chassis No';
+
+  if (!cleanDoc) {
+    return {
+      field: type,
+      label,
+      yardVal: yardRaw || '—',
+      docVal: 'Not in Doc',
+      pct: 0,
+      isMatched: false,
+      statusText: 'Not in Document',
+    };
+  }
+
+  if (!cleanYard) {
+    return {
+      field: type,
+      label,
+      yardVal: 'Not in Yard',
+      docVal: docRaw || '',
+      pct: 100,
+      isMatched: true,
+      statusText: 'Detected from Doc',
+    };
+  }
+
+  // Exact Match
+  if (cleanYard === cleanDoc) {
+    return {
+      field: type,
+      label,
+      yardVal: yardRaw || '',
+      docVal: docRaw || '',
+      pct: 100,
+      isMatched: true,
+      statusText: '100% Matched',
+    };
+  }
+
+  // Engine & Chassis: Last 4 to 6 digits match
+  if (type === 'engine' || type === 'chassis') {
+    const minLen = Math.min(cleanYard.length, cleanDoc.length);
+    const suffixLen = Math.min(minLen, 6);
+    if (suffixLen >= 4) {
+      const ySuffix = cleanYard.slice(-suffixLen);
+      const dSuffix = cleanDoc.slice(-suffixLen);
+      if (ySuffix === dSuffix || cleanDoc.endsWith(ySuffix) || cleanYard.endsWith(dSuffix)) {
+        return {
+          field: type,
+          label,
+          yardVal: yardRaw || '',
+          docVal: docRaw || '',
+          pct: 100,
+          isMatched: true,
+          statusText: `100% Matched (Last ${suffixLen} digits)`,
+        };
+      }
+    }
+  }
+
+  // Substring inclusion
+  if (cleanYard.includes(cleanDoc) || cleanDoc.includes(cleanYard)) {
+    return {
+      field: type,
+      label,
+      yardVal: yardRaw || '',
+      docVal: docRaw || '',
+      pct: 90,
+      isMatched: true,
+      statusText: 'Partial Match (90%)',
+    };
+  }
+
+  // Typo similarity / character overlap
+  const maxLen = Math.max(cleanYard.length, cleanDoc.length);
+  let common = 0;
+  for (let i = 0; i < Math.min(cleanYard.length, cleanDoc.length); i++) {
+    if (cleanYard[i] === cleanDoc[i]) common++;
+  }
+  const pct = Math.round((common / maxLen) * 100);
+
+  if (pct >= 75) {
+    return {
+      field: type,
+      label,
+      yardVal: yardRaw || '',
+      docVal: docRaw || '',
+      pct,
+      isMatched: pct >= 80,
+      statusText: `${pct}% Match (Minor Typo)`,
+    };
+  }
+
+  return {
+    field: type,
+    label,
+    yardVal: yardRaw || '',
+    docVal: docRaw || '',
+    pct: 0,
+    isMatched: false,
+    statusText: '0% Mismatch',
+  };
+}
 
 export default function PakkaReleaseScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id, plate } = useLocalSearchParams<{ id?: string; plate?: string }>();
 
-  // 1. Vehicle State
+  // Wizard Step: 1 = Document & Match, 2 = Recipient, 3 = Billing
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+
+  // Vehicle State
   const [vehicle, setVehicle] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [menuModalVisible, setMenuModalVisible] = useState(false);
 
-  // Dropdown Modals Visibility
-  const [paymentModeDropdownVisible, setPaymentModeDropdownVisible] = useState(false);
-  const [idTypeDropdownVisible, setIdTypeDropdownVisible] = useState(false);
-
-  // =================================================================
-  // STEP 1: RELEASE ORDER DOCUMENT & REAL OCR PARSER
-  // =================================================================
+  // STEP 1: Release Order & OCR
   const [roLetterDoc, setRoLetterDoc] = useState<ReleaseDocAttachment | null>(null);
   const [isScanningRo, setIsScanningRo] = useState(false);
-  const [scanStepIndex, setScanStepIndex] = useState(0);
   const [roScanData, setRoScanData] = useState<ParsedRoDocument | null>(null);
 
-  // =================================================================
-  // STEP 2: HANDOVER VERIFICATION (IS THIS PUSHPENDRA SINGH?)
-  // =================================================================
-  // null = pending, true = 1st party (Pushpendra Singh), false = 3rd party representative
-  const [isFirstPartyCustomer, setIsFirstPartyCustomer] = useState<boolean | null>(null);
+  // Editable/Corrected Values from OCR
+  const [extractedPlate, setExtractedPlate] = useState('');
+  const [extractedEngine, setExtractedEngine] = useState('');
+  const [extractedChassis, setExtractedChassis] = useState('');
+
+  // Edit/Fix Modal for OCR Typos
+  const [fixModalVisible, setFixModalVisible] = useState(false);
+  const [fixFieldType, setFixFieldType] = useState<'registration' | 'engine' | 'chassis'>('registration');
+  const [fixFieldValue, setFixFieldValue] = useState('');
+
+  // Dates & Waive-off
+  const [roDate, setRoDate] = useState<Date>(new Date());
+  const [waiverDaysConfig, setWaiverDaysConfig] = useState<number>(2);
+  const [approvedTillDate, setApprovedTillDate] = useState<Date>(new Date());
+  const [releaseDate, setReleaseDate] = useState<Date>(new Date());
+  const [showRoDatePicker, setShowRoDatePicker] = useState(false);
+  const [dailyRate, setDailyRate] = useState<number>(150);
+
+  // STEP 2: Recipient
+  const [isFirstPartyCustomer, setIsFirstPartyCustomer] = useState<boolean | null>(true);
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
   const [representativeRemarks, setRepresentativeRemarks] = useState('');
 
-  // =================================================================
-  // STEP 3: DATES & STAY TARIFF CALCULATION
-  // =================================================================
-  const [roDate, setRoDate] = useState<Date>(new Date(2026, 7, 19)); // 19 Aug 2026 from IDFC letter
-  const [waiverDaysConfig, setWaiverDaysConfig] = useState<number>(2); // 2 Days (48 Hours) from letter
-  const [approvedTillDate, setApprovedTillDate] = useState<Date>(new Date(2026, 7, 21)); // 21 Aug 2026
-  const [releaseDate, setReleaseDate] = useState<Date>(new Date()); // Today: 23 Aug 2026
-
-  // Date picker control
-  const [showRoDatePicker, setShowRoDatePicker] = useState(false);
-  const [dailyRate, setDailyRate] = useState<number>(150);
-
-  // =================================================================
-  // STEP 4: PAYMENT MODE
-  // =================================================================
-  const [paymentMode, setPaymentMode] = useState<PaymentMode | null>(null);
-  const [onlinePaidToName, setOnlinePaidToName] = useState('');
-  const [onlineScreenshot, setOnlineScreenshot] = useState<ReleaseDocAttachment | null>(null);
-
-  // Split Payment Inputs (Cash + Online)
-  const [splitCashAmount, setSplitCashAmount] = useState('');
-  const [splitOnlineAmount, setSplitOnlineAmount] = useState('');
-
-  // =================================================================
-  // STEP 5: CUSTOMER ID PROOF (FRONT + BACK DUAL UPLOAD)
-  // =================================================================
-  const [selectedIdType, setSelectedIdType] = useState<IndianIdType | null>(null);
+  const [selectedIdType, setSelectedIdType] = useState<IndianIdType | null>('Aadhaar Card');
   const [idNumberText, setIdNumberText] = useState('');
   const [idProofDocFront, setIdProofDocFront] = useState<ReleaseDocAttachment | null>(null);
   const [idProofDocBack, setIdProofDocBack] = useState<ReleaseDocAttachment | null>(null);
-
-  // =================================================================
-  // STEP 6: HANDOVER PHOTO WITH VEHICLE
-  // =================================================================
   const [handoverPhoto, setHandoverPhoto] = useState<ReleaseDocAttachment | null>(null);
+
+  // Dropdown Modals
+  const [paymentModeDropdownVisible, setPaymentModeDropdownVisible] = useState(false);
+  const [idTypeDropdownVisible, setIdTypeDropdownVisible] = useState(false);
+
+  // STEP 3: Payment
+  const [paymentMode, setPaymentMode] = useState<PaymentMode | null>('Cash');
+  const [onlinePaidToName, setOnlinePaidToName] = useState('');
+  const [onlineScreenshot, setOnlineScreenshot] = useState<ReleaseDocAttachment | null>(null);
+  const [splitCashAmount, setSplitCashAmount] = useState('');
+  const [splitOnlineAmount, setSplitOnlineAmount] = useState('');
 
   // Upload modal target
   const [activeUploadTarget, setActiveUploadTarget] = useState<
     'ro_letter' | 'idproof_front' | 'idproof_back' | 'screenshot' | 'handover' | null
   >(null);
 
-  // Submission
+  // Submission & Gate Pass
   const [submitting, setSubmitting] = useState(false);
   const [gatePassResult, setGatePassResult] = useState<GatePassResult | null>(null);
   const [showGatePassModal, setShowGatePassModal] = useState(false);
@@ -178,9 +289,7 @@ export default function PakkaReleaseScreen() {
     selectedIdType === 'Driving License' ||
     selectedIdType === 'Voter ID';
 
-  // =================================================================
-  // LOAD VEHICLE DATA
-  // =================================================================
+  // Load Vehicle
   const fetchVehicle = useCallback(async () => {
     if (!id && !plate) {
       setLoading(false);
@@ -221,45 +330,23 @@ export default function PakkaReleaseScreen() {
     fetchVehicle();
   }, [fetchVehicle]);
 
-  // Manual Review / Override Modal State
-  const [manualEditModalVisible, setManualEditModalVisible] = useState(false);
-  const [editFieldName, setEditFieldName] = useState('roDate');
-  const [editFieldValue, setEditFieldValue] = useState('');
-  const [editReason, setEditReason] = useState('');
-  const [savingManualEdit, setSavingManualEdit] = useState(false);
-
-  // =================================================================
-  // RUN REAL RO DOCUMENT OCR PARSER
-  // =================================================================
+  // Run Real OCR Scanner
   const triggerAiRoScan = async (attachment: ReleaseDocAttachment) => {
     setIsScanningRo(true);
-    setScanStepIndex(0);
-
-    const stepsTimer = setInterval(() => {
-      setScanStepIndex((prev) => (prev < 3 ? prev + 1 : prev));
-    }, 400);
 
     try {
-      // 1. Perform Real Live OCR Parsing on the Uploaded Document Image / PDF via Backend Engine
       const parsed = await performRealRoOcr(attachment.uri, vehicle);
-
-      clearInterval(stepsTimer);
       setIsScanningRo(false);
-
       setRoScanData(parsed);
 
-      // Set Dates from Real OCR if detected
-      if (parsed.roDate) {
-        setRoDate(parsed.roDate);
-      }
-      if (parsed.waiverDays) {
-        setWaiverDaysConfig(parsed.waiverDays);
-      }
-      if (parsed.approvedTillDate) {
-        setApprovedTillDate(parsed.approvedTillDate);
-      }
+      setExtractedPlate(parsed.registrationNumber || '');
+      setExtractedEngine(parsed.engineNumber || '');
+      setExtractedChassis(parsed.chassisNumber || '');
 
-      // Handle Customer match status
+      if (parsed.roDate) setRoDate(parsed.roDate);
+      if (parsed.waiverDays) setWaiverDaysConfig(parsed.waiverDays);
+      if (parsed.approvedTillDate) setApprovedTillDate(parsed.approvedTillDate);
+
       if (parsed.requiresThirdPartyAuth) {
         setIsFirstPartyCustomer(false);
       } else if (parsed.authorizedCustomer) {
@@ -267,108 +354,46 @@ export default function PakkaReleaseScreen() {
         setRecipientName(parsed.authorizedCustomer);
       }
 
-      // Auto-prefill vehicle registration if missing in yard record
-      if (!vehicle?.vehicleNumber && parsed.registrationNumber) {
-        setVehicle((prev: any) => ({
-          ...(prev || {}),
-          vehicleNumber: parsed.registrationNumber,
-          customerName: parsed.authorizedCustomer || prev?.customerName,
-        }));
-      }
-
       if (Platform.OS === 'ios' || Platform.OS === 'android') {
-        Haptics.notificationAsync(
-          parsed.overallStatus === 'BLOCKED'
-            ? Haptics.NotificationFeedbackType.Error
-            : Haptics.NotificationFeedbackType.Success
-        ).catch(() => {});
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       }
     } catch (err) {
-      clearInterval(stepsTimer);
       setIsScanningRo(false);
-      console.warn('[Real OCR Scan Failed, using local fallback]:', err);
+      console.warn('[Real OCR Scan Failed]:', err);
       const fallbackParsed = parseRoText('', vehicle);
       setRoScanData(fallbackParsed);
+      setExtractedPlate(fallbackParsed.registrationNumber || '');
+      setExtractedEngine(fallbackParsed.engineNumber || '');
+      setExtractedChassis(fallbackParsed.chassisNumber || '');
     }
   };
 
-  const handleOpenManualEdit = (fieldName: string, currentVal: string) => {
-    setEditFieldName(fieldName);
-    setEditFieldValue(currentVal || '');
-    setEditReason('');
-    setManualEditModalVisible(true);
+  // Identifier Matches
+  const plateMatch = calculateIdentifierMatch(vehicle?.vehicleNumber, extractedPlate, 'registration');
+  const engineMatch = calculateIdentifierMatch(vehicle?.engineNumber, extractedEngine, 'engine');
+  const chassisMatch = calculateIdentifierMatch(vehicle?.chassisNumber, extractedChassis, 'chassis');
+
+  // Overall Match Validation: Pass if any primary identifier matches >= 80%
+  const isMatchValid = plateMatch.isMatched || engineMatch.isMatched || chassisMatch.isMatched;
+
+  // Fix / Edit Modal
+  const openFixModal = (type: 'registration' | 'engine' | 'chassis', currentVal: string) => {
+    setFixFieldType(type);
+    setFixFieldValue(currentVal);
+    setFixModalVisible(true);
   };
 
-  const handleSaveManualEdit = async () => {
-    if (!editFieldValue.trim()) {
-      Alert.alert('Required', 'Please enter a valid value.');
-      return;
-    }
-    if (!editReason.trim() || editReason.trim().length < 3) {
-      Alert.alert('Audit Reason Required', 'Please provide a valid reason for manual override.');
-      return;
-    }
-
-    try {
-      setSavingManualEdit(true);
-      const vehicleId = vehicle?.id || id;
-      if (roScanData?.documentId && vehicleId) {
-        await saveRoManualOverride(vehicleId, {
-          documentId: roScanData.documentId,
-          fieldName: editFieldName,
-          newValue: editFieldValue.trim(),
-          reason: editReason.trim(),
-        });
-      }
-
-      // Update local state based on field edited
-      if (editFieldName === 'roDate') {
-        const d = new Date(editFieldValue.trim());
-        if (!isNaN(d.getTime())) {
-          setRoDate(d);
-          const appTill = new Date(d);
-          appTill.setDate(appTill.getDate() + waiverDaysConfig);
-          setApprovedTillDate(appTill);
-        }
-      } else if (editFieldName === 'authorizedCustomer') {
-        setRoScanData((prev: any) => (prev ? { ...prev, authorizedCustomer: editFieldValue.trim(), isCustomerMatched: true } : prev));
-        if (isFirstPartyCustomer) setRecipientName(editFieldValue.trim());
-      } else if (editFieldName === 'registrationNumber') {
-        setRoScanData((prev: any) => (prev ? { ...prev, registrationNumber: editFieldValue.trim().toUpperCase(), isVehicleMatched: true } : prev));
-      } else if (editFieldName === 'bankName') {
-        setRoScanData((prev: any) => (prev ? { ...prev, bankName: editFieldValue.trim(), isFinancierMatched: true } : prev));
-      }
-
-      setManualEditModalVisible(false);
-      Alert.alert('Updated', 'Field manually updated and recorded in audit log.');
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to update field');
-    } finally {
-      setSavingManualEdit(false);
-    }
-  };
-
-  // Handover Confirmation Handlers
-  const handleConfirmFirstParty = () => {
-    setIsFirstPartyCustomer(true);
-    const customer = roScanData?.authorizedCustomer || vehicle?.customerName || 'Customer';
-    setRecipientName(customer);
-    if (vehicle?.customerPhone) setRecipientPhone(vehicle.customerPhone);
+  const handleSaveFix = () => {
+    const val = fixFieldValue.trim().toUpperCase();
+    if (fixFieldType === 'registration') setExtractedPlate(val);
+    else if (fixFieldType === 'engine') setExtractedEngine(val);
+    else if (fixFieldType === 'chassis') setExtractedChassis(val);
+    setFixModalVisible(false);
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     }
   };
 
-  const handleConfirmThirdParty = () => {
-    setIsFirstPartyCustomer(false);
-    setRecipientName('');
-    setRecipientPhone('');
-    if (Platform.OS === 'ios' || Platform.OS === 'android') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    }
-  };
-
-  // Date Change Handler
   const handleRoDatePicked = (event: any, selectedDate?: Date) => {
     setShowRoDatePicker(false);
     if (selectedDate) {
@@ -386,27 +411,21 @@ export default function PakkaReleaseScreen() {
     setApprovedTillDate(appTill);
   };
 
-  // =================================================================
-  // REAL-TIME TARIFF & WAIVE-OFF CALCULATION
-  // =================================================================
-  // Days since RO Date
+  // Tariff & Delay Calculation
   const diffGross = Math.max(0, releaseDate.getTime() - roDate.getTime());
   const grossDaysSinceRO = Math.ceil(diffGross / (1000 * 60 * 60 * 24));
   const appliedWaiverDays = Math.min(grossDaysSinceRO, waiverDaysConfig);
   const chargeableDelayDays = Math.max(0, grossDaysSinceRO - appliedWaiverDays);
 
-  // Bank covers in-yard stay; customer pays ONLY extra delay days beyond waive-off
   const customerPayableAmount = chargeableDelayDays * dailyRate;
   const finalTotalAmount = Math.round(customerPayableAmount * 100) / 100;
   const isFreeRelease = finalTotalAmount === 0;
 
-  // Split calculation helpers
   const numSplitCash = parseFloat(splitCashAmount) || 0;
   const numSplitOnline = parseFloat(splitOnlineAmount) || 0;
   const splitTotalSum = Math.round((numSplitCash + numSplitOnline) * 100) / 100;
   const splitDifference = Math.round((finalTotalAmount - splitTotalSum) * 100) / 100;
 
-  // Bidirectional auto-balance handlers
   const handleCashChange = (val: string) => {
     setSplitCashAmount(val);
     const num = parseFloat(val);
@@ -429,71 +448,32 @@ export default function PakkaReleaseScreen() {
     }
   };
 
-  const handleSelectPaymentMode = (pm: PaymentMode) => {
-    setPaymentMode(pm);
-    setPaymentModeDropdownVisible(false);
+  // Step 1 Validity: Document attached AND at least one identifier matched
+  const isStep1Complete = !!roLetterDoc && isMatchValid;
 
-    if (pm === 'Cash + Online' && finalTotalAmount > 0) {
-      if (!splitCashAmount && !splitOnlineAmount) {
-        setSplitCashAmount('');
-        setSplitOnlineAmount(finalTotalAmount.toString());
-      }
-    }
-  };
+  // Step 2 Validity: Recipient details filled + ID proof + Handover photo
+  const isStep2Complete =
+    recipientName.trim().length > 0 &&
+    recipientPhone.trim().length >= 10 &&
+    !!selectedIdType &&
+    !!idProofDocFront &&
+    (!isTwoSidedId || !!idProofDocBack) &&
+    !!handoverPhoto;
 
-  const handleSelectIdType = (type: IndianIdType) => {
-    setSelectedIdType(type);
-    setIdTypeDropdownVisible(false);
-    setIdProofDocFront(null);
-    setIdProofDocBack(null);
-  };
+  // Step 3 Validity: Payment fulfilled
+  const isStep3PaymentFulfilled =
+    isFreeRelease ||
+    (paymentMode !== null &&
+      (paymentMode === 'Cash' ||
+        paymentMode === 'Cheque' ||
+        paymentMode === 'DD' ||
+        paymentMode === 'NEFT/RTGS' ||
+        (paymentMode === 'Online' && !!onlineScreenshot) ||
+        (paymentMode === 'Cash + Online' && splitDifference === 0 && !!onlineScreenshot)));
 
-  // =================================================================
-  // PROGRESSIVE VALIDATION FLAGS
-  // =================================================================
-  // Step 1: RO letter uploaded & scanned
-  const isStep1Fulfilled = roLetterDoc !== null && roScanData !== null;
-
-  // Step 2: Handover confirmed with valid name + 10-digit phone
-  const isStep2Fulfilled =
-    isStep1Fulfilled &&
-    isFirstPartyCustomer !== null &&
-    recipientName.trim().length >= 2 &&
-    recipientPhone.trim().length === 10;
-
-  // Step 3: Tariff Calculation fulfilled
-  const isStep3Fulfilled = isStep2Fulfilled;
-
-  // Step 4: Payment mode validation (Bypassed if ₹0)
-  const isStep4PaymentFulfilled =
-    isStep3Fulfilled &&
-    (isFreeRelease ||
-      (paymentMode !== null &&
-        (paymentMode === 'Cash' || paymentMode === 'Cheque' || paymentMode === 'DD' || paymentMode === 'NEFT/RTGS'
-          ? true
-          : paymentMode === 'Online'
-          ? onlinePaidToName.trim().length >= 2 && onlineScreenshot !== null
-          : paymentMode === 'Cash + Online'
-          ? numSplitCash > 0 &&
-            numSplitOnline > 0 &&
-            onlinePaidToName.trim().length >= 2 &&
-            onlineScreenshot !== null
-          : true)));
-
-  // Step 5: ID Proof (Front mandatory + Back if 2-sided)
-  const isStep5IdProofFulfilled =
-    isStep4PaymentFulfilled &&
-    selectedIdType !== null &&
-    idProofDocFront !== null &&
-    (!isTwoSidedId || idProofDocBack !== null);
-
-  // Step 6: Handover photo with vehicle attached
-  const isStep6HandoverFulfilled = isStep5IdProofFulfilled && handoverPhoto !== null;
-
-  // =================================================================
-  // UPLOAD HANDLERS
-  // =================================================================
-  const openUpload = (target: 'ro_letter' | 'idproof_front' | 'idproof_back' | 'screenshot' | 'handover') => {
+  const openUpload = (
+    target: 'ro_letter' | 'idproof_front' | 'idproof_back' | 'screenshot' | 'handover'
+  ) => {
     setActiveUploadTarget(target);
   };
 
@@ -619,13 +599,10 @@ export default function PakkaReleaseScreen() {
     }
   };
 
-  // =================================================================
-  // SUBMISSION
-  // =================================================================
+  // Submit Pakka Release
   const handleSubmitPakkaRelease = async () => {
-    if (!vehicle && !roScanData?.registrationNumber) return;
-    if (!isStep6HandoverFulfilled) {
-      Alert.alert('Incomplete', 'Please complete all steps in sequence.');
+    if (!isStep3PaymentFulfilled) {
+      Alert.alert('Incomplete', 'Please verify payment details.');
       return;
     }
 
@@ -637,57 +614,46 @@ export default function PakkaReleaseScreen() {
       return;
     }
 
-    if (Platform.OS === 'ios' || Platform.OS === 'android') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    }
-
     try {
       setSubmitting(true);
-
       const recipientTypeStr: ReleasePersonType = isFirstPartyCustomer ? 'CUSTOMER' : 'BUYER';
 
       const payload = {
         releaseType: 'PAKKA',
-        releasePersonType: recipientTypeStr,
-        releaseOrderDoc: roLetterDoc!.uri,
-        customerIdProof: idProofDocFront!.uri,
-        customerIdProofBack: idProofDocBack?.uri,
-        handoverPhoto1: handoverPhoto!.uri,
-        handoverPhoto2:
-          !isFreeRelease && (paymentMode === 'Online' || paymentMode === 'Cash + Online')
-            ? onlineScreenshot?.uri
-            : undefined,
-        paidAmount: isFreeRelease ? 0 : finalTotalAmount,
-        totalAmount: isFreeRelease ? 0 : finalTotalAmount,
+        recipientName: recipientName.trim(),
+        recipientPhone: recipientPhone.trim(),
+        recipientType: recipientTypeStr,
+        idType: selectedIdType || 'Aadhaar Card',
+        idNumber: idNumberText.trim() || undefined,
+        roDate: roDate.toISOString(),
+        waiverDays: waiverDaysConfig,
         approvedTillDate: approvedTillDate.toISOString(),
-        paymentMode: isFreeRelease ? 'Free / Nothing' : paymentMode || 'Cash',
-        remarks: `Pakka Release (${roScanData?.bankName || 'Bank'}): ${recipientName} (${
-          isFirstPartyCustomer ? 'Authorized Customer' : '3rd Party Representative'
-        }) | RO Date: ${roDate.toISOString().split('T')[0]} | Delay Days: ${chargeableDelayDays}d | Mode: ${
-          isFreeRelease
-            ? 'Free (₹0)'
-            : paymentMode === 'Cash + Online'
-            ? `Cash: ₹${numSplitCash}, Online: ₹${numSplitOnline} (${onlinePaidToName})`
-            : paymentMode === 'Online'
-            ? `Online (${onlinePaidToName})`
-            : paymentMode
-        } | ID: ${selectedIdType} (${idNumberText || 'N/A'})`,
-        releasedTo: recipientName.trim(),
-        mobileNumber: recipientPhone.trim(),
+        paymentMode: isFreeRelease ? 'Free' : paymentMode || 'Cash',
+        amount: finalTotalAmount,
+        splitCashAmount: paymentMode === 'Cash + Online' ? numSplitCash : undefined,
+        splitOnlineAmount: paymentMode === 'Cash + Online' ? numSplitOnline : undefined,
+        onlinePaidToName: onlinePaidToName.trim() || undefined,
+        representativeRemarks: representativeRemarks.trim() || undefined,
+        documents: {
+          roLetter: roLetterDoc?.uri,
+          idProofFront: idProofDocFront?.uri,
+          idProofBack: idProofDocBack?.uri,
+          paymentScreenshot: onlineScreenshot?.uri,
+          handoverPhoto: handoverPhoto?.uri,
+        },
       };
 
-      const vehicleId = vehicle?.id || id;
+      const vehicleId = vehicle?.id || id || 'direct';
       const res = await directReleaseVehicle(vehicleId, payload);
 
       if (res?.success && res?.data) {
         setGatePassResult(res.data);
         setShowGatePassModal(true);
       } else {
-        throw new Error(res?.error || 'Failed to complete Pakka release');
+        throw new Error(res?.error || 'Could not complete vehicle release.');
       }
     } catch (err: any) {
-      console.warn('[Pakka Release Error]', err);
-      Alert.alert('Release Failed', err?.message || 'Could not complete Pakka release.');
+      Alert.alert('Release Failed', err.message || 'Error completing release');
     } finally {
       setSubmitting(false);
     }
@@ -695,44 +661,86 @@ export default function PakkaReleaseScreen() {
 
   const handleFinishGatePass = () => {
     setShowGatePassModal(false);
-    if (vehicle?.id) {
-      router.replace(`/tenant_admin/admin/vehicles/details/${vehicle.id}` as any);
-    } else {
-      router.replace('/tenant_admin/admin/vehicles' as any);
-    }
+    if (router.canGoBack()) router.back();
+    else router.replace('/tenant_admin/admin/vehicles' as any);
   };
 
   const bottomPadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 24 : 14);
   const vehicleNumber = (
     vehicle?.vehicleNumber ||
-    roScanData?.registrationNumber ||
+    extractedPlate ||
     'PAKKA RELEASE'
   ).toUpperCase();
-
-  const idStepNumber = isFreeRelease ? 4 : 5;
-  const handoverStepNumber = isFreeRelease ? 5 : 6;
-
-  const SCAN_STEPS_TEXT = [
-    'Scanning Bank Release Order / Delivery Note...',
-    'Verifying Bank Seal & Authorized Signature...',
-    'Extracting Issue Date & Grace Period...',
-    'Detecting Yard Authority & Customer Details...',
-  ];
 
   return (
     <View style={styles.container}>
       <StatusBar style="dark" backgroundColor="#FFFFFF" />
 
-      {/* Clean Top Header */}
+      {/* Header */}
       <ReleaseHeader
         vehicleNumber={vehicleNumber}
-        subtitle="Pakka Release Desk"
+        subtitle="Pakka Vehicle Release"
         onBackPress={() => {
-          if (router.canGoBack()) router.back();
-          else router.replace('/tenant_admin/admin/vehicles' as any);
+          if (currentStep > 1) {
+            setCurrentStep((prev) => (prev - 1) as any);
+          } else if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace('/tenant_admin/admin/vehicles' as any);
+          }
         }}
         onMenuPress={() => setMenuModalVisible(true)}
       />
+
+      {/* Wizard Step Indicator Bar */}
+      <View style={styles.wizardBar}>
+        <TouchableOpacity
+          style={[styles.wizardStep, currentStep === 1 && styles.wizardStepActive]}
+          onPress={() => setCurrentStep(1)}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.stepDot, currentStep === 1 && styles.stepDotActive, isStep1Complete && styles.stepDotDone]}>
+            {isStep1Complete ? <Check size={10} color="#FFFFFF" strokeWidth={3} /> : <Text style={styles.stepDotNum}>1</Text>}
+          </View>
+          <Text style={[styles.wizardStepText, currentStep === 1 && styles.wizardStepTextActive]}>
+            1. Document & Match
+          </Text>
+        </TouchableOpacity>
+
+        <View style={styles.wizardConnector} />
+
+        <TouchableOpacity
+          style={[styles.wizardStep, currentStep === 2 && styles.wizardStepActive]}
+          onPress={() => {
+            if (isStep1Complete) setCurrentStep(2);
+          }}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.stepDot, currentStep === 2 && styles.stepDotActive, isStep2Complete && styles.stepDotDone]}>
+            {isStep2Complete ? <Check size={10} color="#FFFFFF" strokeWidth={3} /> : <Text style={styles.stepDotNum}>2</Text>}
+          </View>
+          <Text style={[styles.wizardStepText, currentStep === 2 && styles.wizardStepTextActive]}>
+            2. Recipient
+          </Text>
+        </TouchableOpacity>
+
+        <View style={styles.wizardConnector} />
+
+        <TouchableOpacity
+          style={[styles.wizardStep, currentStep === 3 && styles.wizardStepActive]}
+          onPress={() => {
+            if (isStep1Complete && isStep2Complete) setCurrentStep(3);
+          }}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.stepDot, currentStep === 3 && styles.stepDotActive]}>
+            <Text style={styles.stepDotNum}>3</Text>
+          </View>
+          <Text style={[styles.wizardStepText, currentStep === 3 && styles.wizardStepTextActive]}>
+            3. Billing
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {loading ? (
         <View style={styles.centerLoading}>
@@ -745,756 +753,711 @@ export default function PakkaReleaseScreen() {
           contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPadding + 85 }]}
         >
           {/* ========================================================= */}
-          {/* STEP 1: UPLOAD BANK RELEASE ORDER & REAL OCR SCANNER      */}
+          {/* STEP 1: RELEASE ORDER UPLOAD & MULTI-FIELD SMART MATCH   */}
           {/* ========================================================= */}
-          <View style={[styles.stepCard, !isStep1Fulfilled && styles.stepCardActiveBorder]}>
-            <View style={styles.stepHeaderRow}>
-              <View style={[styles.stepBadge, isStep1Fulfilled && styles.stepBadgeDone]}>
-                {isStep1Fulfilled ? (
-                  <Check size={12} color="#FFFFFF" strokeWidth={3} />
-                ) : (
-                  <Text style={styles.stepBadgeText}>1</Text>
-                )}
-              </View>
-              <Text style={styles.stepTitle}>Upload Bank Release Order *</Text>
-            </View>
+          {currentStep === 1 && (
+            <View style={styles.stepContainer}>
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>1. Upload Bank Release Order</Text>
+                <Text style={styles.cardSubtitle}>
+                  Upload the official Release Letter / Delivery Note. OCR will extract text in background.
+                </Text>
 
-            <View style={styles.uploadRow}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <FileText size={14} color="#0062FF" />
-                <Text style={styles.uploadTitle}>Release Order (RO Letter / PDF)</Text>
-              </View>
-
-              {roLetterDoc ? (
-                <View style={styles.attachedPill}>
-                  <CheckCircle2 size={14} color="#059669" />
-                  <Text style={styles.attachedPillText}>Letter Attached</Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setRoLetterDoc(null);
-                      setRoScanData(null);
-                      setIsFirstPartyCustomer(null);
-                    }}
-                  >
-                    <X size={13} color="#64748B" />
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={[styles.attachBtn, { backgroundColor: '#0062FF', borderColor: '#0062FF' }]}
-                  onPress={() => openUpload('ro_letter')}
-                  activeOpacity={0.8}
-                >
-                  <Upload size={12} color="#FFFFFF" />
-                  <Text style={[styles.attachBtnText, { color: '#FFFFFF' }]}>Upload RO</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Live Scanning HUD Animation */}
-            {isScanningRo && (
-              <View style={styles.scanningHudBox}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <ActivityIndicator size="small" color="#0062FF" />
-                  <Text style={styles.scanningHudTitle}>AI Document Scanner Active</Text>
-                </View>
-                <Text style={styles.scanningHudStep}>{SCAN_STEPS_TEXT[scanStepIndex]}</Text>
-              </View>
-            )}
-
-            {/* Extracted RO Findings Summary */}
-            {roScanData && (
-              <View style={styles.roVerifiedCard}>
-                <View style={styles.roVerifiedHeader}>
-                  <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Sparkles size={14} color="#059669" />
-                    <Text style={styles.roVerifiedTitle} numberOfLines={1}>
-                      {roScanData.bankName} {roScanData.documentType === 'DELIVERY_AUTHORIZATION' ? 'Delivery Note' : 'Release Order'}
-                    </Text>
-                  </View>
-                  <View style={styles.confBadge}>
-                    <Text style={styles.confBadgeText}>{roScanData.documentConfidence}% Confidence</Text>
-                  </View>
-                </View>
-
-                {/* Real Detection Badges */}
-                <View style={styles.badgesRow}>
-                  <View style={[styles.verifiedPill, !roScanData.hasBankStamp && styles.pillWarning]}>
-                    <Stamp size={11} color={roScanData.hasBankStamp ? '#059669' : '#D97706'} />
-                    <Text style={[styles.verifiedPillText, !roScanData.hasBankStamp && styles.pillWarningText]}>
-                      {roScanData.bankStampStatus} {roScanData.bankStampConfidence > 0 ? `(${Math.round(roScanData.bankStampConfidence * 100)}%)` : ''}
-                    </Text>
-                  </View>
-                  <View style={[styles.verifiedPill, !roScanData.hasAuthorizedSign && styles.pillWarning]}>
-                    <PenTool size={11} color={roScanData.hasAuthorizedSign ? '#059669' : '#D97706'} />
-                    <Text style={[styles.verifiedPillText, !roScanData.hasAuthorizedSign && styles.pillWarningText]}>
-                      {roScanData.authorizedSignStatus} {roScanData.signatureConfidence > 0 ? `(${Math.round(roScanData.signatureConfidence * 100)}%)` : ''}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Consistency Validation Checklist */}
-                <View style={styles.validationListBox}>
-                  <View style={styles.validationCheckRow}>
-                    {roScanData.isVehicleMatched ? (
-                      <CheckCircle2 size={13} color="#059669" />
-                    ) : (
-                      <AlertCircle size={13} color="#E11D48" />
-                    )}
-                    <Text style={[styles.validationCheckText, !roScanData.isVehicleMatched && { color: '#E11D48', fontWeight: '800' }]}>
-                      Plate: {roScanData.registrationNumber || 'Not Detected'} {roScanData.isVehicleMatched ? '(Matched)' : '(Mismatch!)'}
+                <View style={styles.uploadRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <FileText size={16} color="#0062FF" />
+                    <Text style={styles.uploadTitle}>
+                      {roLetterDoc ? 'Release Letter Attached' : 'Attach Letter / PDF'}
                     </Text>
                   </View>
 
-                  <View style={styles.validationCheckRow}>
-                    {roScanData.isFinancierMatched ? (
-                      <CheckCircle2 size={13} color="#059669" />
-                    ) : (
-                      <AlertCircle size={13} color="#D97706" />
-                    )}
-                    <Text style={styles.validationCheckText}>
-                      Financier: {roScanData.bankName} {roScanData.isFinancierMatched ? '(Matched)' : '(Review)'}
-                    </Text>
-                  </View>
-
-                  <View style={styles.validationCheckRow}>
-                    {roScanData.isCustomerMatched ? (
-                      <CheckCircle2 size={13} color="#059669" />
-                    ) : (
-                      <HelpCircle size={13} color="#0284C7" />
-                    )}
-                    <Text style={styles.validationCheckText}>
-                      Customer: {roScanData.authorizedCustomer || 'Not Detected'} {roScanData.isCustomerMatched ? '(Direct Owner)' : '(3rd Party Rep)'}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Warning / Mismatch Alert Banner */}
-                {(roScanData.blockingReasons?.length > 0 || roScanData.warningReasons?.length > 0 || roScanData.needsManualReview) && (
-                  <View style={[styles.mismatchBanner, roScanData.blockingReasons?.length > 0 ? styles.mismatchCritical : styles.mismatchWarning]}>
-                    <AlertCircle size={14} color={roScanData.blockingReasons?.length > 0 ? '#E11D48' : '#D97706'} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.mismatchTitle, roScanData.blockingReasons?.length > 0 ? { color: '#E11D48' } : { color: '#B45309' }]}>
-                        {roScanData.blockingReasons?.length > 0 ? 'Release Blocked (Critical Mismatch)' : 'Manual Review Recommended'}
-                      </Text>
-                      <Text style={styles.mismatchDesc}>
-                        {[...(roScanData.blockingReasons || []), ...(roScanData.warningReasons || [])].join(' • ')}
-                      </Text>
+                  {roLetterDoc ? (
+                    <View style={styles.attachedPill}>
+                      <CheckCircle2 size={14} color="#059669" />
+                      <Text style={styles.attachedPillText}>Attached</Text>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setRoLetterDoc(null);
+                          setRoScanData(null);
+                          setExtractedPlate('');
+                          setExtractedEngine('');
+                          setExtractedChassis('');
+                        }}
+                        style={{ paddingLeft: 4 }}
+                      >
+                        <X size={14} color="#64748B" />
+                      </TouchableOpacity>
                     </View>
-                  </View>
-                )}
-
-                {/* Extracted Details Grid */}
-                <View style={styles.extractedGrid}>
-                  {/* RO Date (Editable Picker) */}
-                  <TouchableOpacity
-                    style={styles.extractedItem}
-                    onPress={() => setShowRoDatePicker(true)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <Text style={styles.extractedLabel}>RO Issue Date</Text>
-                      <Edit3 size={10} color="#0062FF" />
-                    </View>
-                    <Text style={[styles.extractedVal, { color: '#0062FF' }]}>
-                      {roDate ? roDate.toLocaleDateString('en-IN', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      }) : 'Not Detected'}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* Waive-off Days Quick Selector */}
-                  <View style={styles.extractedItem}>
-                    <Text style={styles.extractedLabel}>Waive-off Grace</Text>
-                    <View style={{ flexDirection: 'row', gap: 4, marginTop: 2 }}>
-                      {[1, 2, 3].map((d) => (
-                        <TouchableOpacity
-                          key={d}
-                          style={[
-                            styles.miniDayPill,
-                            waiverDaysConfig === d && styles.miniDayPillActive,
-                          ]}
-                          onPress={() => handleSetWaiverDays(d)}
-                        >
-                          <Text
-                            style={[
-                              styles.miniDayPillText,
-                              waiverDaysConfig === d && styles.miniDayPillTextActive,
-                            ]}
-                          >
-                            {d}d ({d * 24}h)
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-
-                  <View style={styles.extractedItem}>
-                    <Text style={styles.extractedLabel}>Addressed To Yard</Text>
-                    <Text style={styles.extractedVal} numberOfLines={1}>{roScanData.yardAddressee}</Text>
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.extractedItem}
-                    onPress={() => handleOpenManualEdit('authorizedCustomer', roScanData.authorizedCustomer)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <Text style={styles.extractedLabel}>Authorized Customer</Text>
-                      <Edit3 size={9} color="#059669" />
-                    </View>
-                    <Text style={[styles.extractedVal, { color: '#059669' }]} numberOfLines={1}>
-                      {roScanData.authorizedCustomer || 'None'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {showRoDatePicker && (
-                  <DateTimePicker
-                    value={roDate}
-                    mode="date"
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                    onChange={handleRoDatePicked}
-                  />
-                )}
-              </View>
-            )}
-          </View>
-
-          {/* ========================================================= */}
-          {/* STEP 2: HANDOVER VERIFICATION (IS THIS PUSHPENDRA SINGH?) */}
-          {/* ========================================================= */}
-          {isStep1Fulfilled ? (
-            <View style={[styles.stepCard, !isStep2Fulfilled && styles.stepCardActiveBorder]}>
-              <View style={styles.stepHeaderRow}>
-                <View style={[styles.stepBadge, isStep2Fulfilled && styles.stepBadgeDone]}>
-                  {isStep2Fulfilled ? (
-                    <Check size={12} color="#FFFFFF" strokeWidth={3} />
                   ) : (
-                    <Text style={styles.stepBadgeText}>2</Text>
+                    <TouchableOpacity
+                      style={styles.uploadActionBtn}
+                      onPress={() => openUpload('ro_letter')}
+                      activeOpacity={0.8}
+                    >
+                      <Upload size={13} color="#FFFFFF" />
+                      <Text style={styles.uploadActionBtnText}>Upload Letter</Text>
+                    </TouchableOpacity>
                   )}
                 </View>
-                <Text style={styles.stepTitle}>Handover Recipient Confirmation *</Text>
+
+                {isScanningRo && (
+                  <View style={styles.scanningHudBox}>
+                    <ActivityIndicator size="small" color="#0062FF" />
+                    <Text style={styles.scanningHudTitle}>Reading document & extracting identifiers...</Text>
+                  </View>
+                )}
               </View>
 
-              {/* Selection Prompt */}
-              <View style={styles.questionCard}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <HelpCircle size={14} color="#0062FF" />
-                  <Text style={styles.questionText}>
-                    Kya vehicle lene authorized customer ({roScanData?.authorizedCustomer || vehicle?.customerName || 'Customer'}) aaya hai?
-                  </Text>
-                </View>
-
-                {/* Yes / No Choice Buttons */}
-                <View style={styles.twoColRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.choiceBtn,
-                      isFirstPartyCustomer === true && styles.choiceBtnActiveYes,
-                    ]}
-                    onPress={handleConfirmFirstParty}
-                    activeOpacity={0.8}
-                  >
-                    <UserCheck size={15} color={isFirstPartyCustomer === true ? '#FFFFFF' : '#059669'} />
-                    <Text
-                      style={[
-                        styles.choiceBtnText,
-                        isFirstPartyCustomer === true && styles.choiceBtnTextActive,
-                      ]}
-                    >
-                      YES ({roScanData?.authorizedCustomer || vehicle?.customerName || 'Customer'})
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.choiceBtn,
-                      isFirstPartyCustomer === false && styles.choiceBtnActiveNo,
-                    ]}
-                    onPress={handleConfirmThirdParty}
-                    activeOpacity={0.8}
-                  >
-                    <UserX size={15} color={isFirstPartyCustomer === false ? '#FFFFFF' : '#E11D48'} />
-                    <Text
-                      style={[
-                        styles.choiceBtnText,
-                        isFirstPartyCustomer === false && styles.choiceBtnTextActive,
-                      ]}
-                    >
-                      NO (3rd Party Rep)
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Recipient Contact Details */}
-              {isFirstPartyCustomer !== null && (
-                <View style={{ gap: 8, marginTop: 4 }}>
-                  <View style={styles.twoColRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.fieldLabel}>
-                        {isFirstPartyCustomer ? 'Customer Name *' : 'Representative Name *'}
-                      </Text>
-                      <TextInput
-                        style={styles.textInput}
-                        placeholder="Recipient Name *"
-                        placeholderTextColor="#94A3B8"
-                        value={recipientName}
-                        onChangeText={setRecipientName}
-                      />
+              {/* Multi-Identifier Smart Match Card */}
+              {roScanData && (
+                <View style={styles.card}>
+                  <View style={styles.matchHeaderRow}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      {isMatchValid ? (
+                        <ShieldCheck size={18} color="#059669" />
+                      ) : (
+                        <ShieldAlert size={18} color="#E11D48" />
+                      )}
+                      <Text style={styles.cardTitle}>Vehicle Verification Matching</Text>
                     </View>
-
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.fieldLabel}>Mobile Number *</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        placeholder="10-Digit Mobile *"
-                        placeholderTextColor="#94A3B8"
-                        keyboardType="phone-pad"
-                        maxLength={10}
-                        value={recipientPhone}
-                        onChangeText={setRecipientPhone}
-                      />
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        isMatchValid ? styles.statusBadgeSuccess : styles.statusBadgeDanger,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.statusBadgeText,
+                          isMatchValid ? { color: '#059669' } : { color: '#E11D48' },
+                        ]}
+                      >
+                        {isMatchValid ? 'Verified' : 'Mismatch'}
+                      </Text>
                     </View>
                   </View>
 
-                  {!isFirstPartyCustomer && (
+                  {/* Wrong Details Banner if All Mismatch */}
+                  {!isMatchValid && (
+                    <View style={styles.wrongDetailsBanner}>
+                      <AlertCircle size={16} color="#E11D48" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.wrongDetailsTitle}>Wrong Vehicle Details</Text>
+                        <Text style={styles.wrongDetailsDesc}>
+                          This release letter does not match this yard vehicle. Please check plate, engine, or chassis number.
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* 3 Identifiers Comparison List */}
+                  <View style={styles.identifiersList}>
+                    {/* 1. Registration Plate */}
+                    <View style={[styles.identifierRow, plateMatch.isMatched ? styles.rowMatched : styles.rowMismatch]}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.idLabel}>Vehicle Plate</Text>
+                        <Text style={styles.idYardText}>Yard: {vehicle?.vehicleNumber || '—'}</Text>
+                        <Text style={styles.idDocText}>Doc: {extractedPlate || 'Not Detected'}</Text>
+                      </View>
+                      <View style={styles.idRightCol}>
+                        <View style={[styles.pctBadge, plateMatch.isMatched ? styles.pctBadgeGreen : styles.pctBadgeRed]}>
+                          <Text style={[styles.pctText, plateMatch.isMatched ? { color: '#059669' } : { color: '#E11D48' }]}>
+                            {plateMatch.statusText}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.fixBtn}
+                          onPress={() => openFixModal('registration', extractedPlate)}
+                          activeOpacity={0.7}
+                        >
+                          <Edit3 size={11} color="#0062FF" />
+                          <Text style={styles.fixBtnText}>Fix</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* 2. Engine Number */}
+                    <View style={[styles.identifierRow, engineMatch.isMatched ? styles.rowMatched : styles.rowMismatch]}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.idLabel}>Engine Number</Text>
+                        <Text style={styles.idYardText}>Yard: {vehicle?.engineNumber || '—'}</Text>
+                        <Text style={styles.idDocText}>Doc: {extractedEngine || 'Not Detected'}</Text>
+                      </View>
+                      <View style={styles.idRightCol}>
+                        <View style={[styles.pctBadge, engineMatch.isMatched ? styles.pctBadgeGreen : styles.pctBadgeRed]}>
+                          <Text style={[styles.pctText, engineMatch.isMatched ? { color: '#059669' } : { color: '#E11D48' }]}>
+                            {engineMatch.statusText}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.fixBtn}
+                          onPress={() => openFixModal('engine', extractedEngine)}
+                          activeOpacity={0.7}
+                        >
+                          <Edit3 size={11} color="#0062FF" />
+                          <Text style={styles.fixBtnText}>Fix</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* 3. Chassis Number */}
+                    <View style={[styles.identifierRow, chassisMatch.isMatched ? styles.rowMatched : styles.rowMismatch]}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.idLabel}>Chassis Number</Text>
+                        <Text style={styles.idYardText}>Yard: {vehicle?.chassisNumber || '—'}</Text>
+                        <Text style={styles.idDocText}>Doc: {extractedChassis || 'Not Detected'}</Text>
+                      </View>
+                      <View style={styles.idRightCol}>
+                        <View style={[styles.pctBadge, chassisMatch.isMatched ? styles.pctBadgeGreen : styles.pctBadgeRed]}>
+                          <Text style={[styles.pctText, chassisMatch.isMatched ? { color: '#059669' } : { color: '#E11D48' }]}>
+                            {chassisMatch.statusText}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.fixBtn}
+                          onPress={() => openFixModal('chassis', extractedChassis)}
+                          activeOpacity={0.7}
+                        >
+                          <Edit3 size={11} color="#0062FF" />
+                          <Text style={styles.fixBtnText}>Fix</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Summary Grid for Bank, RO Date, Waive Days */}
+                  <View style={styles.summaryGrid}>
+                    <View style={styles.summaryItem}>
+                      <Text style={styles.summaryLabel}>Financier / Bank</Text>
+                      <Text style={styles.summaryValue} numberOfLines={1}>
+                        {roScanData.bankName || 'Bank'}
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.summaryItem}
+                      onPress={() => setShowRoDatePicker(true)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Text style={styles.summaryLabel}>RO Issue Date</Text>
+                        <Edit3 size={10} color="#0062FF" />
+                      </View>
+                      <Text style={[styles.summaryValue, { color: '#0062FF' }]}>
+                        {roDate ? roDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Select'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <View style={styles.summaryItem}>
+                      <Text style={styles.summaryLabel}>Customer in Letter</Text>
+                      <Text style={styles.summaryValue} numberOfLines={1}>
+                        {roScanData.authorizedCustomer || 'Customer'}
+                      </Text>
+                    </View>
+
+                    <View style={styles.summaryItem}>
+                      <Text style={styles.summaryLabel}>Free Grace Days</Text>
+                      <View style={styles.waiverPillsRow}>
+                        {[1, 2, 3, 5].map((d) => (
+                          <TouchableOpacity
+                            key={d}
+                            style={[
+                              styles.waiverPill,
+                              waiverDaysConfig === d && styles.waiverPillActive,
+                            ]}
+                            onPress={() => handleSetWaiverDays(d)}
+                          >
+                            <Text
+                              style={[
+                                styles.waiverPillText,
+                                waiverDaysConfig === d && styles.waiverPillTextActive,
+                              ]}
+                            >
+                              {d}d
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  </View>
+
+                  {showRoDatePicker && (
+                    <DateTimePicker
+                      value={roDate}
+                      mode="date"
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      onChange={handleRoDatePicked}
+                    />
+                  )}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* ========================================================= */}
+          {/* STEP 2: RECIPIENT INFORMATION & ID PROOFS                 */}
+          {/* ========================================================= */}
+          {currentStep === 2 && (
+            <View style={styles.stepContainer}>
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>2. Recipient Information</Text>
+                <Text style={styles.cardSubtitle}>Select who is collecting the vehicle and verify identity.</Text>
+
+                {/* Recipient Type Segmented Toggle */}
+                <View style={styles.segmentedRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.segmentBtn,
+                      isFirstPartyCustomer === true && styles.segmentBtnActive,
+                    ]}
+                    onPress={() => setIsFirstPartyCustomer(true)}
+                    activeOpacity={0.8}
+                  >
+                    <UserCheck size={14} color={isFirstPartyCustomer === true ? '#0062FF' : '#64748B'} />
+                    <Text
+                      style={[
+                        styles.segmentBtnText,
+                        isFirstPartyCustomer === true && styles.segmentBtnTextActive,
+                      ]}
+                    >
+                      Owner / Customer
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.segmentBtn,
+                      isFirstPartyCustomer === false && styles.segmentBtnActive,
+                    ]}
+                    onPress={() => setIsFirstPartyCustomer(false)}
+                    activeOpacity={0.8}
+                  >
+                    <UserX size={14} color={isFirstPartyCustomer === false ? '#0062FF' : '#64748B'} />
+                    <Text
+                      style={[
+                        styles.segmentBtnText,
+                        isFirstPartyCustomer === false && styles.segmentBtnTextActive,
+                      ]}
+                    >
+                      3rd Party Representative
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Name & Phone */}
+                <View style={styles.formRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>Recipient Name *</Text>
                     <TextInput
                       style={styles.textInput}
-                      placeholder="Authority / Letter Reference"
+                      placeholder="Name"
+                      placeholderTextColor="#94A3B8"
+                      value={recipientName}
+                      onChangeText={setRecipientName}
+                    />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>Mobile Number *</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="10-Digit Mobile"
+                      placeholderTextColor="#94A3B8"
+                      keyboardType="phone-pad"
+                      maxLength={10}
+                      value={recipientPhone}
+                      onChangeText={setRecipientPhone}
+                    />
+                  </View>
+                </View>
+
+                {isFirstPartyCustomer === false && (
+                  <View>
+                    <Text style={styles.fieldLabel}>Authority / Remarks (Optional)</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="Authorization Letter Ref / Reason"
                       placeholderTextColor="#94A3B8"
                       value={representativeRemarks}
                       onChangeText={setRepresentativeRemarks}
                     />
-                  )}
-                </View>
-              )}
-            </View>
-          ) : (
-            <View style={styles.lockedStepCard}>
-              <Lock size={13} color="#94A3B8" />
-              <Text style={styles.lockedStepText}>Upload & Scan Release Order first</Text>
-            </View>
-          )}
-
-          {/* ========================================================= */}
-          {/* STEP 3: ACCURATE TARIFF & WAIVE-OFF CALCULATION           */}
-          {/* ========================================================= */}
-          {isStep2Fulfilled ? (
-            <View style={styles.stepCard}>
-              <View style={styles.stepHeaderRow}>
-                <View style={[styles.stepBadge, styles.stepBadgeDone]}>
-                  <Check size={12} color="#FFFFFF" strokeWidth={3} />
-                </View>
-                <Text style={styles.stepTitle}>Stay & Waive-off Calculation</Text>
-              </View>
-
-              {/* Dates Row */}
-              <View style={styles.twoColRow}>
-                <View style={styles.dateDisplayCard}>
-                  <Text style={styles.dateLabel}>RO Issue Date</Text>
-                  <Text style={styles.dateVal}>
-                    {roDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                  </Text>
-                </View>
-
-                <View style={[styles.dateDisplayCard, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
-                  <Text style={[styles.dateLabel, { color: '#059669' }]}>
-                    Approved Till ({waiverDaysConfig}d Waiver)
-                  </Text>
-                  <Text style={[styles.dateVal, { color: '#059669' }]}>
-                    {approvedTillDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Live Status Banner */}
-              {isFreeRelease ? (
-                <View style={styles.freeBanner}>
-                  <CheckCircle2 size={15} color="#059669" strokeWidth={2.4} />
-                  <Text style={styles.freeBannerText}>
-                    Released Within {waiverDaysConfig * 24}h Grace Period — Total Payable: ₹0 (Free Release)
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.delayedBanner}>
-                  <AlertCircle size={15} color="#D97706" />
-                  <Text style={styles.delayedBannerText}>
-                    Grace Expired by {chargeableDelayDays} Days ({chargeableDelayDays}d × ₹{dailyRate} = ₹
-                    {customerPayableAmount})
-                  </Text>
-                </View>
-              )}
-
-              {/* Detailed Ledger Card */}
-              <View style={styles.totalCard}>
-                <View style={styles.ledgerRow}>
-                  <Text style={styles.ledgerLabel}>In-Yard Stay (upto {roDate.getDate()} Aug)</Text>
-                  <Text style={[styles.ledgerVal, { color: '#059669' }]}>Absorbed by Bank</Text>
-                </View>
-                <View style={styles.ledgerRow}>
-                  <Text style={styles.ledgerLabel}>
-                    RO Grace ({roDate.getDate()} - {approvedTillDate.getDate()} Aug = {waiverDaysConfig}d)
-                  </Text>
-                  <Text style={[styles.ledgerVal, { color: '#059669' }]}>Waived Off (₹0)</Text>
-                </View>
-                {!isFreeRelease && (
-                  <View style={styles.ledgerRow}>
-                    <Text style={styles.ledgerLabel}>
-                      Delay ({approvedTillDate.getDate()} - {releaseDate.getDate()} Aug = {chargeableDelayDays}d @ ₹
-                      {dailyRate})
-                    </Text>
-                    <Text style={styles.ledgerVal}>₹{customerPayableAmount}</Text>
                   </View>
                 )}
-
-                <View style={styles.finalTotalRow}>
-                  <Text style={styles.finalTotalLabel}>CUSTOMER PAYABLE</Text>
-                  <Text style={styles.finalTotalVal}>₹{finalTotalAmount.toLocaleString('en-IN')}</Text>
-                </View>
               </View>
-            </View>
-          ) : isStep1Fulfilled ? (
-            <View style={styles.lockedStepCard}>
-              <Lock size={13} color="#94A3B8" />
-              <Text style={styles.lockedStepText}>Confirm Recipient in Step 2</Text>
-            </View>
-          ) : null}
 
-          {/* ========================================================= */}
-          {/* STEP 4: PAYMENT MODE (SHOWN ONLY IF PAYING > ₹0)          */}
-          {/* ========================================================= */}
-          {!isFreeRelease && (
-            isStep3Fulfilled ? (
-              <View style={[styles.stepCard, !isStep4PaymentFulfilled && styles.stepCardActiveBorder]}>
-                <View style={styles.stepHeaderRow}>
-                  <View style={[styles.stepBadge, isStep4PaymentFulfilled && styles.stepBadgeDone]}>
-                    {isStep4PaymentFulfilled ? (
-                      <Check size={12} color="#FFFFFF" strokeWidth={3} />
-                    ) : (
-                      <Text style={styles.stepBadgeText}>4</Text>
-                    )}
-                  </View>
-                  <Text style={styles.stepTitle}>Payment Mode *</Text>
-                </View>
-
+              {/* ID Proof Card */}
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Recipient ID Proof</Text>
                 <TouchableOpacity
                   style={[
                     styles.dropdownBtn,
-                    paymentMode ? styles.dropdownBtnFilled : styles.dropdownBtnEmpty,
+                    selectedIdType ? styles.dropdownBtnFilled : styles.dropdownBtnEmpty,
                   ]}
-                  onPress={() => setPaymentModeDropdownVisible(true)}
+                  onPress={() => setIdTypeDropdownVisible(true)}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.dropdownText, paymentMode && styles.dropdownTextFilled]}>
-                    {paymentMode
-                      ? PAYMENT_MODES.find((m) => m.key === paymentMode)?.label
-                      : 'Select Payment Mode...'}
+                  <Text style={[styles.dropdownText, selectedIdType && styles.dropdownTextFilled]}>
+                    {selectedIdType || 'Select ID Card Type...'}
                   </Text>
-                  <ChevronDown size={17} color="#64748B" />
+                  <ChevronDown size={16} color="#64748B" />
                 </TouchableOpacity>
 
-                {/* 1. Single Online Payment */}
-                {paymentMode === 'Online' && (
-                  <View style={styles.onlineBox}>
+                {selectedIdType && (
+                  <>
                     <TextInput
                       style={styles.textInput}
-                      placeholder="Kiske naam par payment hua hai? *"
+                      placeholder={`${selectedIdType} Number (Optional)`}
                       placeholderTextColor="#94A3B8"
-                      value={onlinePaidToName}
-                      onChangeText={setOnlinePaidToName}
+                      value={idNumberText}
+                      onChangeText={setIdNumberText}
                     />
 
+                    {/* ID Front */}
                     <View style={styles.uploadRow}>
-                      <Text style={styles.uploadTitle}>Payment Screenshot *</Text>
-                      {onlineScreenshot ? (
-                        <View style={styles.attachedPill}>
-                          <CheckCircle2 size={14} color="#059669" />
-                          <Text style={styles.attachedPillText}>Uploaded</Text>
-                          <TouchableOpacity onPress={() => setOnlineScreenshot(null)}>
-                            <X size={13} color="#64748B" />
-                          </TouchableOpacity>
-                        </View>
-                      ) : (
-                        <TouchableOpacity
-                          style={styles.attachBtn}
-                          onPress={() => openUpload('screenshot')}
-                          activeOpacity={0.8}
-                        >
-                          <Upload size={12} color="#0062FF" />
-                          <Text style={styles.attachBtnText}>Upload</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  </View>
-                )}
-
-                {/* 2. Split Payment (Cash + Online) */}
-                {paymentMode === 'Cash + Online' && (
-                  <View style={styles.splitBox}>
-                    <View style={styles.twoColRow}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.fieldLabel}>Cash Amount (₹) *</Text>
-                        <TextInput
-                          style={styles.textInput}
-                          keyboardType="numeric"
-                          placeholder="Cash"
-                          placeholderTextColor="#94A3B8"
-                          value={splitCashAmount}
-                          onChangeText={handleCashChange}
-                        />
-                      </View>
-
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.fieldLabel}>Online Amount (₹) *</Text>
-                        <TextInput
-                          style={styles.textInput}
-                          keyboardType="numeric"
-                          placeholder="Online"
-                          placeholderTextColor="#94A3B8"
-                          value={splitOnlineAmount}
-                          onChangeText={handleOnlineChange}
-                        />
-                      </View>
-                    </View>
-
-                    <View
-                      style={[
-                        styles.splitSummaryCard,
-                        splitDifference === 0 ? styles.splitMatch : styles.splitMismatch,
-                      ]}
-                    >
-                      <Text style={styles.splitSummaryText}>
-                        ₹{numSplitCash} (Cash) + ₹{numSplitOnline} (Online) = ₹{splitTotalSum}
-                        {splitDifference === 0 ? '  ✓ Matched' : `  (Target: ₹${finalTotalAmount})`}
+                      <Text style={styles.uploadTitle}>
+                        {selectedIdType} {isTwoSidedId ? '(Front)' : ''} *
                       </Text>
-                    </View>
-
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="Kiske naam par online payment hua hai? *"
-                      placeholderTextColor="#94A3B8"
-                      value={onlinePaidToName}
-                      onChangeText={setOnlinePaidToName}
-                    />
-
-                    <View style={styles.uploadRow}>
-                      <Text style={styles.uploadTitle}>Online Receipt (₹{numSplitOnline}) *</Text>
-                      {onlineScreenshot ? (
+                      {idProofDocFront ? (
                         <View style={styles.attachedPill}>
                           <CheckCircle2 size={14} color="#059669" />
-                          <Text style={styles.attachedPillText}>Uploaded</Text>
-                          <TouchableOpacity onPress={() => setOnlineScreenshot(null)}>
-                            <X size={13} color="#64748B" />
+                          <Text style={styles.attachedPillText}>Attached</Text>
+                          <TouchableOpacity onPress={() => setIdProofDocFront(null)}>
+                            <X size={14} color="#64748B" />
                           </TouchableOpacity>
                         </View>
                       ) : (
                         <TouchableOpacity
-                          style={styles.attachBtn}
-                          onPress={() => openUpload('screenshot')}
+                          style={styles.uploadActionBtn}
+                          onPress={() => openUpload('idproof_front')}
                           activeOpacity={0.8}
                         >
-                          <Upload size={12} color="#0062FF" />
-                          <Text style={styles.attachBtnText}>Upload</Text>
+                          <Upload size={13} color="#FFFFFF" />
+                          <Text style={styles.uploadActionBtnText}>Front Photo</Text>
                         </TouchableOpacity>
                       )}
                     </View>
-                  </View>
+
+                    {/* ID Back */}
+                    {isTwoSidedId && (
+                      <View style={styles.uploadRow}>
+                        <Text style={styles.uploadTitle}>{selectedIdType} (Back) *</Text>
+                        {idProofDocBack ? (
+                          <View style={styles.attachedPill}>
+                            <CheckCircle2 size={14} color="#059669" />
+                            <Text style={styles.attachedPillText}>Attached</Text>
+                            <TouchableOpacity onPress={() => setIdProofDocBack(null)}>
+                              <X size={14} color="#64748B" />
+                            </TouchableOpacity>
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            style={[styles.uploadActionBtn, { backgroundColor: '#7C3AED' }]}
+                            onPress={() => openUpload('idproof_back')}
+                            activeOpacity={0.8}
+                          >
+                            <Upload size={13} color="#FFFFFF" />
+                            <Text style={styles.uploadActionBtnText}>Back Photo</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )}
+                  </>
                 )}
               </View>
-            ) : isStep2Fulfilled ? (
-              <View style={styles.lockedStepCard}>
-                <Lock size={13} color="#94A3B8" />
-                <Text style={styles.lockedStepText}>Review Step 3</Text>
+
+              {/* Handover Photo Card */}
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Exit Gate Photo with Vehicle *</Text>
+                <View style={styles.uploadRow}>
+                  <Text style={styles.uploadTitle}>Photo with Driver & Vehicle</Text>
+                  {handoverPhoto ? (
+                    <View style={styles.attachedPill}>
+                      <CheckCircle2 size={14} color="#059669" />
+                      <Text style={styles.attachedPillText}>Photo Ready</Text>
+                      <TouchableOpacity onPress={() => setHandoverPhoto(null)}>
+                        <X size={14} color="#64748B" />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.uploadActionBtn, { backgroundColor: '#059669' }]}
+                      onPress={() => openUpload('handover')}
+                      activeOpacity={0.8}
+                    >
+                      <Camera size={13} color="#FFFFFF" />
+                      <Text style={styles.uploadActionBtnText}>Take Photo</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
-            ) : null
+            </View>
           )}
 
           {/* ========================================================= */}
-          {/* STEP 5: CUSTOMER ID PROOF (FRONT + BACK DUAL UPLOAD)      */}
+          {/* STEP 3: BILLING & CHARGES (SAME LIKE KACHHA RELEASE)      */}
           {/* ========================================================= */}
-          {isStep4PaymentFulfilled ? (
-            <View style={[styles.stepCard, !isStep5IdProofFulfilled && styles.stepCardActiveBorder]}>
-              <View style={styles.stepHeaderRow}>
-                <View style={[styles.stepBadge, isStep5IdProofFulfilled && styles.stepBadgeDone]}>
-                  {isStep5IdProofFulfilled ? (
-                    <Check size={12} color="#FFFFFF" strokeWidth={3} />
-                  ) : (
-                    <Text style={styles.stepBadgeText}>{idStepNumber}</Text>
-                  )}
-                </View>
-                <Text style={styles.stepTitle}>Recipient ID Proof *</Text>
-              </View>
-
-              {/* ID Type Dropdown */}
-              <TouchableOpacity
-                style={[
-                  styles.dropdownBtn,
-                  selectedIdType ? styles.dropdownBtnFilled : styles.dropdownBtnEmpty,
-                ]}
-                onPress={() => setIdTypeDropdownVisible(true)}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.dropdownText, selectedIdType && styles.dropdownTextFilled]}>
-                  {selectedIdType || 'Select ID Proof Type...'}
+          {currentStep === 3 && (
+            <View style={styles.stepContainer}>
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>3. Stay & Waive-off Calculation</Text>
+                <Text style={styles.cardSubtitle}>
+                  Tariff breakdown based on RO Date, Grace Period and Daily Rate.
                 </Text>
-                <ChevronDown size={17} color="#64748B" />
-              </TouchableOpacity>
 
-              {selectedIdType && (
-                <>
-                  <TextInput
-                    style={[styles.textInput, { marginTop: 4 }]}
-                    placeholder={`${selectedIdType} Number (Optional)`}
-                    placeholderTextColor="#94A3B8"
-                    value={idNumberText}
-                    onChangeText={setIdNumberText}
-                  />
-
-                  {/* ID Front */}
-                  <View style={styles.uploadRow}>
-                    <Text style={styles.uploadTitle}>
-                      {selectedIdType} {isTwoSidedId ? '(Front) *' : '*'}
-                    </Text>
-                    {idProofDocFront ? (
-                      <View style={styles.attachedPill}>
-                        <CheckCircle2 size={14} color="#059669" />
-                        <Text style={styles.attachedPillText}>Front Attached</Text>
-                        <TouchableOpacity onPress={() => setIdProofDocFront(null)}>
-                          <X size={13} color="#64748B" />
-                        </TouchableOpacity>
-                      </View>
-                    ) : (
-                      <TouchableOpacity
-                        style={styles.attachBtn}
-                        onPress={() => openUpload('idproof_front')}
-                        activeOpacity={0.8}
-                      >
-                        <Upload size={12} color="#0062FF" />
-                        <Text style={styles.attachBtnText}>Attach Front</Text>
-                      </TouchableOpacity>
-                    )}
+                <View style={styles.billCard}>
+                  <View style={styles.billRow}>
+                    <Text style={styles.billLabel}>Yard Stay Upto RO Date</Text>
+                    <Text style={[styles.billValue, { color: '#059669' }]}>Paid by Bank</Text>
                   </View>
 
-                  {/* ID Back (for 2-sided IDs) */}
-                  {isTwoSidedId && (
-                    <View style={styles.uploadRow}>
-                      <Text style={styles.uploadTitle}>{selectedIdType} (Back) *</Text>
-                      {idProofDocBack ? (
-                        <View style={styles.attachedPill}>
-                          <CheckCircle2 size={14} color="#059669" />
-                          <Text style={styles.attachedPillText}>Back Attached</Text>
-                          <TouchableOpacity onPress={() => setIdProofDocBack(null)}>
-                            <X size={13} color="#64748B" />
-                          </TouchableOpacity>
-                        </View>
-                      ) : (
-                        <TouchableOpacity
-                          style={[styles.attachBtn, { backgroundColor: '#F3E8FF', borderColor: '#DDD6FE' }]}
-                          onPress={() => openUpload('idproof_back')}
-                          activeOpacity={0.8}
-                        >
-                          <Upload size={12} color="#7C3AED" />
-                          <Text style={[styles.attachBtnText, { color: '#7C3AED' }]}>Attach Back</Text>
-                        </TouchableOpacity>
-                      )}
+                  <View style={styles.billRow}>
+                    <Text style={styles.billLabel}>Free Grace Period ({waiverDaysConfig} Days)</Text>
+                    <Text style={[styles.billValue, { color: '#059669' }]}>Waived (₹0)</Text>
+                  </View>
+
+                  {!isFreeRelease && (
+                    <View style={styles.billRow}>
+                      <Text style={styles.billLabel}>Delay ({chargeableDelayDays} Days @ ₹{dailyRate}/day)</Text>
+                      <Text style={styles.billValue}>₹{customerPayableAmount}</Text>
                     </View>
                   )}
-                </>
-              )}
-            </View>
-          ) : isStep3Fulfilled ? (
-            <View style={styles.lockedStepCard}>
-              <Lock size={13} color="#94A3B8" />
-              <Text style={styles.lockedStepText}>Complete previous step</Text>
-            </View>
-          ) : null}
 
-          {/* ========================================================= */}
-          {/* STEP 6: HANDOVER PHOTO WITH VEHICLE                       */}
-          {/* ========================================================= */}
-          {isStep5IdProofFulfilled ? (
-            <View style={[styles.stepCard, !isStep6HandoverFulfilled && styles.stepCardActiveBorder]}>
-              <View style={styles.stepHeaderRow}>
-                <View style={[styles.stepBadge, isStep6HandoverFulfilled && styles.stepBadgeDone]}>
-                  {isStep6HandoverFulfilled ? (
-                    <Check size={12} color="#FFFFFF" strokeWidth={3} />
-                  ) : (
-                    <Text style={styles.stepBadgeText}>{handoverStepNumber}</Text>
-                  )}
+                  <View style={styles.billDivider} />
+
+                  <View style={styles.billTotalRow}>
+                    <View>
+                      <Text style={styles.billTotalTitle}>Total Customer Payable</Text>
+                      <Text style={styles.billTotalSubtitle}>
+                        {isFreeRelease ? 'Released within free grace period' : `${chargeableDelayDays} delay days`}
+                      </Text>
+                    </View>
+                    <Text style={[styles.billTotalAmount, isFreeRelease && { color: '#059669' }]}>
+                      ₹{finalTotalAmount.toLocaleString('en-IN')}
+                    </Text>
+                  </View>
                 </View>
-                <Text style={styles.stepTitle}>Customer Photo with Vehicle *</Text>
               </View>
 
-              <View style={styles.uploadRow}>
-                <Text style={styles.uploadTitle}>Exit Gate Photo *</Text>
-                {handoverPhoto ? (
-                  <View style={styles.attachedPill}>
-                    <CheckCircle2 size={14} color="#059669" />
-                    <Text style={styles.attachedPillText}>Photo Ready</Text>
-                    <TouchableOpacity onPress={() => setHandoverPhoto(null)}>
-                      <X size={13} color="#64748B" />
-                    </TouchableOpacity>
-                  </View>
-                ) : (
+              {/* Payment Section if Amount > 0 */}
+              {!isFreeRelease && (
+                <View style={styles.card}>
+                  <Text style={styles.cardTitle}>Payment Method *</Text>
                   <TouchableOpacity
-                    style={[styles.attachBtn, { backgroundColor: '#059669', borderColor: '#059669' }]}
-                    onPress={() => openUpload('handover')}
+                    style={[
+                      styles.dropdownBtn,
+                      paymentMode ? styles.dropdownBtnFilled : styles.dropdownBtnEmpty,
+                    ]}
+                    onPress={() => setPaymentModeDropdownVisible(true)}
                     activeOpacity={0.8}
                   >
-                    <Camera size={13} color="#FFFFFF" />
-                    <Text style={[styles.attachBtnText, { color: '#FFFFFF' }]}>Take Photo</Text>
+                    <Text style={[styles.dropdownText, paymentMode && styles.dropdownTextFilled]}>
+                      {paymentMode
+                        ? PAYMENT_MODES.find((m) => m.key === paymentMode)?.label
+                        : 'Select Payment Method...'}
+                    </Text>
+                    <ChevronDown size={16} color="#64748B" />
                   </TouchableOpacity>
-                )}
-              </View>
+
+                  {(paymentMode === 'Online' || paymentMode === 'Cash + Online') && (
+                    <View style={styles.onlineSection}>
+                      {paymentMode === 'Cash + Online' && (
+                        <View style={styles.formRow}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.fieldLabel}>Cash Amount (₹)</Text>
+                            <TextInput
+                              style={styles.textInput}
+                              keyboardType="numeric"
+                              placeholder="Cash"
+                              placeholderTextColor="#94A3B8"
+                              value={splitCashAmount}
+                              onChangeText={handleCashChange}
+                            />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.fieldLabel}>Online Amount (₹)</Text>
+                            <TextInput
+                              style={styles.textInput}
+                              keyboardType="numeric"
+                              placeholder="Online"
+                              placeholderTextColor="#94A3B8"
+                              value={splitOnlineAmount}
+                              onChangeText={handleOnlineChange}
+                            />
+                          </View>
+                        </View>
+                      )}
+
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder="Paid To / Account Name *"
+                        placeholderTextColor="#94A3B8"
+                        value={onlinePaidToName}
+                        onChangeText={setOnlinePaidToName}
+                      />
+
+                      <View style={styles.uploadRow}>
+                        <Text style={styles.uploadTitle}>Payment Screenshot / Receipt *</Text>
+                        {onlineScreenshot ? (
+                          <View style={styles.attachedPill}>
+                            <CheckCircle2 size={14} color="#059669" />
+                            <Text style={styles.attachedPillText}>Attached</Text>
+                            <TouchableOpacity onPress={() => setOnlineScreenshot(null)}>
+                              <X size={14} color="#64748B" />
+                            </TouchableOpacity>
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            style={styles.uploadActionBtn}
+                            onPress={() => openUpload('screenshot')}
+                            activeOpacity={0.8}
+                          >
+                            <Upload size={13} color="#FFFFFF" />
+                            <Text style={styles.uploadActionBtnText}>Upload</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
-          ) : isStep4PaymentFulfilled ? (
-            <View style={styles.lockedStepCard}>
-              <Lock size={13} color="#94A3B8" />
-              <Text style={styles.lockedStepText}>Attach Recipient ID first</Text>
-            </View>
-          ) : null}
+          )}
         </ScrollView>
       )}
 
-      {/* ========================================================= */}
-      {/* STICKY BOTTOM SUBMIT BUTTON                               */}
-      {/* ========================================================= */}
-      {(vehicle || roScanData?.registrationNumber) && (
+      {/* Sticky Bottom Bar / Step Navigation */}
+      {(vehicle || extractedPlate) && (
         <View style={[styles.stickyFooter, { paddingBottom: bottomPadding }]}>
-          <TouchableOpacity
-            style={[
-              styles.submitBtn,
-              (!isStep6HandoverFulfilled || submitting) && styles.submitBtnDisabled,
-            ]}
-            onPress={handleSubmitPakkaRelease}
-            activeOpacity={0.85}
-            disabled={!isStep6HandoverFulfilled || submitting}
-          >
-            {submitting ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <>
-                <CheckCircle2 size={17} color="#FFFFFF" strokeWidth={2.4} />
-                <Text style={styles.submitBtnText}>
-                  {isStep6HandoverFulfilled
-                    ? isFreeRelease
-                      ? 'Complete Free Release & Gate Pass (₹0)'
-                      : `Complete Release & Gate Pass (₹${finalTotalAmount.toLocaleString('en-IN')})`
-                    : 'Complete Steps in Sequence'}
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
+          {currentStep === 1 && (
+            <TouchableOpacity
+              style={[
+                styles.submitBtn,
+                !isStep1Complete && styles.submitBtnDisabled,
+              ]}
+              onPress={() => {
+                if (isStep1Complete) setCurrentStep(2);
+              }}
+              activeOpacity={0.85}
+              disabled={!isStep1Complete}
+            >
+              <Text style={styles.submitBtnText}>
+                {isStep1Complete ? 'Next: Recipient Details' : 'Attach & Verify Document'}
+              </Text>
+              <ArrowRight size={17} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
+
+          {currentStep === 2 && (
+            <View style={styles.stepNavRow}>
+              <TouchableOpacity
+                style={styles.backStepBtn}
+                onPress={() => setCurrentStep(1)}
+                activeOpacity={0.8}
+              >
+                <ArrowLeft size={16} color="#334155" />
+                <Text style={styles.backStepBtnText}>Back</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.submitBtn,
+                  { flex: 1 },
+                  !isStep2Complete && styles.submitBtnDisabled,
+                ]}
+                onPress={() => {
+                  if (isStep2Complete) setCurrentStep(3);
+                }}
+                activeOpacity={0.85}
+                disabled={!isStep2Complete}
+              >
+                <Text style={styles.submitBtnText}>Next: Billing</Text>
+                <ArrowRight size={17} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {currentStep === 3 && (
+            <View style={styles.stepNavRow}>
+              <TouchableOpacity
+                style={styles.backStepBtn}
+                onPress={() => setCurrentStep(2)}
+                activeOpacity={0.8}
+              >
+                <ArrowLeft size={16} color="#334155" />
+                <Text style={styles.backStepBtnText}>Back</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.submitBtn,
+                  { flex: 1 },
+                  (!isStep3PaymentFulfilled || submitting) && styles.submitBtnDisabled,
+                ]}
+                onPress={handleSubmitPakkaRelease}
+                activeOpacity={0.85}
+                disabled={!isStep3PaymentFulfilled || submitting}
+              >
+                {submitting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <CheckCircle2 size={17} color="#FFFFFF" strokeWidth={2.4} />
+                    <Text style={styles.submitBtnText}>
+                      {isFreeRelease
+                        ? 'Issue Gate Pass (₹0)'
+                        : `Release & Pass (₹${finalTotalAmount.toLocaleString('en-IN')})`}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       )}
 
-      {/* ========================================================= */}
-      {/* DROPDOWN MODAL: PAYMENT MODE                              */}
-      {/* ========================================================= */}
+      {/* Fix / Correction Modal */}
+      <Modal
+        visible={fixModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFixModalVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setFixModalVisible(false)}>
+          <View style={styles.modalBackdrop}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 20 }]}>
+                <View style={styles.sheetHandle} />
+                <View style={styles.sheetHeader}>
+                  <Text style={styles.sheetTitle}>
+                    Fix / Correct {fixFieldType === 'registration' ? 'Vehicle Plate' : fixFieldType === 'engine' ? 'Engine No' : 'Chassis No'}
+                  </Text>
+                  <TouchableOpacity onPress={() => setFixModalVisible(false)}>
+                    <X size={18} color="#64748B" />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={{ paddingVertical: 12, gap: 12 }}>
+                  <Text style={styles.modalSubtext}>
+                    Correct any OCR character misread (e.g. 0 vs O, U vs V) as per the physical letter.
+                  </Text>
+                  <TextInput
+                    style={[styles.textInput, { fontSize: 16, fontWeight: '700' }]}
+                    value={fixFieldValue}
+                    onChangeText={setFixFieldValue}
+                    autoCapitalize="characters"
+                    autoFocus
+                  />
+                  <TouchableOpacity style={styles.modalSaveBtn} onPress={handleSaveFix}>
+                    <Text style={styles.modalSaveBtnText}>Save Correction</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Payment Mode Modal */}
       <Modal
         visible={paymentModeDropdownVisible}
         transparent
@@ -1507,7 +1470,7 @@ export default function PakkaReleaseScreen() {
               <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
                 <View style={styles.sheetHandle} />
                 <View style={styles.sheetHeader}>
-                  <Text style={styles.sheetTitle}>Select Payment Mode</Text>
+                  <Text style={styles.sheetTitle}>Select Payment Method</Text>
                   <TouchableOpacity onPress={() => setPaymentModeDropdownVisible(false)}>
                     <X size={18} color="#64748B" />
                   </TouchableOpacity>
@@ -1520,7 +1483,10 @@ export default function PakkaReleaseScreen() {
                       <TouchableOpacity
                         key={pm.key}
                         style={[styles.dropdownItemRow, isSelected && styles.dropdownItemRowActive]}
-                        onPress={() => handleSelectPaymentMode(pm.key)}
+                        onPress={() => {
+                          setPaymentMode(pm.key);
+                          setPaymentModeDropdownVisible(false);
+                        }}
                         activeOpacity={0.75}
                       >
                         <Text style={[styles.dropdownItemText, isSelected && styles.dropdownItemTextActive]}>
@@ -1537,9 +1503,7 @@ export default function PakkaReleaseScreen() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* ========================================================= */}
-      {/* DROPDOWN MODAL: ID TYPE                                   */}
-      {/* ========================================================= */}
+      {/* ID Type Modal */}
       <Modal
         visible={idTypeDropdownVisible}
         transparent
@@ -1552,7 +1516,7 @@ export default function PakkaReleaseScreen() {
               <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
                 <View style={styles.sheetHandle} />
                 <View style={styles.sheetHeader}>
-                  <Text style={styles.sheetTitle}>Select ID Type</Text>
+                  <Text style={styles.sheetTitle}>Select ID Card Type</Text>
                   <TouchableOpacity onPress={() => setIdTypeDropdownVisible(false)}>
                     <X size={18} color="#64748B" />
                   </TouchableOpacity>
@@ -1565,7 +1529,10 @@ export default function PakkaReleaseScreen() {
                       <TouchableOpacity
                         key={type}
                         style={[styles.dropdownItemRow, isSelected && styles.dropdownItemRowActive]}
-                        onPress={() => handleSelectIdType(type)}
+                        onPress={() => {
+                          setSelectedIdType(type);
+                          setIdTypeDropdownVisible(false);
+                        }}
                         activeOpacity={0.75}
                       >
                         <Text style={[styles.dropdownItemText, isSelected && styles.dropdownItemTextActive]}>
@@ -1582,160 +1549,57 @@ export default function PakkaReleaseScreen() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* ========================================================= */}
-      {/* 3-DOTS OPTIONS MODAL                                      */}
-      {/* ========================================================= */}
-      <Modal visible={menuModalVisible} transparent animationType="fade" onRequestClose={() => setMenuModalVisible(false)}>
-        <TouchableWithoutFeedback onPress={() => setMenuModalVisible(false)}>
-          <View style={styles.menuModalBackdrop}>
-            <TouchableWithoutFeedback>
-              <View style={[styles.menuModalSheet, { paddingBottom: Math.max(insets.bottom, 20) }]}>
-                <View style={styles.sheetHandle} />
-                <View style={styles.sheetHeader}>
-                  <Text style={styles.sheetTitle}>Options</Text>
-                  <TouchableOpacity onPress={() => setMenuModalVisible(false)}>
-                    <X size={18} color="#64748B" />
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.dropdownOptionsList}>
-                  <TouchableOpacity
-                    style={styles.dropdownItemRow}
-                    onPress={() => {
-                      setMenuModalVisible(false);
-                      fetchVehicle();
-                    }}
-                  >
-                    <RotateCcw size={16} color="#0062FF" />
-                    <Text style={styles.dropdownItemText}>Refresh Data</Text>
-                  </TouchableOpacity>
-
-                  {vehicle?.id && (
-                    <TouchableOpacity
-                      style={styles.dropdownItemRow}
-                      onPress={() => {
-                        setMenuModalVisible(false);
-                        router.push(`/tenant_admin/admin/vehicles/details/${vehicle.id}` as any);
-                      }}
-                    >
-                      <Car size={16} color="#059669" />
-                      <Text style={styles.dropdownItemText}>Full Vehicle Details</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-
-      {/* ========================================================= */}
-      {/* UPLOAD MODAL                                              */}
-      {/* ========================================================= */}
-      <Modal visible={!!activeUploadTarget} transparent animationType="slide" onRequestClose={closeUpload}>
+      {/* Upload Choice Modal */}
+      <Modal
+        visible={activeUploadTarget !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={closeUpload}
+      >
         <TouchableWithoutFeedback onPress={closeUpload}>
           <View style={styles.modalBackdrop}>
             <TouchableWithoutFeedback>
-              <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
+              <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 20 }]}>
                 <View style={styles.sheetHandle} />
                 <View style={styles.sheetHeader}>
-                  <Text style={styles.sheetTitle}>
-                    {activeUploadTarget === 'ro_letter'
-                      ? 'Upload Bank Release Order Letter'
-                      : activeUploadTarget === 'idproof_front'
-                      ? `Upload ${selectedIdType || 'ID'} (Front)`
-                      : activeUploadTarget === 'idproof_back'
-                      ? `Upload ${selectedIdType || 'ID'} (Back)`
-                      : activeUploadTarget === 'screenshot'
-                      ? 'Upload Payment Receipt'
-                      : 'Capture Handover Photo'}
-                  </Text>
+                  <Text style={styles.sheetTitle}>Upload Document / Photo</Text>
                   <TouchableOpacity onPress={closeUpload}>
                     <X size={18} color="#64748B" />
                   </TouchableOpacity>
                 </View>
 
-                <View style={styles.dropdownOptionsList}>
-                  <TouchableOpacity style={styles.dropdownItemRow} onPress={handleCameraCapture} activeOpacity={0.75}>
-                    <Camera size={18} color="#0062FF" strokeWidth={2.2} />
-                    <Text style={styles.dropdownItemText}>Take Photo</Text>
+                <View style={styles.uploadOptionsRow}>
+                  <TouchableOpacity
+                    style={styles.uploadOptionTile}
+                    onPress={handleCameraCapture}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[styles.uploadOptionCircle, { backgroundColor: '#EFF6FF' }]}>
+                      <Camera size={22} color="#0062FF" />
+                    </View>
+                    <Text style={styles.uploadOptionText}>Camera</Text>
                   </TouchableOpacity>
-
-                  <TouchableOpacity style={styles.dropdownItemRow} onPress={handleGalleryPick} activeOpacity={0.75}>
-                    <ImageIcon size={18} color="#059669" strokeWidth={2.2} />
-                    <Text style={styles.dropdownItemText}>Choose from Gallery</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={styles.dropdownItemRow} onPress={handlePdfPick} activeOpacity={0.75}>
-                    <FileText size={18} color="#E11D48" strokeWidth={2.2} />
-                    <Text style={styles.dropdownItemText}>Select PDF File</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <TouchableOpacity style={styles.cancelBtn} onPress={closeUpload}>
-                  <Text style={styles.cancelBtnText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-
-      {/* ========================================================= */}
-      {/* MANUAL REVIEW / OVERRIDE MODAL                            */}
-      {/* ========================================================= */}
-      <Modal
-        visible={manualEditModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setManualEditModalVisible(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setManualEditModalVisible(false)}>
-          <View style={styles.modalBackdrop}>
-            <TouchableWithoutFeedback>
-              <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
-                <View style={styles.sheetHandle} />
-                <View style={styles.sheetHeader}>
-                  <Text style={styles.sheetTitle}>Manual Override & Audit</Text>
-                  <TouchableOpacity onPress={() => setManualEditModalVisible(false)}>
-                    <X size={18} color="#64748B" />
-                  </TouchableOpacity>
-                </View>
-
-                <View style={{ gap: 12, paddingVertical: 8 }}>
-                  <View>
-                    <Text style={styles.fieldLabel}>Field: {editFieldName}</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={editFieldValue}
-                      onChangeText={setEditFieldValue}
-                      placeholder={`Enter corrected ${editFieldName}`}
-                      placeholderTextColor="#94A3B8"
-                    />
-                  </View>
-
-                  <View>
-                    <Text style={styles.fieldLabel}>Reason for Override * (Logged in Audit History)</Text>
-                    <TextInput
-                      style={[styles.textInput, { height: 60, textAlignVertical: 'top', paddingTop: 8 }]}
-                      value={editReason}
-                      onChangeText={setEditReason}
-                      placeholder="e.g. Document image blur / physically verified with bank officer"
-                      placeholderTextColor="#94A3B8"
-                      multiline
-                    />
-                  </View>
 
                   <TouchableOpacity
-                    style={[styles.submitBtn, { marginTop: 4 }, savingManualEdit && styles.submitBtnDisabled]}
-                    onPress={handleSaveManualEdit}
-                    disabled={savingManualEdit}
+                    style={styles.uploadOptionTile}
+                    onPress={handleGalleryPick}
+                    activeOpacity={0.8}
                   >
-                    {savingManualEdit ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <Text style={styles.submitBtnText}>Save & Log Audit Trail</Text>
-                    )}
+                    <View style={[styles.uploadOptionCircle, { backgroundColor: '#FAF5FF' }]}>
+                      <ImageIcon size={22} color="#7C3AED" />
+                    </View>
+                    <Text style={styles.uploadOptionText}>Gallery</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.uploadOptionTile}
+                    onPress={handlePdfPick}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[styles.uploadOptionCircle, { backgroundColor: '#F0FDF4' }]}>
+                      <FileText size={22} color="#16A34A" />
+                    </View>
+                    <Text style={styles.uploadOptionText}>PDF File</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1744,12 +1608,12 @@ export default function PakkaReleaseScreen() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* Gate Pass Clearance Modal */}
+      {/* Gate Pass Modal */}
       <GatePassModal
         visible={showGatePassModal}
         onClose={handleFinishGatePass}
         gatePassData={gatePassResult}
-        vehicle={vehicle || { vehicleNumber: roScanData?.registrationNumber || 'VEHICLE' }}
+        vehicle={vehicle || { vehicleNumber: extractedPlate || 'VEHICLE' }}
         recipientName={recipientName.trim()}
         recipientPhone={recipientPhone.trim()}
         recipientType={isFirstPartyCustomer ? 'Authorized Customer' : '3rd Party Representative'}
@@ -1772,6 +1636,58 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
+  wizardBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  wizardStep: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 4,
+  },
+  wizardStepActive: {
+    opacity: 1,
+  },
+  stepDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepDotActive: {
+    backgroundColor: '#0062FF',
+  },
+  stepDotDone: {
+    backgroundColor: '#059669',
+  },
+  stepDotNum: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748B',
+  },
+  wizardStepText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  wizardStepTextActive: {
+    color: '#0062FF',
+    fontWeight: '800',
+  },
+  wizardConnector: {
+    width: 14,
+    height: 1,
+    backgroundColor: '#CBD5E1',
+  },
   centerLoading: {
     flex: 1,
     alignItems: 'center',
@@ -1785,60 +1701,341 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 12,
-    gap: 10,
   },
-  stepCard: {
+  stepContainer: {
+    gap: 12,
+  },
+  card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 14,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    gap: 8,
+    gap: 10,
   },
-  stepCardActiveBorder: {
-    borderColor: '#93C5FD',
+  cardTitle: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#0F172A',
   },
-  stepHeaderRow: {
+  cardSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 17,
+  },
+  uploadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  uploadTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  uploadActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#0062FF',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  uploadActionBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  attachedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ECFDF5',
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  attachedPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  scanningHudBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    backgroundColor: '#EFF6FF',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
   },
-  stepBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#0F172A',
+  scanningHudTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0062FF',
+  },
+  matchHeaderRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
   },
-  stepBadgeDone: {
-    backgroundColor: '#059669',
+  statusBadge: {
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
   },
-  stepBadgeText: {
+  statusBadgeSuccess: {
+    backgroundColor: '#ECFDF5',
+  },
+  statusBadgeDanger: {
+    backgroundColor: '#FEE2E2',
+  },
+  statusBadgeText: {
     fontSize: 11,
-    fontWeight: '900',
+    fontWeight: '800',
+  },
+  wrongDetailsBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    padding: 10,
+    borderRadius: 8,
+  },
+  wrongDetailsTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#E11D48',
+  },
+  wrongDetailsDesc: {
+    fontSize: 11,
+    color: '#991B1B',
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  identifiersList: {
+    gap: 8,
+  },
+  identifierRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  rowMatched: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+  },
+  rowMismatch: {
+    backgroundColor: '#FFF1F2',
+    borderColor: '#FECDD3',
+  },
+  idLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  idYardText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginTop: 1,
+  },
+  idDocText: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  idRightCol: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  pctBadge: {
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+  },
+  pctBadgeGreen: {
+    backgroundColor: '#DCFCE7',
+  },
+  pctBadgeRed: {
+    backgroundColor: '#FEE2E2',
+  },
+  pctText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+  },
+  fixBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 4,
+    backgroundColor: '#EFF6FF',
+  },
+  fixBtnText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#0062FF',
+  },
+  summaryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+  },
+  summaryItem: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: '#F8FAFC',
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  summaryLabel: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: '#64748B',
+    marginBottom: 2,
+  },
+  summaryValue: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  waiverPillsRow: {
+    flexDirection: 'row',
+    gap: 4,
+    marginTop: 2,
+  },
+  waiverPill: {
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 4,
+    backgroundColor: '#E2E8F0',
+  },
+  waiverPillActive: {
+    backgroundColor: '#0062FF',
+  },
+  waiverPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  waiverPillTextActive: {
     color: '#FFFFFF',
   },
-  stepTitle: {
+  segmentedRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  segmentBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  segmentBtnActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#0062FF',
+  },
+  segmentBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  segmentBtnTextActive: {
+    color: '#0062FF',
+    fontWeight: '700',
+  },
+  formRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#475569',
+    marginBottom: 4,
+  },
+  textInput: {
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 10,
+    fontSize: 13,
+    color: '#0F172A',
+    fontWeight: '600',
+  },
+  billCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    gap: 8,
+  },
+  billRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  billLabel: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  billValue: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  billDivider: {
+    height: 1,
+    backgroundColor: '#E2E8F0',
+    marginVertical: 2,
+  },
+  billTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 4,
+  },
+  billTotalTitle: {
     fontSize: 13,
     fontWeight: '800',
     color: '#0F172A',
   },
-  lockedStepCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    opacity: 0.65,
+  billTotalSubtitle: {
+    fontSize: 10.5,
+    color: '#64748B',
   },
-  lockedStepText: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: '#94A3B8',
+  billTotalAmount: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0F172A',
   },
   dropdownBtn: {
     flexDirection: 'row',
@@ -1847,7 +2044,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     paddingHorizontal: 12,
-    height: 40,
+    height: 42,
   },
   dropdownBtnEmpty: {
     backgroundColor: '#F8FAFC',
@@ -1858,442 +2055,64 @@ const styles = StyleSheet.create({
     borderColor: '#0062FF',
   },
   dropdownText: {
-    fontSize: 12.5,
+    fontSize: 13,
     fontWeight: '600',
     color: '#94A3B8',
     flex: 1,
   },
   dropdownTextFilled: {
     color: '#0062FF',
-    fontWeight: '800',
-  },
-  twoColRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  fieldLabel: {
-    fontSize: 11,
     fontWeight: '700',
-    color: '#475569',
-    marginBottom: 3,
   },
-  textInput: {
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingHorizontal: 10,
-    fontSize: 12.5,
-    color: '#0F172A',
-    fontWeight: '600',
-  },
-  uploadRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-  },
-  uploadTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  attachedPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    gap: 5,
-  },
-  attachedPillText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#059669',
-  },
-  attachBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EFF6FF',
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 6,
-    gap: 4,
-  },
-  attachBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#0062FF',
-  },
-  // Scanning HUD
-  scanningHudBox: {
-    backgroundColor: '#EFF6FF',
-    borderRadius: 8,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    gap: 4,
-  },
-  scanningHudTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#0062FF',
-  },
-  scanningHudStep: {
-    fontSize: 11,
-    color: '#475569',
-    fontWeight: '600',
-  },
-  // RO Verified Box
-  roVerifiedCard: {
-    backgroundColor: '#F0FDF4',
-    borderRadius: 10,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
+  onlineSection: {
     gap: 8,
+    marginTop: 4,
   },
-  roVerifiedHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 6,
-  },
-  roVerifiedTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#166534',
-    flex: 1,
-  },
-  confBadge: {
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  confBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#15803D',
-  },
-  badgesRow: {
-    flexDirection: 'row',
-    gap: 6,
-    flexWrap: 'wrap',
-  },
-  verifiedPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 5,
-    gap: 4,
-  },
-  verifiedPillText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#15803D',
-  },
-  pillWarning: {
-    backgroundColor: '#FEF3C7',
-  },
-  pillWarningText: {
-    color: '#B45309',
-  },
-  validationListBox: {
+  stickyFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: '#FFFFFF',
-    borderRadius: 6,
-    padding: 6,
-    gap: 4,
-    borderWidth: 1,
-    borderColor: '#DCFCE7',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    paddingHorizontal: 16,
+    paddingTop: 10,
   },
-  validationCheckRow: {
+  stepNavRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  backStepBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-  },
-  validationCheckText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#334155',
-  },
-  mismatchBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    borderRadius: 6,
-    padding: 8,
-    gap: 6,
-    borderWidth: 1,
-  },
-  mismatchWarning: {
-    backgroundColor: '#FFFBEB',
-    borderColor: '#FDE68A',
-  },
-  mismatchCritical: {
-    backgroundColor: '#FFF1F2',
-    borderColor: '#FECDD3',
-  },
-  mismatchTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  mismatchDesc: {
-    fontSize: 10,
-    color: '#64748B',
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  extractedGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    backgroundColor: '#FFFFFF',
-    padding: 8,
-    borderRadius: 7,
-    borderWidth: 1,
-    borderColor: '#DCFCE7',
-  },
-  extractedItem: {
-    width: '48%',
-  },
-  extractedLabel: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  extractedVal: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginTop: 1,
-  },
-  miniDayPill: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
     backgroundColor: '#F1F5F9',
     borderWidth: 1,
     borderColor: '#CBD5E1',
   },
-  miniDayPillActive: {
-    backgroundColor: '#059669',
-    borderColor: '#059669',
-  },
-  miniDayPillText: {
-    fontSize: 9.5,
+  backStepBtnText: {
+    fontSize: 13,
     fontWeight: '700',
-    color: '#475569',
-  },
-  miniDayPillTextActive: {
-    color: '#FFFFFF',
-  },
-  // Choice Card in Step 2
-  questionCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 9,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 8,
-  },
-  questionText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  choiceBtn: {
-    flex: 1,
-    height: 40,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 6,
-    gap: 5,
-  },
-  choiceBtnActiveYes: {
-    backgroundColor: '#059669',
-    borderColor: '#059669',
-  },
-  choiceBtnActiveNo: {
-    backgroundColor: '#E11D48',
-    borderColor: '#E11D48',
-  },
-  choiceBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#475569',
-  },
-  choiceBtnTextActive: {
-    color: '#FFFFFF',
-  },
-  // Step 3 Dates & Ledger
-  dateDisplayCard: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 8,
-    gap: 2,
-  },
-  dateLabel: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  dateVal: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  freeBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    borderRadius: 7,
-    padding: 8,
-    gap: 6,
-  },
-  freeBannerText: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: '#059669',
-    flex: 1,
-  },
-  delayedBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFBEB',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    borderRadius: 7,
-    padding: 8,
-    gap: 6,
-  },
-  delayedBannerText: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: '#D97706',
-    flex: 1,
-  },
-  totalCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 10,
-    gap: 4,
-    marginTop: 2,
-  },
-  ledgerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  ledgerLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '600',
-    flex: 1,
-    paddingRight: 8,
-  },
-  ledgerVal: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  finalTotalRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#ECFDF5',
-    padding: 6,
-    borderRadius: 6,
-    marginTop: 4,
-  },
-  finalTotalLabel: {
-    fontSize: 11.5,
-    fontWeight: '900',
-    color: '#065F46',
-  },
-  finalTotalVal: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#059669',
-  },
-  onlineBox: {
-    backgroundColor: '#EFF6FF',
-    borderRadius: 8,
-    padding: 8,
-    gap: 8,
-    marginTop: 2,
-  },
-  splitBox: {
-    backgroundColor: '#EFF6FF',
-    borderRadius: 8,
-    padding: 8,
-    gap: 8,
-    marginTop: 2,
-  },
-  splitSummaryCard: {
-    borderRadius: 6,
-    padding: 6,
-    borderWidth: 1,
-  },
-  splitMatch: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
-  },
-  splitMismatch: {
-    backgroundColor: '#FFFBEB',
-    borderColor: '#FDE68A',
-  },
-  splitSummaryText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#1E293B',
-    textAlign: 'center',
-  },
-  stickyFooter: {
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    paddingHorizontal: 12,
-    paddingTop: 8,
+    color: '#334155',
   },
   submitBtn: {
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: '#059669',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 8,
+    backgroundColor: '#0062FF',
+    paddingVertical: 14,
+    borderRadius: 12,
   },
   submitBtnDisabled: {
     backgroundColor: '#94A3B8',
   },
   submitBtnText: {
-    fontSize: 13,
+    fontSize: 14.5,
     fontWeight: '800',
     color: '#FFFFFF',
   },
@@ -2308,81 +2127,90 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     paddingHorizontal: 16,
     paddingTop: 10,
-    gap: 10,
     maxHeight: '75%',
   },
   sheetHandle: {
-    width: 32,
+    width: 36,
     height: 4,
     borderRadius: 2,
     backgroundColor: '#CBD5E1',
     alignSelf: 'center',
-    marginBottom: 2,
+    marginBottom: 10,
   },
   sheetHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    paddingBottom: 6,
+    borderBottomColor: '#E2E8F0',
   },
   sheetTitle: {
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '700',
     color: '#0F172A',
   },
+  modalSubtext: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 16,
+  },
+  modalSaveBtn: {
+    backgroundColor: '#0062FF',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalSaveBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
   dropdownOptionsList: {
-    gap: 6,
-    paddingVertical: 2,
+    paddingVertical: 8,
   },
   dropdownItemRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
   dropdownItemRowActive: {
-    borderColor: '#0062FF',
     backgroundColor: '#EFF6FF',
+    borderRadius: 8,
   },
   dropdownItemText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
     color: '#334155',
+    fontWeight: '600',
   },
   dropdownItemTextActive: {
     color: '#0062FF',
-    fontWeight: '800',
+    fontWeight: '700',
   },
-  cancelBtn: {
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: '#F1F5F9',
+  uploadOptionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 20,
+  },
+  uploadOptionTile: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  uploadOptionCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 2,
   },
-  cancelBtnText: {
-    fontSize: 12.5,
+  uploadOptionText: {
+    fontSize: 12,
     fontWeight: '700',
-    color: '#475569',
-  },
-  menuModalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.4)',
-    justifyContent: 'flex-end',
-  },
-  menuModalSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    gap: 10,
+    color: '#334155',
   },
 });

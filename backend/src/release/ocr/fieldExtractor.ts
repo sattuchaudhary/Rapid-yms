@@ -103,8 +103,8 @@ export function extractRoFields(ocrDoc: OcrDocumentResult): ExtractedRoData {
   // 5. VEHICLE REGISTRATION EXTRACTION
   let regTextCandidate = '';
   let regSource = '';
-  // 1. Try targeted prefixes first: "Vehicle No:", "Reg No:", "Vehicle UP85AB1234"
-  const targetedRegMatch = rawText.match(/(?:Vehicle\s*(?:No\.?|Number|Reg\.?)?|Reg(?:istration)?\s*(?:No\.?|Number)?|Asset\s*(?:No\.?|Number)?|Plate\s*(?:No\.?|Number)?)\s*[:\-\.]?\s*([A-Z0-9\s\-]{6,16})/i);
+  // 1. Try targeted prefixes first: "Registration Number : HR98Q4182", "Vehicle No: ...", "Reg No: ..."
+  const targetedRegMatch = rawText.match(/(?:Registration\s*(?:Number|No\.?)|Reg(?:istration)?\s*(?:No\.?|Number)?|Vehicle\s*(?:No\.?|Number|Reg\.?)?|Asset\s*(?:No\.?|Number)?|Plate\s*(?:No\.?|Number)?)\s*[:\-\.]?\s*([A-Za-z0-9\s\-]{6,16})/i);
   if (targetedRegMatch && targetedRegMatch[1]) {
     const candidateNorm = normalizeIndianRegistration(targetedRegMatch[1].trim());
     if (candidateNorm.isValid) {
@@ -193,18 +193,19 @@ export function extractRoFields(ocrDoc: OcrDocumentResult): ExtractedRoData {
   let authCustConf = borrowerConf;
   let authCustSource = borrowerSource;
 
-  // Support both "Authorize Mr. X to take delivery" and "hand over / deliver to Mr. X"
-  let handoverMatch = rawText.match(/authori[zs]e\s*(?:(?:the\s*)?borrower\s*)?(?:Mr\.?|Mrs\.?|Ms\.?)?\s*([A-Za-z ]{3,40})\s*to\s*(?:take\s*delivery|receive)/i);
+  // Support "Authorize Mr. X to take delivery" and "hand over the captioned vehicle to Mr./Mrs./Ms. SUDHAKAR ACHARYA"
+  let handoverMatch = rawText.match(/authori[zs]e\s*(?:(?:the\s*)?borrower\s*)?(?:Mr\.?\/Mrs\.?\/Ms\.?|Mr\.?|Mrs\.?|Ms\.?)?\s*([A-Za-z ]{3,40})\s*to\s*(?:take\s*delivery|receive)/i);
   if (!handoverMatch) {
-    handoverMatch = rawText.match(/(?:hand\s*over.*?to|deliver.*?to|release.*?to|authori[zs]ed\s*(?:person|customer|recipient))\s*(?:(?:the\s*)?(?:authorized\s*)?(?:customer|borrower|person)\s*)?(?:Mr\.?|Mrs\.?|Ms\.?)?\s*[:\-\.]?\s*([A-Za-z ]{3,40})/i);
+    handoverMatch = rawText.match(/(?:hand\s*over\s*(?:the)?\s*(?:captioned)?\s*vehicle\s*to|deliver\s*(?:the)?\s*vehicle\s*to|release.*?to|authori[zs]ed\s*(?:person|customer|recipient))\s*(?:(?:the\s*)?(?:authorized\s*)?(?:customer|borrower|person)\s*)?(?:Mr\.?\/Mrs\.?\/Ms\.?|Mr\.?|Mrs\.?|Ms\.?|M\/s\.?|Shri\.?|Smt\.?)?\s*[:\-\.]?\s*([A-Za-z ]{3,40})/i);
   }
 
   if (handoverMatch && handoverMatch[1]) {
-    const rawVal = handoverMatch[1].trim().split(/[\n,\.\(]/)[0]
+    let rawVal = handoverMatch[1].trim().split(/[\n,\.\(]/)[0]
       .replace(/^(?:the\s*)?(?:authorized\s*)?(?:customer|borrower|person|hirer|buyer|mr|mrs|ms)\s*[:\-\.]?\s*/i, '')
       .replace(/the specimen.*/i, '')
       .trim();
-    if (rawVal.length >= 3 && !/specimen|signature|loan|captioned|vehicle|yard/i.test(rawVal)) {
+    rawVal = rawVal.replace(/\b(the|is|who|whose|specimen|signature)\b.*/i, '').trim();
+    if (rawVal.length >= 3 && !/specimen|signature|loan|captioned|vehicle|yard|possession/i.test(rawVal)) {
       authorizedCustomer = rawVal.toUpperCase();
       authCustConf = 0.93;
       authCustSource = handoverMatch[0];

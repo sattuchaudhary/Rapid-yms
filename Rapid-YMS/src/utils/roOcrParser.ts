@@ -38,6 +38,8 @@ export interface ParsedRoDocument {
   yardName: string;
   authorizedCustomer: string;
   registrationNumber: string;
+  engineNumber?: string;
+  chassisNumber?: string;
   loanNumber?: string;
 
   // Real Detections
@@ -256,26 +258,65 @@ export function parseRoText(text: string, fallbackVehicle?: any): ParsedRoDocume
     yardName = fallbackVehicle?.yard?.name || 'Parking Yard';
   }
 
-  // 5. Authorized Customer
+  // 5. Authorized Customer Detection
   let authorizedCustomer = '';
-  const customerPattern = /(?:hand\s*over.*?to|deliver.*?to|customer\s*name|borrower\s*name|buyer\s*name|party\s*name|authorized\s*person)\s*[:\-\.]?\s*(?:Mr\.?|Mrs\.?|Ms\.?|M\/s\.?|Shri\.?|Smt\.?)?\s*([A-Za-z ]{3,35})/i;
+  // Match "Please hand over the captioned vehicle to Mr./Mrs./Ms. SUDHAKAR ACHARYA" or "Borrower: SUDHAKAR ACHARYA"
+  const customerPattern = /(?:hand\s*over\s*(?:the)?\s*(?:captioned)?\s*vehicle\s*to|deliver\s*(?:the)?\s*vehicle\s*to|customer\s*name|borrower\s*name|buyer\s*name|party\s*name|authorized\s*customer|hirer\s*name)\s*[:\-\.]?\s*(?:Mr\.?\/Mrs\.?\/Ms\.?|Mr\.?|Mrs\.?|Ms\.?|M\/s\.?|Shri\.?|Smt\.?)?\s*([A-Za-z ]{3,40})/i;
   const handoverMatch = normalized.match(customerPattern);
   if (handoverMatch && handoverMatch[1]?.trim()) {
-    const raw = handoverMatch[1].trim().split(/[,.\n]/)[0].replace(/the specimen.*/i, '').trim();
-    if (raw.length >= 3 && !/specimen|signature|loan|captioned|vehicle|possession/i.test(raw)) {
+    let raw = handoverMatch[1].trim().split(/[,.\n]/)[0].replace(/the specimen.*/i, '').trim();
+    // Clean trailing words like "the", "the specimen"
+    raw = raw.replace(/\b(the|is|who|whose|specimen|signature)\b.*/i, '').trim();
+    if (raw.length >= 3 && !/specimen|signature|loan|captioned|vehicle|possession|herewith/i.test(raw)) {
       authorizedCustomer = raw.toUpperCase();
+    }
+  }
+  if (!authorizedCustomer) {
+    // Secondary fallback search for Customer / Borrower line
+    const directBorrower = normalized.match(/(?:Customer|Borrower|Buyer|Hirer)\s*[:\-\.]?\s*([A-Za-z ]{3,35})/i);
+    if (directBorrower && directBorrower[1]?.trim()) {
+      const bRaw = directBorrower[1].trim().split(/[,.\n]/)[0].trim();
+      if (bRaw.length >= 3 && !/loan|agreement|date|model/i.test(bRaw)) {
+        authorizedCustomer = bRaw.toUpperCase();
+      }
     }
   }
   if (!authorizedCustomer) {
     authorizedCustomer = fallbackVehicle?.customerName || '';
   }
 
-  // 6. Registration Number Detection
+  // 6. Registration Number Detection (State Code validated)
+  const VALID_STATE_CODES = new Set([
+    'AN', 'AP', 'AR', 'AS', 'BR', 'CG', 'CH', 'DD', 'DL', 'DN',
+    'GA', 'GJ', 'HP', 'HR', 'JH', 'JK', 'KA', 'KL', 'LA', 'LD',
+    'MH', 'ML', 'MN', 'MP', 'MZ', 'NL', 'OD', 'OR', 'PB', 'PY',
+    'RJ', 'SK', 'TN', 'TR', 'TS', 'UA', 'UK', 'UP', 'WB', 'BH',
+  ]);
+
   let regNo = '';
-  const regMatch = normalized.match(/([A-Z]{2}[ -]?[0-9]{1,2}[ -]?[A-Z]{0,3}[ -]?[0-9]{4})/i);
-  if (regMatch && regMatch[1]) {
-    regNo = regMatch[1].replace(/[\s-]/g, '').toUpperCase();
+  // Priority 1: Direct "Registration Number : HR98Q4182" or "Vehicle No : ..."
+  const directRegMatch = normalized.match(/(?:Registration\s*(?:Number|No\.?)|Vehicle\s*(?:Number|No\.?|Reg\.?)|Plate\s*(?:No\.?|Number)?)\s*[:\-\.]?\s*([A-Za-z0-9\s\-]{6,16})/i);
+  if (directRegMatch && directRegMatch[1]) {
+    const candidate = directRegMatch[1].replace(/[\s-]/g, '').toUpperCase();
+    const state = candidate.slice(0, 2);
+    if (VALID_STATE_CODES.has(state)) {
+      regNo = candidate;
+    }
   }
+
+  // Priority 2: General scan for valid Indian plates with state code validation
+  if (!regNo) {
+    const allMatches = normalized.match(/\b([A-Z]{2}[ -]?[0-9]{1,2}[ -]?[A-Z]{0,3}[ -]?[0-9]{4})\b/gi) || [];
+    for (const m of allMatches) {
+      const candidate = m.replace(/[\s-]/g, '').toUpperCase();
+      const state = candidate.slice(0, 2);
+      if (VALID_STATE_CODES.has(state)) {
+        regNo = candidate;
+        break;
+      }
+    }
+  }
+
   if (!regNo) {
     regNo = fallbackVehicle?.vehicleNumber || '';
   }
@@ -292,6 +333,20 @@ export function parseRoText(text: string, fallbackVehicle?: any): ParsedRoDocume
   const loanMatch = normalized.match(/Loan\s*(?:No\.?|Number|Agreement|A\/c)?\s*[:\-\.]?\s*([0-9A-Z]+)/i);
   if (loanMatch && loanMatch[1]) {
     loanNo = loanMatch[1];
+  }
+
+  // 9. Engine Number
+  let engineNo = '';
+  const engineMatch = normalized.match(/(?:Engine\s*(?:Number|No\.?)|Eng\s*No\.?)\s*[:\-\.]?\s*([A-Za-z0-9]+)/i);
+  if (engineMatch && engineMatch[1]) {
+    engineNo = engineMatch[1].trim().toUpperCase();
+  }
+
+  // 10. Chassis Number
+  let chassisNo = '';
+  const chassisMatch = normalized.match(/(?:Chassis\s*(?:Number|No\.?)|VIN\s*No\.?)\s*[:\-\.]?\s*([A-Za-z0-9]+)/i);
+  if (chassisMatch && chassisMatch[1]) {
+    chassisNo = chassisMatch[1].trim().toUpperCase();
   }
 
   const hasStamp = /seal|stamp|branch\s*office/i.test(normalized);
@@ -329,6 +384,8 @@ export function parseRoText(text: string, fallbackVehicle?: any): ParsedRoDocume
     yardName,
     authorizedCustomer,
     registrationNumber: regNo,
+    engineNumber: engineNo || fallbackVehicle?.engineNumber || '',
+    chassisNumber: chassisNo || fallbackVehicle?.chassisNumber || '',
     loanNumber: loanNo,
 
     hasBankStamp: hasStamp,
