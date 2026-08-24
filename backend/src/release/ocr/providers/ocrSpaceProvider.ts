@@ -34,6 +34,7 @@ export class OcrSpaceProvider implements DocumentOcrProvider {
 
   private async callOcrApi(input: DocumentInput, engine: string, startTime: number): Promise<OcrDocumentResult> {
     const formData = new FormData();
+    formData.append('apikey', this.apiKey);
     formData.append('language', 'eng');
     formData.append('isOverlayRequired', 'true');
     formData.append('OCREngine', engine);
