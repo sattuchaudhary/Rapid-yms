@@ -26,6 +26,7 @@ import {
   BarChart3,
   Settings,
   ChevronRight,
+  ScanText,
 } from 'lucide-react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -52,6 +53,15 @@ interface DrawerMenuItem {
 }
 
 const DRAWER_MENU_ITEMS: DrawerMenuItem[] = [
+  {
+    id: 'ocr',
+    title: 'OCR Scanner',
+    subtitle: 'Extract text from image/doc',
+    route: '/tenant_admin/admin/ocr',
+    icon: ScanText,
+    iconColor: '#EA580C',
+    iconBgColor: '#FFF7ED',
+  },
   {
     id: 'banks',
     title: 'Bank Management',

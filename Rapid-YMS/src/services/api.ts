@@ -444,3 +444,16 @@ export const saveRoManualOverride = async (
     body: JSON.stringify(payload),
   });
 };
+
+export const scanGeneralOcr = async (payload: {
+  fileUrl?: string;
+  fileBase64?: string;
+  mimeType?: string;
+  fileName?: string;
+}): Promise<any> => {
+  return await apiRequest('/api/ocr/scan', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+};
+

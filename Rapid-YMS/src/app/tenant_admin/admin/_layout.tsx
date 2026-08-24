@@ -124,6 +124,15 @@ export default function AdminLayout() {
           gestureDirection: 'horizontal',
         }}
       />
+      <Stack.Screen
+        name="ocr/index"
+        options={{
+          headerShown: false,
+          animation: 'slide_from_right',
+          gestureEnabled: true,
+          gestureDirection: 'horizontal',
+        }}
+      />
     </Stack>
   );
 }

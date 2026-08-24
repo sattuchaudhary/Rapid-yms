@@ -75,3 +75,72 @@ export async function performRealRoOcr(
     return parseRoText('', fallbackVehicle);
   }
 }
+
+export interface GeneralOcrResult {
+  rawText: string;
+  totalPages: number;
+  processingTimeMs: number;
+  provider: string;
+}
+
+/**
+ * General Document & Image OCR Text Extraction
+ * Extracts raw formatted text preserving line breaks and original document layout.
+ */
+export async function extractRawTextFromDocument(documentUri: string): Promise<GeneralOcrResult> {
+  const isPdf = documentUri.toLowerCase().endsWith('.pdf') || documentUri.includes('application/pdf');
+  const mimeType = isPdf ? 'application/pdf' : 'image/jpeg';
+
+  let payload: {
+    fileUrl?: string;
+    fileBase64?: string;
+    mimeType: string;
+    fileName?: string;
+  } = {
+    mimeType,
+  };
+
+  if (documentUri.startsWith('http://') || documentUri.startsWith('https://')) {
+    payload.fileUrl = documentUri;
+  } else {
+    if (isPdf) {
+      const base64Data = await FileSystem.readAsStringAsync(documentUri, {
+        encoding: 'base64',
+      });
+      payload.fileBase64 = base64Data;
+      payload.fileName = 'scan_document.pdf';
+    } else {
+      let base64Data = '';
+      try {
+        const manipResult = await ImageManipulator.manipulateAsync(
+          documentUri,
+          [{ resize: { width: 1800 } }],
+          { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+        );
+        base64Data = manipResult.base64 || '';
+      } catch (manipErr) {
+        console.warn('[ImageManipulator fallback for General OCR]', manipErr);
+        base64Data = await FileSystem.readAsStringAsync(documentUri, {
+          encoding: 'base64',
+        });
+      }
+      payload.fileBase64 = base64Data;
+      payload.fileName = 'scan_image.jpg';
+    }
+  }
+
+  const { scanGeneralOcr } = await import('./api');
+  const response = await scanGeneralOcr(payload);
+
+  if (response?.success && response?.data) {
+    return {
+      rawText: response.data.rawText || '',
+      totalPages: response.data.totalPages || 1,
+      processingTimeMs: response.data.processingTimeMs || 0,
+      provider: response.data.provider || 'ocr_space',
+    };
+  }
+
+  throw new Error(response?.error || 'OCR processing could not extract text from this document.');
+}
+
