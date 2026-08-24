@@ -137,6 +137,8 @@ export default function AdminDashboardScreen() {
       router.push('/tenant_admin/admin/vehicles/add' as any);
     } else if (tab === 'vehicles') {
       router.push('/tenant_admin/admin/vehicles' as any);
+    } else if (tab === 'release') {
+      router.push('/tenant_admin/admin/vehicles/release' as any);
     }
   };
 

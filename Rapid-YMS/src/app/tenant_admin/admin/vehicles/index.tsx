@@ -222,6 +222,10 @@ export default function VehiclesScreen() {
       } else {
         router.replace('/tenant_admin/admin/dashboard' as any);
       }
+    } else if (tab === 'add') {
+      router.push('/tenant_admin/admin/vehicles/add' as any);
+    } else if (tab === 'release') {
+      router.push('/tenant_admin/admin/vehicles/release' as any);
     }
   };
 
