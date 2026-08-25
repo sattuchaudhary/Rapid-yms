@@ -511,3 +511,18 @@ export const scanGeneralOcr = async (payload: {
   });
 };
 
+export const lookupRapidRepoVehicle = async (params: {
+  regNumber?: string;
+  chassisNumber?: string;
+  loanNumber?: string;
+}): Promise<any> => {
+  const queryParts: string[] = [];
+  if (params.regNumber) queryParts.push(`regNumber=${encodeURIComponent(params.regNumber)}`);
+  if (params.chassisNumber) queryParts.push(`chassisNumber=${encodeURIComponent(params.chassisNumber)}`);
+  if (params.loanNumber) queryParts.push(`loanNumber=${encodeURIComponent(params.loanNumber)}`);
+
+  const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+  return await apiRequest(`/api/vehicles/rapid-repo/lookup${queryString}`);
+};
+
+

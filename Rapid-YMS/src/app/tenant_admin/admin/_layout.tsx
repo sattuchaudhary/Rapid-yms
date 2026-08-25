@@ -169,6 +169,15 @@ export default function AdminLayout() {
           gestureDirection: 'horizontal',
         }}
       />
+      <Stack.Screen
+        name="search/index"
+        options={{
+          headerShown: false,
+          animation: 'slide_from_right',
+          gestureEnabled: true,
+          gestureDirection: 'horizontal',
+        }}
+      />
     </Stack>
   );
 }

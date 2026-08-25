@@ -17,7 +17,7 @@ import {
   Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, useNavigation } from 'expo-router';
+import { useRouter, useNavigation, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -212,6 +212,52 @@ export default function VehicleAddScreen() {
 
   // Step 4: Created Vehicle Data & Gate Pass
   const [createdVehicle, setCreatedVehicle] = useState<any>(null);
+
+  // Read search prefill params if navigated from Rapid Repo Vehicle Search
+  const searchParams = useLocalSearchParams<{
+    prefillVehicleNumber?: string;
+    prefillCustomerName?: string;
+    prefillBankName?: string;
+    prefillBrand?: string;
+    prefillModel?: string;
+    prefillChassisNumber?: string;
+    prefillEngineNumber?: string;
+    prefillLoanNumber?: string;
+  }>();
+
+  useEffect(() => {
+    if (searchParams.prefillVehicleNumber) {
+      setVehicleNumber(searchParams.prefillVehicleNumber);
+    }
+    if (searchParams.prefillCustomerName) {
+      setCustomerName(searchParams.prefillCustomerName);
+    }
+    if (searchParams.prefillBankName) {
+      setSelectedBankName(searchParams.prefillBankName);
+      setBankCategory('direct');
+    }
+    if (searchParams.prefillBrand) {
+      setBrand(searchParams.prefillBrand);
+    }
+    if (searchParams.prefillModel) {
+      setModel(searchParams.prefillModel);
+    }
+    if (searchParams.prefillChassisNumber) {
+      setChassisNumber(searchParams.prefillChassisNumber);
+    }
+    if (searchParams.prefillEngineNumber) {
+      setEngineNumber(searchParams.prefillEngineNumber);
+    }
+  }, [
+    searchParams.prefillVehicleNumber,
+    searchParams.prefillCustomerName,
+    searchParams.prefillBankName,
+    searchParams.prefillBrand,
+    searchParams.prefillModel,
+    searchParams.prefillChassisNumber,
+    searchParams.prefillEngineNumber,
+    searchParams.prefillLoanNumber,
+  ]);
 
   // Fetch Tenant Details
   useEffect(() => {

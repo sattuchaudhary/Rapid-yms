@@ -18,6 +18,7 @@ import {
   getVehicleParkingCalculation,
   recalculateVehicleParking,
   getVehicleParkingTransactions,
+  lookupRapidRepoVehicle,
 } from './vehicle.controller';
 import { authenticate } from '../auth/auth.middleware';
 import {
@@ -28,6 +29,9 @@ import {
 } from './vehicleShift.controller';
 
 const router = Router();
+
+// Rapid Repo External Vehicle Lookup Endpoint
+router.get('/rapid-repo/lookup', authenticate, lookupRapidRepoVehicle);
 
 // Fast Category Aggregate Summary Endpoint
 router.get('/summary', authenticate, getVehicleSummary);

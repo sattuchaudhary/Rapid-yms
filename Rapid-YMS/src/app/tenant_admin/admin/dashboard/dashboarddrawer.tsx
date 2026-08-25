@@ -26,6 +26,7 @@ import {
   BarChart3,
   Receipt,
   Settings,
+  Search,
   ChevronRight,
 } from 'lucide-react-native';
 
@@ -53,6 +54,15 @@ interface DrawerMenuItem {
 }
 
 const DRAWER_MENU_ITEMS: DrawerMenuItem[] = [
+  {
+    id: 'search',
+    title: 'Vehicle Search',
+    subtitle: 'Rapid Repo live lookup',
+    route: '/tenant_admin/admin/search',
+    icon: Search,
+    iconColor: '#0062FF',
+    iconBgColor: '#EFF6FF',
+  },
   {
     id: 'banks',
     title: 'Bank Management',

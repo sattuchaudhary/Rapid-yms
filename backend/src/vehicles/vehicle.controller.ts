@@ -373,3 +373,41 @@ export const getVehicleParkingTransactions = async (req: AuthRequest, res: Respo
   }
 };
 
+export const lookupRapidRepoVehicle = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { regNumber, chassisNumber, loanNumber } = req.query;
+
+    const apiUrl = process.env.RAPID_REPO_API_URL || 'https://api.rapidbuddy.cloud/api/v1/external/vehicles/lookup';
+    const apiKey = process.env.RAPID_REPO_API_KEY || 'rr_e9af2281_02401891f85557fe29d9b98ebeae0e92efcc11ffd21a9c8b';
+    const origin = process.env.RAPID_REPO_ORIGIN || 'https://rapid-yms.onrender.com';
+
+    const params = new URLSearchParams();
+    if (regNumber) params.append('regNumber', String(regNumber));
+    if (chassisNumber) params.append('chassisNumber', String(chassisNumber));
+    if (loanNumber) params.append('loanNumber', String(loanNumber));
+
+    const targetUrl = `${apiUrl}?${params.toString()}`;
+    const response = await fetch(targetUrl, {
+      method: 'GET',
+      headers: {
+        'x-api-key': apiKey,
+        'Origin': origin,
+      },
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      return res.status(response.status).json(data);
+    }
+    res.json(data);
+  } catch (err: any) {
+    console.error('[Rapid Repo Vehicle Lookup Error]', err);
+    res.status(500).json({
+      success: false,
+      error: 'Lookup Failed',
+      message: err?.message || 'Failed to communicate with Rapid Repo API',
+    });
+  }
+};
+
+

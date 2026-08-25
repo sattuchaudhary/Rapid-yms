@@ -590,11 +590,11 @@ export const updateVehicleService = async (
 
       // If moving away from RELEASED, clean up release records and reset billing
       if (data.yardStatus === 'KACHHA' || data.yardStatus === 'PAKKA') {
-        await tx.vehicleRelease.deleteMany({
+        await tx.release.deleteMany({
           where: { vehicleId: id },
         });
         if (data.yardStatus === 'KACHHA') {
-          await tx.vehicleBilling.updateMany({
+          await tx.parkingBilling.updateMany({
             where: { vehicleId: id },
             data: {
               paymentStatus: 'PENDING',
