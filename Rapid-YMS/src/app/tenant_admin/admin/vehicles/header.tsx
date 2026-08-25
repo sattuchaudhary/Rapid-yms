@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -21,9 +21,13 @@ import {
   Search,
   MoreVertical,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   RefreshCw,
   Download,
+  Building2,
 } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 
 export type TimeFilterPreset =
   | 'all_time'
@@ -36,6 +40,7 @@ export interface VehicleFilterState {
   preset: TimeFilterPreset;
   month?: number; // 1-12
   year?: number; // e.g. 2022, 2024, 2026
+  bankName?: string | null;
   label: string;
 }
 
@@ -50,6 +55,7 @@ export interface VehiclesHeaderProps {
   onToggleHeaderSearch?: (active: boolean) => void;
   onRefreshPress?: () => void;
   onExportPress?: () => void;
+  banksList?: any[];
 }
 
 const MONTHS = [
@@ -71,6 +77,7 @@ export default function VehiclesHeader({
   onToggleHeaderSearch,
   onRefreshPress,
   onExportPress,
+  banksList = [],
 }: VehiclesHeaderProps) {
   const insets = useSafeAreaInsets();
   const topPadding = Math.max(insets.top, Platform.OS === 'ios' ? 44 : 12);
@@ -85,37 +92,66 @@ export default function VehiclesHeader({
   const [tempPreset, setTempPreset] = useState<TimeFilterPreset>(initialFilter.preset);
   const [tempMonth, setTempMonth] = useState<number>(new Date().getMonth() + 1);
   const [tempYear, setTempYear] = useState<number>(currentYear);
+  const [tempBankName, setTempBankName] = useState<string | null>(initialFilter.bankName || null);
+
+  // Bank Dropdown Expand & Search inside modal
+  const [bankDropdownOpen, setBankDropdownOpen] = useState(false);
+  const [bankSearchText, setBankSearchText] = useState('');
+
+  const filteredBanks = useMemo(() => {
+    if (!bankSearchText.trim()) return banksList;
+    const q = bankSearchText.trim().toLowerCase();
+    return banksList.filter((b) => {
+      const name = (b.name || b.bankName || '').toLowerCase();
+      return name.includes(q);
+    });
+  }, [banksList, bankSearchText]);
 
   const handleOpenFilter = () => {
     setOptionsMenuVisible(false);
     setTempPreset(activeFilter.preset);
     if (activeFilter.month) setTempMonth(activeFilter.month);
     if (activeFilter.year) setTempYear(activeFilter.year);
+    setTempBankName(activeFilter.bankName || null);
+    setBankDropdownOpen(false);
+    setBankSearchText('');
     setTimeout(() => {
       setFilterModalVisible(true);
     }, 150);
   };
 
   const handleApplyFilter = () => {
-    let label = 'All Time';
+    let dateLabel = 'All Time';
     if (tempPreset === 'all_time') {
-      label = 'All Time (Day 1 - Today)';
+      dateLabel = 'All Time';
     } else if (tempPreset === 'today') {
-      label = 'Today';
+      dateLabel = 'Today';
     } else if (tempPreset === 'this_month') {
-      label = 'This Month';
+      dateLabel = 'This Month';
     } else if (tempPreset === 'last_month') {
-      label = 'Last Month';
+      dateLabel = 'Last Month';
     } else if (tempPreset === 'custom_month_year') {
-      label = `${MONTHS[tempMonth - 1]} ${tempYear}`;
+      dateLabel = `${MONTHS[tempMonth - 1]} ${tempYear}`;
+    }
+
+    let fullLabel = dateLabel;
+    if (tempBankName) {
+      fullLabel = tempPreset === 'all_time' ? tempBankName : `${tempBankName} • ${dateLabel}`;
+    } else if (tempPreset === 'all_time') {
+      fullLabel = 'All Time (Day 1 - Today)';
     }
 
     const newFilter: VehicleFilterState = {
       preset: tempPreset,
       month: tempPreset === 'custom_month_year' ? tempMonth : undefined,
       year: tempPreset === 'custom_month_year' ? tempYear : undefined,
-      label,
+      bankName: tempBankName || null,
+      label: fullLabel,
     };
+
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      Haptics.selectionAsync().catch(() => {});
+    }
 
     setActiveFilter(newFilter);
     setFilterModalVisible(false);
@@ -127,9 +163,13 @@ export default function VehiclesHeader({
   const handleResetFilter = () => {
     const defaultFilter: VehicleFilterState = {
       preset: 'all_time',
+      bankName: null,
       label: 'All Time (Day 1 - Today)',
     };
     setTempPreset('all_time');
+    setTempBankName(null);
+    setBankSearchText('');
+    setBankDropdownOpen(false);
     setActiveFilter(defaultFilter);
     setFilterModalVisible(false);
     setOptionsMenuVisible(false);
@@ -152,7 +192,7 @@ export default function VehiclesHeader({
     onSearchChange?.('');
   };
 
-  const isFiltered = activeFilter.preset !== 'all_time';
+  const isFiltered = activeFilter.preset !== 'all_time' || !!activeFilter.bankName;
 
   return (
     <>
@@ -218,14 +258,18 @@ export default function VehiclesHeader({
               <ChevronLeft size={24} color="#0F172A" strokeWidth={2.4} />
             </TouchableOpacity>
 
-            {/* Center: Vehicle List Title */}
+            {/* Center: Vehicle List Title + Active Filter Tag */}
             <View style={styles.centerTitleBox}>
               <Text style={styles.titleText} numberOfLines={1}>
                 {title}
               </Text>
               {isFiltered && (
                 <View style={styles.activeFilterChip}>
-                  <Calendar size={10} color="#0062FF" />
+                  {activeFilter.bankName ? (
+                    <Building2 size={10} color="#0062FF" />
+                  ) : (
+                    <Calendar size={10} color="#0062FF" />
+                  )}
                   <Text style={styles.activeFilterText} numberOfLines={1}>
                     {activeFilter.label}
                   </Text>
@@ -291,7 +335,7 @@ export default function VehiclesHeader({
                   </TouchableOpacity>
                 </View>
 
-                {/* Option 1: Time Filter */}
+                {/* Option 1: Filter (Bank & Time Filter) */}
                 <TouchableOpacity
                   style={styles.optionRowItem}
                   onPress={handleOpenFilter}
@@ -302,15 +346,17 @@ export default function VehiclesHeader({
                   </View>
                   <View style={styles.optionContentBox}>
                     <View style={styles.optionTitleLine}>
-                      <Text style={styles.optionMainTitle}>Time Filter</Text>
+                      <Text style={styles.optionMainTitle}>Filter Records</Text>
                       {isFiltered && (
                         <View style={styles.activePill}>
-                          <Text style={styles.activePillText}>{activeFilter.label}</Text>
+                          <Text style={styles.activePillText} numberOfLines={1}>
+                            {activeFilter.label}
+                          </Text>
                         </View>
                       )}
                     </View>
                     <Text style={styles.optionSubTitle}>
-                      Filter records by day, month, or custom year
+                      Filter vehicles by bank, date range, or month
                     </Text>
                   </View>
                   <ChevronRight size={16} color="#94A3B8" strokeWidth={2} />
@@ -331,7 +377,7 @@ export default function VehiclesHeader({
                         Reset Filter
                       </Text>
                       <Text style={styles.optionSubTitle}>
-                        Return to All Time (Day 1 - Today)
+                        Clear bank & date filters (All Time)
                       </Text>
                     </View>
                     <ChevronRight size={16} color="#94A3B8" strokeWidth={2} />
@@ -389,7 +435,7 @@ export default function VehiclesHeader({
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* Filter Bottom Sheet Modal */}
+      {/* Filter Bottom Sheet Modal with Searchable Bank Dropdown & Date Filter */}
       <Modal
         visible={filterModalVisible}
         transparent
@@ -406,11 +452,11 @@ export default function VehiclesHeader({
                 <View style={styles.modalHeader}>
                   <View style={styles.modalHeaderLeft}>
                     <View style={styles.filterIconCircle}>
-                      <Calendar size={18} color="#0062FF" strokeWidth={2.2} />
+                      <Filter size={18} color="#0062FF" strokeWidth={2.2} />
                     </View>
                     <View>
-                      <Text style={styles.modalTitle}>Time Filter</Text>
-                      <Text style={styles.modalSub}>Select date range to view vehicle records</Text>
+                      <Text style={styles.modalTitle}>Filter Vehicles</Text>
+                      <Text style={styles.modalSub}>Select bank and date range</Text>
                     </View>
                   </View>
                   <TouchableOpacity
@@ -421,160 +467,290 @@ export default function VehiclesHeader({
                   </TouchableOpacity>
                 </View>
 
-                {/* Quick Range Options */}
+                {/* Modal Scroll Content */}
                 <ScrollView showsVerticalScrollIndicator={false} style={styles.modalScroll}>
-                  <Text style={styles.groupHeading}>Quick Presets</Text>
+                  {/* 1. BANK SELECTION DROPDOWN WITH SEARCH */}
+                  <View style={styles.sectionBlock}>
+                    <Text style={styles.groupHeading}>SELECT BANK</Text>
 
-                  {/* Option 1: All Time */}
-                  <TouchableOpacity
-                    style={[
-                      styles.presetItem,
-                      tempPreset === 'all_time' && styles.presetItemActive,
-                    ]}
-                    onPress={() => setTempPreset('all_time')}
-                    activeOpacity={0.75}
-                  >
-                    <View>
-                      <Text style={[styles.presetTitle, tempPreset === 'all_time' && styles.presetTitleActive]}>
-                        All Time Records
-                      </Text>
-                      <Text style={styles.presetSub}>From Day 1 to Today</Text>
-                    </View>
-                    {tempPreset === 'all_time' && (
-                      <View style={styles.checkCircle}>
-                        <Check size={14} color="#FFFFFF" strokeWidth={2.8} />
+                    {/* Dropdown Box */}
+                    <TouchableOpacity
+                      style={[
+                        styles.bankDropdownTrigger,
+                        bankDropdownOpen && styles.bankDropdownTriggerOpen,
+                      ]}
+                      onPress={() => setBankDropdownOpen(!bankDropdownOpen)}
+                      activeOpacity={0.75}
+                    >
+                      <View style={styles.bankDropdownLeft}>
+                        <Building2 size={16} color="#0062FF" />
+                        <Text style={styles.bankDropdownText} numberOfLines={1}>
+                          {tempBankName || 'All Banks (No Filter)'}
+                        </Text>
                       </View>
-                    )}
-                  </TouchableOpacity>
+                      {bankDropdownOpen ? (
+                        <ChevronUp size={18} color="#64748B" />
+                      ) : (
+                        <ChevronDown size={18} color="#64748B" />
+                      )}
+                    </TouchableOpacity>
 
-                  {/* Option 2: Today */}
-                  <TouchableOpacity
-                    style={[
-                      styles.presetItem,
-                      tempPreset === 'today' && styles.presetItemActive,
-                    ]}
-                    onPress={() => setTempPreset('today')}
-                    activeOpacity={0.75}
-                  >
-                    <View>
-                      <Text style={[styles.presetTitle, tempPreset === 'today' && styles.presetTitleActive]}>
-                        Today
-                      </Text>
-                      <Text style={styles.presetSub}>Vehicles entered/present today</Text>
-                    </View>
-                    {tempPreset === 'today' && (
-                      <View style={styles.checkCircle}>
-                        <Check size={14} color="#FFFFFF" strokeWidth={2.8} />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-
-                  {/* Option 3: This Month */}
-                  <TouchableOpacity
-                    style={[
-                      styles.presetItem,
-                      tempPreset === 'this_month' && styles.presetItemActive,
-                    ]}
-                    onPress={() => setTempPreset('this_month')}
-                    activeOpacity={0.75}
-                  >
-                    <View>
-                      <Text style={[styles.presetTitle, tempPreset === 'this_month' && styles.presetTitleActive]}>
-                        Current Month
-                      </Text>
-                      <Text style={styles.presetSub}>{MONTHS[new Date().getMonth()]} {currentYear}</Text>
-                    </View>
-                    {tempPreset === 'this_month' && (
-                      <View style={styles.checkCircle}>
-                        <Check size={14} color="#FFFFFF" strokeWidth={2.8} />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-
-                  {/* Option 4: Last Month */}
-                  <TouchableOpacity
-                    style={[
-                      styles.presetItem,
-                      tempPreset === 'last_month' && styles.presetItemActive,
-                    ]}
-                    onPress={() => setTempPreset('last_month')}
-                    activeOpacity={0.75}
-                  >
-                    <View>
-                      <Text style={[styles.presetTitle, tempPreset === 'last_month' && styles.presetTitleActive]}>
-                        Last Month
-                      </Text>
-                      <Text style={styles.presetSub}>Previous calendar month</Text>
-                    </View>
-                    {tempPreset === 'last_month' && (
-                      <View style={styles.checkCircle}>
-                        <Check size={14} color="#FFFFFF" strokeWidth={2.8} />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-
-                  {/* Option 5: Custom Month & Year Picker */}
-                  <TouchableOpacity
-                    style={[
-                      styles.presetItem,
-                      tempPreset === 'custom_month_year' && styles.presetItemActive,
-                    ]}
-                    onPress={() => setTempPreset('custom_month_year')}
-                    activeOpacity={0.75}
-                  >
-                    <View>
-                      <Text style={[styles.presetTitle, tempPreset === 'custom_month_year' && styles.presetTitleActive]}>
-                        Specific Month & Year
-                      </Text>
-                      <Text style={styles.presetSub}>e.g. Jan 2022, Aug 2024, etc.</Text>
-                    </View>
-                    {tempPreset === 'custom_month_year' && (
-                      <View style={styles.checkCircle}>
-                        <Check size={14} color="#FFFFFF" strokeWidth={2.8} />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-
-                  {/* Custom Month / Year Selector Grid */}
-                  {tempPreset === 'custom_month_year' && (
-                    <View style={styles.customPickerBox}>
-                      {/* Year Selector Row */}
-                      <Text style={styles.pickerSubHeading}>Select Year:</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
-                        {YEARS.map((yr) => (
-                          <TouchableOpacity
-                            key={yr}
-                            style={[styles.chipItem, tempYear === yr && styles.chipItemActive]}
-                            onPress={() => setTempYear(yr)}
-                          >
-                            <Text style={[styles.chipText, tempYear === yr && styles.chipTextActive]}>
-                              {yr}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-
-                      {/* Month Selector Grid */}
-                      <Text style={[styles.pickerSubHeading, { marginTop: 12 }]}>Select Month:</Text>
-                      <View style={styles.monthsGrid}>
-                        {MONTHS.map((mName, idx) => {
-                          const mNum = idx + 1;
-                          const isMActive = tempMonth === mNum;
-                          return (
+                    {/* Expandable Search & Bank List */}
+                    {bankDropdownOpen && (
+                      <View style={styles.bankDropdownContainer}>
+                        {/* Search Input Box */}
+                        <View style={styles.bankSearchBox}>
+                          <Search size={15} color="#94A3B8" />
+                          <TextInput
+                            style={styles.bankSearchInput}
+                            placeholder="Type to search bank (e.g. HDFC, SBI)..."
+                            placeholderTextColor="#94A3B8"
+                            value={bankSearchText}
+                            onChangeText={setBankSearchText}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                          />
+                          {bankSearchText.length > 0 && (
                             <TouchableOpacity
-                              key={mName}
-                              style={[styles.monthChip, isMActive && styles.monthChipActive]}
-                              onPress={() => setTempMonth(mNum)}
+                              onPress={() => setBankSearchText('')}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                             >
-                              <Text style={[styles.monthChipText, isMActive && styles.monthChipTextActive]}>
-                                {mName.substring(0, 3)}
+                              <X size={14} color="#94A3B8" />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+
+                        {/* Bank Items List */}
+                        <ScrollView
+                          style={styles.bankItemsScroll}
+                          nestedScrollEnabled
+                          showsVerticalScrollIndicator={true}
+                        >
+                          {/* Option 1: All Banks */}
+                          <TouchableOpacity
+                            style={[
+                              styles.bankItemRow,
+                              tempBankName === null && styles.bankItemRowActive,
+                            ]}
+                            onPress={() => {
+                              setTempBankName(null);
+                              setBankDropdownOpen(false);
+                            }}
+                          >
+                            <Text
+                              style={[
+                                styles.bankItemText,
+                                tempBankName === null && styles.bankItemTextActive,
+                              ]}
+                            >
+                              All Banks (Show All)
+                            </Text>
+                            {tempBankName === null && (
+                              <Check size={16} color="#0062FF" strokeWidth={2.5} />
+                            )}
+                          </TouchableOpacity>
+
+                          {/* Filtered Banks */}
+                          {filteredBanks.map((b) => {
+                            const name = b.name || b.bankName || '';
+                            if (!name) return null;
+                            const isSelected = tempBankName === name;
+
+                            return (
+                              <TouchableOpacity
+                                key={b.id || name}
+                                style={[
+                                  styles.bankItemRow,
+                                  isSelected && styles.bankItemRowActive,
+                                ]}
+                                onPress={() => {
+                                  setTempBankName(name);
+                                  setBankDropdownOpen(false);
+                                }}
+                              >
+                                <Text
+                                  style={[
+                                    styles.bankItemText,
+                                    isSelected && styles.bankItemTextActive,
+                                  ]}
+                                  numberOfLines={1}
+                                >
+                                  {name}
+                                </Text>
+                                {isSelected && (
+                                  <Check size={16} color="#0062FF" strokeWidth={2.5} />
+                                )}
+                              </TouchableOpacity>
+                            );
+                          })}
+
+                          {filteredBanks.length === 0 && (
+                            <View style={styles.noBankFoundBox}>
+                              <Text style={styles.noBankFoundText}>
+                                No bank matching "{bankSearchText}"
+                              </Text>
+                            </View>
+                          )}
+                        </ScrollView>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* 2. DATE RANGE QUICK PRESETS */}
+                  <View style={[styles.sectionBlock, { marginTop: 16 }]}>
+                    <Text style={styles.groupHeading}>SELECT DATE RANGE</Text>
+
+                    {/* Option 1: All Time */}
+                    <TouchableOpacity
+                      style={[
+                        styles.presetItem,
+                        tempPreset === 'all_time' && styles.presetItemActive,
+                      ]}
+                      onPress={() => setTempPreset('all_time')}
+                      activeOpacity={0.75}
+                    >
+                      <View>
+                        <Text style={[styles.presetTitle, tempPreset === 'all_time' && styles.presetTitleActive]}>
+                          All Time Records
+                        </Text>
+                        <Text style={styles.presetSub}>From Day 1 to Today</Text>
+                      </View>
+                      {tempPreset === 'all_time' && (
+                        <View style={styles.checkCircle}>
+                          <Check size={14} color="#FFFFFF" strokeWidth={2.8} />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+
+                    {/* Option 2: Today */}
+                    <TouchableOpacity
+                      style={[
+                        styles.presetItem,
+                        tempPreset === 'today' && styles.presetItemActive,
+                      ]}
+                      onPress={() => setTempPreset('today')}
+                      activeOpacity={0.75}
+                    >
+                      <View>
+                        <Text style={[styles.presetTitle, tempPreset === 'today' && styles.presetTitleActive]}>
+                          Today
+                        </Text>
+                        <Text style={styles.presetSub}>Vehicles entered/present today</Text>
+                      </View>
+                      {tempPreset === 'today' && (
+                        <View style={styles.checkCircle}>
+                          <Check size={14} color="#FFFFFF" strokeWidth={2.8} />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+
+                    {/* Option 3: This Month */}
+                    <TouchableOpacity
+                      style={[
+                        styles.presetItem,
+                        tempPreset === 'this_month' && styles.presetItemActive,
+                      ]}
+                      onPress={() => setTempPreset('this_month')}
+                      activeOpacity={0.75}
+                    >
+                      <View>
+                        <Text style={[styles.presetTitle, tempPreset === 'this_month' && styles.presetTitleActive]}>
+                          Current Month
+                        </Text>
+                        <Text style={styles.presetSub}>{MONTHS[new Date().getMonth()]} {currentYear}</Text>
+                      </View>
+                      {tempPreset === 'this_month' && (
+                        <View style={styles.checkCircle}>
+                          <Check size={14} color="#FFFFFF" strokeWidth={2.8} />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+
+                    {/* Option 4: Last Month */}
+                    <TouchableOpacity
+                      style={[
+                        styles.presetItem,
+                        tempPreset === 'last_month' && styles.presetItemActive,
+                      ]}
+                      onPress={() => setTempPreset('last_month')}
+                      activeOpacity={0.75}
+                    >
+                      <View>
+                        <Text style={[styles.presetTitle, tempPreset === 'last_month' && styles.presetTitleActive]}>
+                          Last Month
+                        </Text>
+                        <Text style={styles.presetSub}>Previous calendar month</Text>
+                      </View>
+                      {tempPreset === 'last_month' && (
+                        <View style={styles.checkCircle}>
+                          <Check size={14} color="#FFFFFF" strokeWidth={2.8} />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+
+                    {/* Option 5: Custom Month & Year Picker */}
+                    <TouchableOpacity
+                      style={[
+                        styles.presetItem,
+                        tempPreset === 'custom_month_year' && styles.presetItemActive,
+                      ]}
+                      onPress={() => setTempPreset('custom_month_year')}
+                      activeOpacity={0.75}
+                    >
+                      <View>
+                        <Text style={[styles.presetTitle, tempPreset === 'custom_month_year' && styles.presetTitleActive]}>
+                          Specific Month & Year
+                        </Text>
+                        <Text style={styles.presetSub}>e.g. Jan 2022, Aug 2024, etc.</Text>
+                      </View>
+                      {tempPreset === 'custom_month_year' && (
+                        <View style={styles.checkCircle}>
+                          <Check size={14} color="#FFFFFF" strokeWidth={2.8} />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+
+                    {/* Custom Month / Year Selector Grid */}
+                    {tempPreset === 'custom_month_year' && (
+                      <View style={styles.customPickerBox}>
+                        {/* Year Selector Row */}
+                        <Text style={styles.pickerSubHeading}>Select Year:</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
+                          {YEARS.map((yr) => (
+                            <TouchableOpacity
+                              key={yr}
+                              style={[styles.chipItem, tempYear === yr && styles.chipItemActive]}
+                              onPress={() => setTempYear(yr)}
+                            >
+                              <Text style={[styles.chipText, tempYear === yr && styles.chipTextActive]}>
+                                {yr}
                               </Text>
                             </TouchableOpacity>
-                          );
-                        })}
+                          ))}
+                        </ScrollView>
+
+                        {/* Month Selector Grid */}
+                        <Text style={[styles.pickerSubHeading, { marginTop: 12 }]}>Select Month:</Text>
+                        <View style={styles.monthsGrid}>
+                          {MONTHS.map((mName, idx) => {
+                            const mNum = idx + 1;
+                            const isMActive = tempMonth === mNum;
+                            return (
+                              <TouchableOpacity
+                                key={mName}
+                                style={[styles.monthChip, isMActive && styles.monthChipActive]}
+                                onPress={() => setTempMonth(mNum)}
+                              >
+                                <Text style={[styles.monthChipText, isMActive && styles.monthChipTextActive]}>
+                                  {mName.substring(0, 3)}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
                       </View>
-                    </View>
-                  )}
+                    )}
+                  </View>
                 </ScrollView>
 
                 {/* Modal Action Buttons */}
@@ -585,7 +761,7 @@ export default function VehiclesHeader({
                     activeOpacity={0.75}
                   >
                     <RotateCcw size={16} color="#64748B" />
-                    <Text style={styles.resetBtnText}>Reset</Text>
+                    <Text style={styles.resetBtnText}>Reset All</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -611,138 +787,224 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    elevation: 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   headerBar: {
-    height: 56,
+    height: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    gap: 8,
+    paddingHorizontal: 12,
   },
   iconButton: {
     width: 38,
     height: 38,
-    borderRadius: 19,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    position: 'relative',
   },
   iconButtonFiltered: {
     backgroundColor: '#EFF6FF',
+    borderWidth: 1,
     borderColor: '#BFDBFE',
   },
   filterDot: {
     position: 'absolute',
-    top: 6,
+    top: 7,
     right: 7,
     width: 7,
     height: 7,
-    borderRadius: 3.5,
+    borderRadius: 4,
     backgroundColor: '#0062FF',
   },
   centerTitleBox: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
   },
   titleText: {
-    fontSize: 16,
+    fontSize: 16.5,
     fontWeight: '800',
     color: '#0F172A',
-    letterSpacing: -0.3,
-    textAlign: 'center',
+    letterSpacing: -0.2,
   },
   activeFilterChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
     backgroundColor: '#EFF6FF',
-    paddingHorizontal: 7,
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 8,
+    borderRadius: 10,
     marginTop: 2,
+    gap: 4,
+    maxWidth: '85%',
   },
   activeFilterText: {
-    fontSize: 9.5,
+    fontSize: 10.5,
     fontWeight: '700',
     color: '#0062FF',
   },
   rightActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
-
-  // Search Input in Header Bar
   searchBarContainer: {
     flex: 1,
-    height: 40,
-    backgroundColor: '#F1F5F9',
-    borderRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    height: 38,
+    marginHorizontal: 8,
+    gap: 6,
   },
   searchInput: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 13.5,
     color: '#0F172A',
     fontWeight: '600',
     paddingVertical: 0,
   },
   clearBtn: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#E2E8F0',
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 2,
   },
 
-  // Modal Sheet Styles
-  modalBackdrop: {
+  // 3-Dot Options Drawer
+  optionsOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(10, 15, 29, 0.55)',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
     justifyContent: 'flex-end',
   },
-  modalSheet: {
+  optionsDrawer: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 18,
     paddingTop: 12,
-    maxHeight: '85%',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 20,
   },
-  modalHandle: {
-    width: 40,
+  drawerHandle: {
+    width: 36,
     height: 4,
     borderRadius: 2,
     backgroundColor: '#CBD5E1',
     alignSelf: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
+  },
+  optionsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  optionsTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  optionsSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  optionsCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  optionRowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8FAFC',
+  },
+  optionIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  optionContentBox: {
+    flex: 1,
+  },
+  optionTitleLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  optionMainTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  activePill: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+    maxWidth: 130,
+  },
+  activePillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#0062FF',
+  },
+  optionSubTitle: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 1.5,
+  },
+
+  // Modal Backdrop & Sheet
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '85%',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#CBD5E1',
+    alignSelf: 'center',
+    marginBottom: 12,
   },
   modalHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingBottom: 14,
+    alignItems: 'center',
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
@@ -752,20 +1014,20 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   filterIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     backgroundColor: '#EFF6FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalTitle: {
-    fontSize: 16,
+    fontSize: 16.5,
     fontWeight: '800',
     color: '#0F172A',
   },
   modalSub: {
-    fontSize: 11,
+    fontSize: 11.5,
     color: '#64748B',
     marginTop: 1,
   },
@@ -773,38 +1035,128 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalScroll: {
-    paddingVertical: 14,
+    paddingVertical: 12,
+  },
+  sectionBlock: {
+    marginBottom: 8,
   },
   groupHeading: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#94A3B8',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 10,
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.8,
+    marginBottom: 8,
   },
-  presetItem: {
+
+  // Bank Dropdown Styles
+  bankDropdownTrigger: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  bankDropdownTriggerOpen: {
+    borderColor: '#0062FF',
+    backgroundColor: '#EFF6FF',
+  },
+  bankDropdownLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  bankDropdownText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  bankDropdownContainer: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    marginTop: 6,
+    overflow: 'hidden',
+  },
+  bankSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 10,
+    height: 38,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    gap: 6,
+  },
+  bankSearchInput: {
+    flex: 1,
+    fontSize: 12.5,
+    color: '#0F172A',
+    fontWeight: '600',
+    paddingVertical: 0,
+  },
+  bankItemsScroll: {
+    maxHeight: 170,
+  },
+  bankItemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8FAFC',
+  },
+  bankItemRowActive: {
+    backgroundColor: '#EFF6FF',
+  },
+  bankItemText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  bankItemTextActive: {
+    color: '#0062FF',
+    fontWeight: '800',
+  },
+  noBankFoundBox: {
+    padding: 14,
+    alignItems: 'center',
+  },
+  noBankFoundText: {
+    fontSize: 12,
+    color: '#94A3B8',
+  },
+
+  // Presets
+  presetItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 7,
   },
   presetItemActive: {
-    backgroundColor: '#EFF6FF',
     borderColor: '#0062FF',
+    backgroundColor: '#EFF6FF',
   },
   presetTitle: {
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '700',
     color: '#0F172A',
   },
@@ -814,40 +1166,41 @@ const styles = StyleSheet.create({
   presetSub: {
     fontSize: 11,
     color: '#64748B',
-    marginTop: 2,
+    marginTop: 1,
   },
   checkCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: '#0062FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  // Custom Month / Year Box
+  // Custom Picker Box
   customPickerBox: {
     backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: 12,
+    padding: 12,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
-    marginBottom: 14,
-  },
-  pickerSubHeading: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#334155',
+    borderColor: '#E2E8F0',
+    marginTop: 4,
     marginBottom: 8,
   },
+  pickerSubHeading: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    marginBottom: 6,
+  },
   chipsScroll: {
-    flexDirection: 'row',
-    gap: 8,
+    gap: 6,
+    paddingBottom: 4,
   },
   chipItem: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#CBD5E1',
@@ -871,176 +1224,62 @@ const styles = StyleSheet.create({
   },
   monthChip: {
     width: '23%',
-    paddingVertical: 8,
-    borderRadius: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#CBD5E1',
     alignItems: 'center',
-    justifyContent: 'center',
   },
   monthChipActive: {
     backgroundColor: '#0062FF',
     borderColor: '#0062FF',
   },
   monthChipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#475569',
   },
   monthChipTextActive: {
     color: '#FFFFFF',
-    fontWeight: '800',
   },
 
-  // Modal Actions
+  // Actions
   modalActionRow: {
     flexDirection: 'row',
     gap: 10,
-    paddingTop: 12,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
   },
   resetBtn: {
-    flex: 1,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: '#F1F5F9',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     gap: 6,
   },
   resetBtnText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: '#475569',
   },
   applyBtn: {
-    flex: 2,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: '#0062FF',
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#0062FF',
+    paddingVertical: 12,
+    borderRadius: 12,
     gap: 6,
-    shadowColor: '#0062FF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
   },
   applyBtnText: {
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-
-  // 3-Dot Options Bottom Sheet Drawer Styles
-  optionsOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.55)',
-    justifyContent: 'flex-end',
-  },
-  optionsDrawer: {
-    width: '100%',
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: -6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 18,
-    elevation: 20,
-  },
-  drawerHandle: {
-    width: 38,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#CBD5E1',
-    alignSelf: 'center',
-    marginBottom: 14,
-  },
-  optionsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  optionsTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#0F172A',
-    letterSpacing: -0.2,
-  },
-  optionsSubtitle: {
-    fontSize: 11.5,
-    color: '#64748B',
-    marginTop: 1,
-  },
-  optionsCloseBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F8FAFC',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  optionRowItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 12,
-    marginBottom: 10,
-  },
-  optionIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  optionContentBox: {
-    flex: 1,
-  },
-  optionTitleLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 6,
-    marginBottom: 2,
-  },
-  optionMainTitle: {
-    fontSize: 13.5,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  optionSubTitle: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  activePill: {
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-  },
-  activePillText: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: '#0062FF',
-  },
 });
-

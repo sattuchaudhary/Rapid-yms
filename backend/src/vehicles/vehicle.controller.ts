@@ -59,12 +59,13 @@ const updateVehicleSchema = createVehicleSchema.partial().extend({
 export const getVehicleSummary = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const tenantId = req.user!.tenantId;
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, bankName } = req.query;
 
     const summary = await getVehicleSummaryService(
       tenantId,
       startDate as string,
-      endDate as string
+      endDate as string,
+      bankName as string
     );
     res.json({ success: true, data: summary });
   } catch (err) {

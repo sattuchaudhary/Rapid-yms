@@ -151,10 +151,7 @@ export default function AdminDashboardScreen() {
   };
 
   const handleProfilePress = () => {
-    Alert.alert(
-      'Admin Profile',
-      `Name: ${user?.name || 'Admin'}\nEmail: ${user?.email || 'N/A'}\nRole: ${user?.role || 'ADMIN'}`
-    );
+    router.push('/tenant_admin/admin/profile' as any);
   };
 
   const handleLogout = async () => {

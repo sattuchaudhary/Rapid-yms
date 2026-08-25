@@ -23,12 +23,15 @@ export interface VehicleFilters {
   limit?: number;
 }
 
-export const getVehicleSummaryService = async (tenantId: string, startDate?: string, endDate?: string) => {
+export const getVehicleSummaryService = async (tenantId: string, startDate?: string, endDate?: string, bankName?: string) => {
   const whereClause: any = { tenantId, isDeleted: false };
   if (startDate || endDate) {
     whereClause.entryDate = {};
     if (startDate) whereClause.entryDate.gte = new Date(startDate);
     if (endDate) whereClause.entryDate.lte = new Date(endDate);
+  }
+  if (bankName) {
+    whereClause.bankName = { contains: bankName, mode: 'insensitive' };
   }
 
   const [total, inYard, pakka, kachha, released, shifting] = await Promise.all([

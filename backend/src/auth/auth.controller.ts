@@ -85,12 +85,14 @@ export const getProfile = async (req: AuthRequest, res: Response, next: NextFunc
         email: user.email,
         phone: user.phone,
         role: user.role,
+        createdAt: user.createdAt,
         tenant: {
           id: user.tenant.id,
           yardName: user.tenant.yardName,
           status: user.tenant.status,
           address: user.tenant.address,
           phone: user.tenant.phone,
+          createdAt: user.tenant.createdAt,
         },
       },
     });

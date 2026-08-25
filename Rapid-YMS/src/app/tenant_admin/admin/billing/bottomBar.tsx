@@ -116,7 +116,7 @@ export default function BillingBottomBar({
     if (onProfilePress) {
       onProfilePress();
     } else {
-      Alert.alert('Admin Profile', 'Profile and account details');
+      handleNav('/tenant_admin/admin/profile');
     }
   };
 

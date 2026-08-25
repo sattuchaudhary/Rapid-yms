@@ -217,6 +217,17 @@ export const getUserInfo = async (): Promise<UserSession | null> => {
   }
 };
 
+export const getMyProfile = async (): Promise<any> => {
+  return await apiRequest('/api/auth/profile');
+};
+
+export const changeMyPassword = async (newPassword: string): Promise<any> => {
+  return await apiRequest('/api/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ newPassword }),
+  });
+};
+
 let isRedirectingToLogin = false;
 
 // Robust fetch-based API client wrapper
@@ -326,13 +337,18 @@ export const getVehicles = async (params: FetchVehicleParams = {}): Promise<any>
   return await apiRequest(`/api/vehicles${queryString}`);
 };
 
-export const getVehicleSummary = async (params: { startDate?: string; endDate?: string } = {}): Promise<any> => {
+export const getVehicleSummary = async (params: { startDate?: string; endDate?: string; bankName?: string } = {}): Promise<any> => {
   const queryParts: string[] = [];
   if (params.startDate) queryParts.push(`startDate=${encodeURIComponent(params.startDate)}`);
   if (params.endDate) queryParts.push(`endDate=${encodeURIComponent(params.endDate)}`);
+  if (params.bankName) queryParts.push(`bankName=${encodeURIComponent(params.bankName)}`);
 
   const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
   return await apiRequest(`/api/vehicles/summary${queryString}`);
+};
+
+export const getBanks = async (): Promise<any> => {
+  return await apiRequest('/api/banks');
 };
 
 export const getVehicleById = async (id: string): Promise<any> => {

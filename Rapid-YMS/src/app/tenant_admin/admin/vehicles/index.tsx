@@ -7,11 +7,8 @@ import {
   ActivityIndicator,
   RefreshControl,
   TouchableOpacity,
-  Alert,
   Platform,
 } from 'react-native';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import {
@@ -20,6 +17,7 @@ import {
   Inbox,
   ShieldCheck,
 } from 'lucide-react-native';
+
 import VehiclesHeader, { VehicleFilterState } from './header';
 import VehicleCategoryTabs, {
   VehicleCategoryKey,
@@ -29,20 +27,24 @@ import ExportVehiclesModal from './ExportVehiclesModal';
 import AdminDashboardBottomNavBar, {
   AdminDashboardTabKey,
 } from '../navigation/admindashbordbottomnavbar';
-import { getVehicles, getVehicleSummary } from '@/services/api';
+import { getVehicles, getVehicleSummary, getBanks } from '@/services/api';
 
 const PAGE_SIZE = 25;
 
 export default function VehiclesScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ category?: string; filter?: string }>();
+  const params = useLocalSearchParams<{ category?: string; filter?: string; bank?: string }>();
   const [activeTab, setActiveTab] = useState<AdminDashboardTabKey>('vehicles');
   const [selectedCategory, setSelectedCategory] = useState<VehicleCategoryKey>('ALL');
   const [exportModalVisible, setExportModalVisible] = useState(false);
   const [activeFilter, setActiveFilter] = useState<VehicleFilterState>({
     preset: 'all_time',
-    label: 'All Time (Day 1 - Today)',
+    bankName: params.bank || null,
+    label: params.bank ? params.bank : 'All Time (Day 1 - Today)',
   });
+
+  // Banks List for Header Filter Modal
+  const [banksList, setBanksList] = useState<any[]>([]);
 
   // Sync category and filter if navigated from dashboard metric cards
   useEffect(() => {
@@ -55,16 +57,37 @@ export default function VehiclesScreen() {
     }
     if (params.filter) {
       if (params.filter === 'today') {
-        setActiveFilter({ preset: 'today', label: 'Today' });
+        setActiveFilter((prev) => ({ ...prev, preset: 'today', label: 'Today' }));
       } else if (params.filter === 'this_month') {
-        setActiveFilter({ preset: 'this_month', label: 'This Month' });
+        setActiveFilter((prev) => ({ ...prev, preset: 'this_month', label: 'This Month' }));
       } else if (params.filter === 'all_time') {
-        setActiveFilter({ preset: 'all_time', label: 'All Time (Day 1 - Today)' });
+        setActiveFilter((prev) => ({ ...prev, preset: 'all_time', label: 'All Time (Day 1 - Today)' }));
       }
     }
-  }, [params.category, params.filter]);
+    if (params.bank) {
+      setActiveFilter((prev) => ({
+        ...prev,
+        bankName: params.bank || null,
+        label: params.bank || prev.label,
+      }));
+    }
+  }, [params.category, params.filter, params.bank]);
 
-  // Search State (Header Expandable Search - Option 2)
+  // Load Banks List on mount for the 3-dot filter modal
+  useEffect(() => {
+    const loadBanks = async () => {
+      try {
+        const res = await getBanks();
+        const list = res?.data || (Array.isArray(res) ? res : []);
+        setBanksList(list);
+      } catch (err) {
+        console.warn('[Load Banks For Filter Error]', err);
+      }
+    };
+    loadBanks();
+  }, []);
+
+  // Search State
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
@@ -125,20 +148,23 @@ export default function VehiclesScreen() {
     return {};
   }, [activeFilter]);
 
-  // 1. Fetch Fast Category Aggregate Counts
+  // 1. Fetch Fast Category Aggregate Counts (with Bank filter from activeFilter)
   const fetchCountsSummary = useCallback(async () => {
     try {
       const dateParams = getDateRangeParams();
-      const summaryRes = await getVehicleSummary(dateParams);
+      const summaryRes = await getVehicleSummary({
+        ...dateParams,
+        bankName: activeFilter.bankName || undefined,
+      });
       if (summaryRes?.data) {
         setCategoryCounts(summaryRes.data);
       }
     } catch (err) {
       console.warn('[Fetch Category Summary Error]', err);
     }
-  }, [getDateRangeParams]);
+  }, [getDateRangeParams, activeFilter.bankName]);
 
-  // 2. Fetch Paginated Vehicles List
+  // 2. Fetch Paginated Vehicles List (with Bank filter from activeFilter)
   const fetchVehiclesPage = useCallback(
     async (targetPage: number, isReset = false) => {
       if (isFetchingRef.current && !isReset) return;
@@ -160,6 +186,7 @@ export default function VehiclesScreen() {
         const res = await getVehicles({
           ...dateParams,
           yardStatus: statusFilter,
+          bankName: activeFilter.bankName || undefined,
           shifting: selectedCategory === 'SHIFTING' ? true : undefined,
           search: debouncedSearch || undefined,
           page: targetPage,
@@ -191,10 +218,10 @@ export default function VehiclesScreen() {
         isFetchingRef.current = false;
       }
     },
-    [getDateRangeParams, selectedCategory, debouncedSearch]
+    [getDateRangeParams, selectedCategory, activeFilter.bankName, debouncedSearch]
   );
 
-  // Initial load or when filter/search changes
+  // Initial load or when filter/search/bank changes
   useEffect(() => {
     fetchCountsSummary();
     fetchVehiclesPage(1, true);
@@ -247,43 +274,44 @@ export default function VehiclesScreen() {
     return { bg: '#F1F5F9', text: '#64748B', border: '#E2E8F0' };
   };
 
-  // Clean, Simple & Perfectly Aligned Vehicle Card
+  // Clean Vehicle Card
   const renderVehicleCard = ({ item }: { item: any }) => {
-    const statusStyle = getStatusBadgeStyle(item.yardStatus);
+    const status = item.yardStatus || 'KACHHA';
+    const statusStyle = getStatusBadgeStyle(status);
+
     const vehicleNum = item.vehicleNumber || 'NO NUMBER';
-    const bank = item.bankName || item.bank?.name || 'Private / Agency';
-    const entryDateStr = item.entryDate
-      ? new Date(item.entryDate).toLocaleDateString('en-IN', {
+    const bankName = item.bankName || item.bank?.name || item.bank?.bankName || 'General / Other';
+    const model = [item.brand, item.model].filter(Boolean).join(' ') || item.vehicleType || 'Vehicle';
+
+    // Format Inward / Check-in Date
+    const rawDate = item.kachhaStartDate || item.entryDate || item.createdAt;
+    const formattedDate = rawDate
+      ? new Date(rawDate).toLocaleDateString('en-IN', {
           day: 'numeric',
           month: 'short',
           year: 'numeric',
         })
-      : 'N/A';
+      : 'Recently Added';
 
     return (
       <TouchableOpacity
-        style={styles.cleanCard}
-        activeOpacity={0.75}
+        style={styles.vehicleCard}
+        activeOpacity={0.7}
         onPress={() => {
-          if (item?.id) {
-            router.push(`/tenant_admin/admin/vehicles/details/${item.id}` as any);
-          }
+          router.push(`/tenant_admin/admin/vehicles/details/${item.id}` as any);
         }}
       >
-        {/* Row 1: Vehicle Number (Left) — Date (Center) — Status (Right) */}
-        <View style={styles.cardTopRow}>
-          {/* 1. Bold Readable Vehicle Number */}
-          <Text style={styles.vehicleNumberText} numberOfLines={1}>
-            {vehicleNum.toUpperCase()}
-          </Text>
-
-          {/* 2. Date in Center (Safe Fixed Position) */}
-          <View style={styles.dateCenterBox}>
-            <Calendar size={11} color="#64748B" style={styles.dateIcon} />
-            <Text style={styles.dateText}>{entryDateStr}</Text>
+        {/* Top Header Row: Vehicle Number + Status Badge */}
+        <View style={styles.cardHeaderRow}>
+          <View style={styles.numContainer}>
+            <Text style={styles.vehicleNumberText} numberOfLines={1}>
+              {vehicleNum}
+            </Text>
+            <Text style={styles.modelSubText} numberOfLines={1}>
+              {model}
+            </Text>
           </View>
 
-          {/* 3. Status Badge */}
           <View
             style={[
               styles.statusBadge,
@@ -291,17 +319,27 @@ export default function VehiclesScreen() {
             ]}
           >
             <Text style={[styles.statusBadgeText, { color: statusStyle.text }]}>
-              {item.yardStatus || 'KACHHA'}
+              {status}
             </Text>
           </View>
         </View>
 
-        {/* Row 2: Full Width Dedicated Bank Name (No text overlap) */}
-        <View style={styles.cardBottomRow}>
-          <Building2 size={13} color="#64748B" style={styles.bankIcon} />
-          <Text style={styles.bankText} numberOfLines={1}>
-            {bank}
-          </Text>
+        {/* Divider */}
+        <View style={styles.cardDivider} />
+
+        {/* Footer Meta Row: Bank + Inward Date */}
+        <View style={styles.cardFooterRow}>
+          <View style={styles.metaItem}>
+            <Building2 size={13} color="#64748B" strokeWidth={2} />
+            <Text style={styles.metaText} numberOfLines={1}>
+              {bankName}
+            </Text>
+          </View>
+
+          <View style={styles.metaItem}>
+            <Calendar size={13} color="#64748B" strokeWidth={2} />
+            <Text style={styles.metaText}>{formattedDate}</Text>
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -312,7 +350,7 @@ export default function VehiclesScreen() {
     return (
       <View style={styles.footerLoader}>
         <ActivityIndicator size="small" color="#0062FF" />
-        <Text style={styles.footerLoaderText}>Loading more vehicles...</Text>
+        <Text style={styles.footerText}>Loading more vehicles...</Text>
       </View>
     );
   };
@@ -321,31 +359,32 @@ export default function VehiclesScreen() {
     <View style={styles.container}>
       <StatusBar style="dark" backgroundColor="#FFFFFF" />
 
-      {/* 1. Vehicles Header with Expandable Search & 3-Dot Options Menu */}
+      {/* 1. Header with Search & 3-Dot Filter (Searchable Bank Dropdown + Date Filter) */}
       <VehiclesHeader
         title="Vehicle List"
         onBackPress={handleBackPress}
-        onFilterChange={(filter) => setActiveFilter(filter)}
         initialFilter={activeFilter}
+        onFilterChange={(newFilter) => setActiveFilter(newFilter)}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onRefreshPress={handleRefresh}
         onExportPress={() => setExportModalVisible(true)}
+        banksList={banksList}
       />
 
-      {/* 2. Category Tabs: All(count), Pakka(count), Kachha(count), Released(count), Shifting(count) */}
+      {/* 2. Top Category Tabs (ALL, PAKKA, KACHHA, RELEASED, SHIFTING) */}
       <VehicleCategoryTabs
         selectedCategory={selectedCategory}
         onSelectCategory={(cat) => setSelectedCategory(cat)}
         counts={categoryCounts}
       />
 
-      {/* 3. Clean & Understandable Vehicles List */}
+      {/* 3. Clean Vehicles List */}
       <View style={styles.contentArea}>
         {loading && !refreshing ? (
           <View style={styles.centerLoadingBox}>
             <ActivityIndicator size="large" color="#0062FF" />
-            <Text style={styles.loadingText}>Searching vehicles...</Text>
+            <Text style={styles.loadingText}>Loading vehicles...</Text>
           </View>
         ) : vehicles.length === 0 ? (
           <View style={styles.emptyContainer}>
@@ -353,10 +392,12 @@ export default function VehiclesScreen() {
               <Inbox size={32} color="#94A3B8" strokeWidth={1.8} />
             </View>
             <Text style={styles.emptyTitle}>
-              {searchQuery ? 'No Matching Vehicles' : 'No Vehicles Found'}
+              {searchQuery || activeFilter.bankName ? 'No Matching Vehicles' : 'No Vehicles Found'}
             </Text>
             <Text style={styles.emptySubtitle}>
-              {searchQuery
+              {activeFilter.bankName
+                ? `Bank "${activeFilter.bankName}" ke liye ${selectedCategory} category mein koi vehicle nahi mila.`
+                : searchQuery
                 ? `"${searchQuery}" ke liye koi vehicle record nahi mila.`
                 : `Is category (${selectedCategory}) mein koi vehicle record uplabdh nahi hai.`}
             </Text>
@@ -428,114 +469,112 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 32,
+    paddingBottom: 60,
     gap: 8,
   },
   emptyIconCircle: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
   },
   emptyTitle: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: '700',
+    color: '#1E293B',
+    textAlign: 'center',
   },
   emptySubtitle: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#64748B',
     textAlign: 'center',
     lineHeight: 18,
   },
 
-  // ---- Clean, Simple & Stable Card Styles ----
-  cleanCard: {
+  // Vehicle Card
+  vehicleCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 13,
-    paddingVertical: 10,
-    paddingHorizontal: 13,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 3,
-    elevation: 1,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 1.5,
+      },
+    }),
   },
-  cardTopRow: {
+  cardHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 8,
+    alignItems: 'flex-start',
+  },
+  numContainer: {
+    flex: 1,
+    paddingRight: 8,
   },
   vehicleNumberText: {
-    fontSize: 15,
-    fontWeight: '900',
+    fontSize: 15.5,
+    fontWeight: '800',
     color: '#0F172A',
-    letterSpacing: 0.4,
-    flex: 1,
+    letterSpacing: 0.3,
   },
-  dateCenterBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 4,
-  },
-  dateIcon: {
-    marginRight: 1,
-  },
-  dateText: {
-    fontSize: 11,
-    color: '#475569',
-    fontWeight: '600',
+  modelSubText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+    marginTop: 2,
   },
   statusBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
     borderRadius: 6,
     borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   statusBadgeText: {
-    fontSize: 9.5,
+    fontSize: 10.5,
     fontWeight: '800',
     letterSpacing: 0.3,
   },
-  cardBottomRow: {
+  cardDivider: {
+    height: 1,
+    backgroundColor: '#F8FAFC',
+    marginVertical: 9,
+  },
+  cardFooterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 6,
     gap: 5,
   },
-  bankIcon: {
-    marginRight: 1,
-  },
-  bankText: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '600',
-    flex: 1,
-  },
-  footerLoader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    gap: 8,
-  },
-  footerLoaderText: {
+  metaText: {
     fontSize: 11.5,
     color: '#64748B',
-    fontWeight: '600',
+    fontWeight: '500',
+  },
+  footerLoader: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  footerText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    fontWeight: '500',
   },
 });
-
