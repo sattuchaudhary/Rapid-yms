@@ -254,11 +254,11 @@ export default function ReleaseDeskScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       <StatusBar style="dark" backgroundColor="#FFFFFF" />
 
       {/* 1. Header Bar */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 44 : 10) }]}>
         <View style={styles.headerTitleRow}>
           <View style={styles.headerIconBadge}>
             <ShieldCheck size={22} color="#0062FF" strokeWidth={2.2} />

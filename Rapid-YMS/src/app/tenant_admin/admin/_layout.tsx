@@ -107,6 +107,15 @@ export default function AdminLayout() {
         }}
       />
       <Stack.Screen
+        name="billing/index"
+        options={{
+          headerShown: false,
+          animation: 'slide_from_right',
+          gestureEnabled: true,
+          gestureDirection: 'horizontal',
+        }}
+      />
+      <Stack.Screen
         name="settings/index"
         options={{
           headerShown: false,

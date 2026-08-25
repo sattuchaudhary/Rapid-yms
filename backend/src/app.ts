@@ -22,6 +22,7 @@ import bankRoutes    from './banks/banks.routes';
 import notificationsRoutes from './notifications/notifications.routes';
 import inventoryRoutes from './inventory/inventory.routes';
 import ocrRoutes from './ocr/ocr.routes';
+import { rcLookupRoutes } from './common/rc-lookup';
 
 import { errorHandler } from './common/error.handler';
 
@@ -63,6 +64,7 @@ app.use('/api/banks',    bankRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/ocr',       ocrRoutes);
+app.use('/api/rc-lookup', rcLookupRoutes);
 
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 

@@ -159,6 +159,9 @@ export default function EditVehicleScreen() {
     try {
       setSaving(true);
 
+      const isKachha = yardStatus === 'KACHHA';
+      const isPakka = yardStatus === 'PAKKA';
+
       const payload: any = {
         vehicleNumber: vehicleNumber.trim().toUpperCase(),
         brand: brand.trim(),
@@ -173,9 +176,9 @@ export default function EditVehicleScreen() {
         yardStatus,
         entryDate: entryDate ? entryDate.toISOString() : null,
         kachhaStartDate: kachhaStartDate ? kachhaStartDate.toISOString() : null,
-        repoKitDate: repoKitDate ? repoKitDate.toISOString() : null,
-        pakkaDate: pakkaDate ? pakkaDate.toISOString() : null,
-        releaseOrderDate: releaseOrderDate ? releaseOrderDate.toISOString() : null,
+        repoKitDate: isKachha ? null : repoKitDate ? repoKitDate.toISOString() : null,
+        pakkaDate: isKachha ? null : pakkaDate ? pakkaDate.toISOString() : null,
+        releaseOrderDate: isKachha || isPakka ? null : releaseOrderDate ? releaseOrderDate.toISOString() : null,
       };
 
       await updateVehicle(id!, payload);

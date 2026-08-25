@@ -552,14 +552,23 @@ export const updateVehicleService = async (
   if (data.yardStatus === 'PAKKA' && vehicle.yardStatus === 'KACHHA') {
     if (!updateData.pakkaDate) updateData.pakkaDate = new Date();
     updateData.billingStart = updateData.pakkaDate;
+    updateData.releaseOrderDate = null;
+    updateData.actualReleaseDate = null;
   }
 
-  // If status is reverted back to KACHHA (Mistake recovery)
-  if (data.yardStatus === 'KACHHA' && vehicle.yardStatus !== 'KACHHA') {
-    if (data.pakkaDate === undefined) updateData.pakkaDate = null;
-    if (data.repoKitDate === undefined) updateData.repoKitDate = null;
-    if (data.releaseOrderDate === undefined) updateData.releaseOrderDate = null;
+  // If status is reverted back to KACHHA (Mistake recovery / reset to initial)
+  if (data.yardStatus === 'KACHHA') {
+    updateData.pakkaDate = null;
+    updateData.repoKitDate = null;
+    updateData.releaseOrderDate = null;
+    updateData.actualReleaseDate = null;
     updateData.billingStart = null;
+  }
+
+  // If status is changed to PAKKA from RELEASED
+  if (data.yardStatus === 'PAKKA' && vehicle.yardStatus === 'RELEASED') {
+    updateData.releaseOrderDate = null;
+    updateData.actualReleaseDate = null;
   }
 
   return prisma.$transaction(async (tx) => {
@@ -575,6 +584,22 @@ export const updateVehicleService = async (
           reason: `Yard status updated to ${data.yardStatus}`,
         },
       });
+
+      // If moving away from RELEASED, clean up release records and reset billing
+      if (data.yardStatus === 'KACHHA' || data.yardStatus === 'PAKKA') {
+        await tx.vehicleRelease.deleteMany({
+          where: { vehicleId: id },
+        });
+        if (data.yardStatus === 'KACHHA') {
+          await tx.vehicleBilling.updateMany({
+            where: { vehicleId: id },
+            data: {
+              paymentStatus: 'PENDING',
+              paidAmount: 0,
+            },
+          });
+        }
+      }
     }
 
     // Location slot change logic

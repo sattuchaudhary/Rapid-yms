@@ -23,7 +23,7 @@ export default function ReleaseHeader({
   onMenuPress,
 }: ReleaseHeaderProps) {
   const insets = useSafeAreaInsets();
-  const topPadding = Math.max(insets.top, Platform.OS === 'ios' ? 44 : 12);
+  const topPadding = insets.top || (Platform.OS === 'ios' ? 44 : 10);
 
   return (
     <View style={[styles.headerWrapper, { paddingTop: topPadding }]}>
@@ -33,7 +33,7 @@ export default function ReleaseHeader({
           style={styles.actionBtn}
           onPress={onBackPress}
           activeOpacity={0.7}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           accessibilityLabel="Go back"
         >
           <ChevronLeft size={22} color="#0F172A" strokeWidth={2.4} />
@@ -51,16 +51,20 @@ export default function ReleaseHeader({
           ) : null}
         </View>
 
-        {/* Right: 3-Dot Options Menu */}
-        <TouchableOpacity
-          style={styles.actionBtn}
-          onPress={onMenuPress}
-          activeOpacity={0.7}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityLabel="Options"
-        >
-          <MoreVertical size={20} color="#0F172A" strokeWidth={2.2} />
-        </TouchableOpacity>
+        {/* Right: Optional Menu or Spacer */}
+        {onMenuPress ? (
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={onMenuPress}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Options"
+          >
+            <MoreVertical size={20} color="#0F172A" strokeWidth={2.2} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.spacerBtn} />
+        )}
       </View>
     </View>
   );
@@ -70,30 +74,34 @@ const styles = StyleSheet.create({
   headerWrapper: {
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: '#E2E8F0',
     shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
     elevation: 2,
-    zIndex: 10,
+    zIndex: 20,
   },
   headerBar: {
-    height: 56,
+    height: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
   },
   actionBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
+  },
+  spacerBtn: {
+    width: 36,
+    height: 36,
   },
   headerTitleBox: {
     flex: 1,
@@ -102,7 +110,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   vehicleNumberTitle: {
-    fontSize: 16.5,
+    fontSize: 16,
     fontWeight: '900',
     color: '#0F172A',
     letterSpacing: 0.3,

@@ -24,9 +24,9 @@ import {
   Landmark,
   Users,
   BarChart3,
+  Receipt,
   Settings,
   ChevronRight,
-  ScanText,
 } from 'lucide-react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -54,15 +54,6 @@ interface DrawerMenuItem {
 
 const DRAWER_MENU_ITEMS: DrawerMenuItem[] = [
   {
-    id: 'ocr',
-    title: 'OCR Scanner',
-    subtitle: 'Extract text from image/doc',
-    route: '/tenant_admin/admin/ocr',
-    icon: ScanText,
-    iconColor: '#EA580C',
-    iconBgColor: '#FFF7ED',
-  },
-  {
     id: 'banks',
     title: 'Bank Management',
     subtitle: 'Parking rates & sub-banks',
@@ -88,6 +79,15 @@ const DRAWER_MENU_ITEMS: DrawerMenuItem[] = [
     icon: BarChart3,
     iconColor: '#0D9488',
     iconBgColor: '#F0FDFA',
+  },
+  {
+    id: 'billing',
+    title: 'Billing Management',
+    subtitle: 'Invoices, rates & statements',
+    route: '/tenant_admin/admin/billing',
+    icon: Receipt,
+    iconColor: '#D97706',
+    iconBgColor: '#FEF3C7',
   },
   {
     id: 'settings',

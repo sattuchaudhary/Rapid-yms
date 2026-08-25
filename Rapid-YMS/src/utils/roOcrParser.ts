@@ -128,8 +128,10 @@ export function mapBackendRoAnalysis(analysis: any, fallbackVehicle?: any): Pars
 
     yardAddressee: ext.yard?.yardAddressee?.value || 'YARD AUTHORITY',
     yardName: ext.yard?.yardName?.value || fallbackVehicle?.yard?.name || 'PARKING YARD',
-    authorizedCustomer: ext.customer?.authorizedCustomer?.value || fallbackVehicle?.customerName || '',
-    registrationNumber: ext.vehicle?.registrationNumber?.value || fallbackVehicle?.vehicleNumber || '',
+    authorizedCustomer: ext.customer?.authorizedCustomer?.value || '',
+    registrationNumber: ext.vehicle?.registrationNumber?.value || '',
+    engineNumber: ext.vehicle?.engineNumber?.value || '',
+    chassisNumber: ext.vehicle?.chassisNumber?.value || '',
     loanNumber: ext.loan?.loanNumber?.value || '',
 
     hasBankStamp: !!ext.stamp?.detected,
@@ -282,7 +284,7 @@ export function parseRoText(text: string, fallbackVehicle?: any): ParsedRoDocume
     }
   }
   if (!authorizedCustomer) {
-    authorizedCustomer = fallbackVehicle?.customerName || '';
+    authorizedCustomer = '';
   }
 
   // 6. Registration Number Detection (State Code validated)
@@ -318,7 +320,7 @@ export function parseRoText(text: string, fallbackVehicle?: any): ParsedRoDocume
   }
 
   if (!regNo) {
-    regNo = fallbackVehicle?.vehicleNumber || '';
+    regNo = '';
   }
 
   // 7. RO / Reference Number
@@ -352,8 +354,8 @@ export function parseRoText(text: string, fallbackVehicle?: any): ParsedRoDocume
   const hasStamp = /seal|stamp|branch\s*office/i.test(normalized);
   const hasSign = /authori[zs]ed\s*signatory|manager/i.test(normalized);
 
-  const isVehicleMatched = fallbackVehicle?.vehicleNumber ? regNo === fallbackVehicle.vehicleNumber.replace(/[\s-]/g, '').toUpperCase() : true;
-  const isCustMatched = fallbackVehicle?.customerName ? authorizedCustomer.includes(fallbackVehicle.customerName) || fallbackVehicle.customerName.includes(authorizedCustomer) : true;
+  const isVehicleMatched = !!regNo && (fallbackVehicle?.vehicleNumber ? regNo === fallbackVehicle.vehicleNumber.replace(/[\s-]/g, '').toUpperCase() : false);
+  const isCustMatched = !!authorizedCustomer && (fallbackVehicle?.customerName ? authorizedCustomer.includes(fallbackVehicle.customerName) || fallbackVehicle.customerName.includes(authorizedCustomer) : false);
 
   return {
     documentType: 'RELEASE_ORDER',

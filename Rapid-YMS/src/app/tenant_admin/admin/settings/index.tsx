@@ -18,6 +18,7 @@ import {
   Trash2,
   AlertTriangle,
   FileSpreadsheet,
+  ScanText,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
@@ -66,7 +67,27 @@ export default function SettingsScreen() {
 
         {/* Settings Group 1 */}
         <View style={styles.groupContainer}>
-          {/* 1. Bulk Vehicle Import Option */}
+          {/* 1. OCR Scanner Option */}
+          <TouchableOpacity
+            style={styles.settingRow}
+            activeOpacity={0.7}
+            onPress={() => handleNavigate('/tenant_admin/admin/ocr')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: '#FFF7ED' }]}>
+              <ScanText size={20} color="#EA580C" />
+            </View>
+            <View style={styles.rowTextContainer}>
+              <Text style={styles.rowTitle}>OCR Scanner</Text>
+              <Text style={styles.rowSubtitle}>
+                Extract text & details from image or document (RO)
+              </Text>
+            </View>
+            <ChevronRight size={18} color="#94A3B8" />
+          </TouchableOpacity>
+
+          <View style={styles.separator} />
+
+          {/* 2. Bulk Vehicle Import Option */}
           <TouchableOpacity
             style={styles.settingRow}
             activeOpacity={0.7}
