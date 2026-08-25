@@ -280,6 +280,7 @@ export const createVehicleEntryService = async (
     color?: string;
     bankName?: string;
     bankId?: string;
+    loanNumber?: string;
     repoAgency?: string;
     repoDate?: string;
     entryDate?: string;
@@ -386,6 +387,7 @@ export const createVehicleEntryService = async (
         color: data.color,
         bankName,
         bankId,
+        loanNumber: data.loanNumber,
         repoAgency: data.repoAgency,
         repoDate: data.repoDate ? new Date(data.repoDate) : new Date(),
         entryDate,

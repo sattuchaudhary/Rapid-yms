@@ -67,7 +67,7 @@ import {
   Edit3,
 } from 'lucide-react-native';
 
-import { apiRequest, getUserInfo } from '@/services/api';
+import { apiRequest, getUserInfo, lookupRapidRepoVehicle } from '@/services/api';
 import { DEFAULT_CHECKLIST, CustomInventoryItem } from '../settings/inventory-customization';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -176,6 +176,7 @@ export default function VehicleAddScreen() {
 
   const [customerName, setCustomerName] = useState<string>('');
   const [customerPhone, setCustomerPhone] = useState<string>('');
+  const [loanNumber, setLoanNumber] = useState<string>('');
   const [repoAgency, setRepoAgency] = useState<string>('');
   const [repoAgentName, setRepoAgentName] = useState<string>('');
   const [placeOfPossession, setPlaceOfPossession] = useState<string>(''); // Default Empty!
@@ -213,6 +214,264 @@ export default function VehicleAddScreen() {
   // Step 4: Created Vehicle Data & Gate Pass
   const [createdVehicle, setCreatedVehicle] = useState<any>(null);
 
+  // Rapid Repo Live Auto-Search & Smart Bank Matching States
+  const [searchingRapidRepo, setSearchingRapidRepo] = useState<boolean>(false);
+  const [rapidRepoMatchBanner, setRapidRepoMatchBanner] = useState<string | null>(null);
+  const lookupTimeoutRef = useRef<any>(null);
+  const lastLookedUpPlateRef = useRef<string>('');
+
+  /**
+   * Smart Bank Matcher: Matches incoming raw bank string (e.g. "IDFC March", "HDFC AUTO LOAN", "BAJAJ FIN")
+   * with registered Direct Banks and Third Party Groups / Sub-Banks in YMS.
+   */
+  const findSmartBankMatch = useCallback(
+    (
+      rawBankName: string,
+      bankList: any[]
+    ): {
+      category: BankCategory;
+      bankId: string;
+      bankName: string;
+      thirdPartyId?: string;
+      groupName?: string;
+    } | null => {
+      if (!rawBankName || !Array.isArray(bankList) || bankList.length === 0) {
+        return null;
+      }
+
+      // Top Indian Financial Anchor Brand Keywords
+      const KNOWN_ANCHORS = [
+        'idfc',
+        'hdfc',
+        'icici',
+        'sbi',
+        'kotak',
+        'bajaj',
+        'axis',
+        'chola',
+        'cholamandalam',
+        'tvs',
+        'hero',
+        'herofincorp',
+        'mahindra',
+        'mmfsl',
+        'indusind',
+        'yes',
+        'au',
+        'bandhan',
+        'piramal',
+        'shriram',
+        'poonawalla',
+        'tata',
+        'fullerton',
+        'smfg',
+        'muthoot',
+        'manappuram',
+        'canara',
+        'pnb',
+        'bob',
+        'baroda',
+        'union',
+        'equitas',
+        'ujjivan',
+        'fedbank',
+        'federal',
+      ];
+
+      // Tokenize & normalize incoming string
+      const clean = (s: string) =>
+        (s || '')
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, ' ')
+          .replace(
+            /\b(bank|limited|ltd|finance|financial|services|corp|co|branch|march|car|auto|tw|loan|pvt|india|woff|writeoff|pool|two|wheeler|commercial|cv|collection|recovery|agency)\b/g,
+            ''
+          )
+          .replace(/\s+/g, ' ')
+          .trim();
+
+      const rawClean = clean(rawBankName);
+      const rawTokens = rawClean.split(' ').filter(t => t.length >= 2);
+
+      // Find if raw string contains any recognized primary anchor (e.g. 'idfc')
+      const rawAnchor = KNOWN_ANCHORS.find(a =>
+        rawTokens.some(t => t === a || t.startsWith(a) || a.startsWith(t))
+      );
+
+      // 1. Separate into Direct Banks and Third Party Groups
+      const directBanks = bankList.filter(b => !b.isThirdParty && !b.parentId);
+      const thirdPartyGroups = bankList.filter(b => b.isThirdParty && !b.parentId);
+
+      const calculateScore = (targetName: string): number => {
+        const targetClean = clean(targetName);
+        if (!targetClean || !rawClean) return 0;
+
+        // Exact match or contains
+        if (targetClean === rawClean) return 100;
+        if (rawClean.startsWith(targetClean) || targetClean.startsWith(rawClean)) return 90;
+        if (rawClean.includes(targetClean) || targetClean.includes(rawClean)) return 80;
+
+        const targetTokens = targetClean.split(' ').filter(t => t.length >= 2);
+
+        // Heavy Boost for Anchor Keyword Match (e.g. 'idfc' in 'idfc ashok verma woff' matching 'idfc first bank')
+        if (rawAnchor && targetTokens.some(t => t === rawAnchor || t.startsWith(rawAnchor) || rawAnchor.startsWith(t))) {
+          return 95;
+        }
+
+        // Token overlap match
+        let matchedTokens = 0;
+        for (const t of rawTokens) {
+          if (targetTokens.some(tgt => tgt === t || tgt.startsWith(t) || t.startsWith(tgt))) {
+            matchedTokens++;
+          }
+        }
+        if (matchedTokens > 0) {
+          return (matchedTokens / Math.max(rawTokens.length, targetTokens.length)) * 70;
+        }
+        return 0;
+      };
+
+      // 2. Priority 1: Check Direct Banks
+      let bestDirect: { bank: any; score: number } | null = null;
+      for (const b of directBanks) {
+        const score = calculateScore(b.name);
+        if (score >= 40 && (!bestDirect || score > bestDirect.score)) {
+          bestDirect = { bank: b, score };
+        }
+      }
+
+      // 3. Priority 2: Check Third Party Groups and Sub-Banks
+      let bestThirdParty: { group: any; subBank?: any; score: number } | null = null;
+      for (const group of thirdPartyGroups) {
+        const groupScore = calculateScore(group.name);
+        if (groupScore >= 40 && (!bestThirdParty || groupScore > bestThirdParty.score)) {
+          bestThirdParty = { group, score: groupScore };
+        }
+        if (Array.isArray(group.subBanks)) {
+          for (const sub of group.subBanks) {
+            const subScore = calculateScore(sub.name);
+            if (subScore >= 40 && (!bestThirdParty || subScore > bestThirdParty.score)) {
+              bestThirdParty = { group, subBank: sub, score: subScore };
+            }
+          }
+        }
+      }
+
+      // 4. Decide Best Match (Direct Bank prioritized)
+      if (bestDirect && (!bestThirdParty || bestDirect.score >= bestThirdParty.score)) {
+        return {
+          category: 'direct',
+          bankId: bestDirect.bank.id,
+          bankName: bestDirect.bank.name,
+        };
+      }
+
+      if (bestThirdParty) {
+        if (bestThirdParty.subBank) {
+          return {
+            category: 'third_party',
+            thirdPartyId: bestThirdParty.group.id,
+            groupName: bestThirdParty.group.name,
+            bankId: bestThirdParty.subBank.id,
+            bankName: bestThirdParty.subBank.name,
+          };
+        }
+        return {
+          category: 'third_party',
+          thirdPartyId: bestThirdParty.group.id,
+          groupName: bestThirdParty.group.name,
+          bankId: bestThirdParty.group.id,
+          bankName: bestThirdParty.group.name,
+        };
+      }
+
+      return null;
+    },
+    []
+  );
+
+  /**
+   * Auto-Search Rapid Repo and Populate Details with Smart Bank Selection
+   */
+  const triggerRapidRepoAutoLookup = useCallback(
+    async (plate: string, availableBanks?: any[]) => {
+      const cleanPlate = (plate || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (cleanPlate.length < 6 || cleanPlate === lastLookedUpPlateRef.current) {
+        return;
+      }
+
+      lastLookedUpPlateRef.current = cleanPlate;
+      setSearchingRapidRepo(true);
+
+      try {
+        const res = await lookupRapidRepoVehicle({ regNumber: cleanPlate });
+        if (res?.success && res?.data) {
+          const data = res.data;
+          if (Platform.OS === 'ios' || Platform.OS === 'android') {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          }
+
+          // Auto-fill core vehicle specs
+          if (data.customerName) setCustomerName(data.customerName);
+          if (data.vehicleMake) setBrand(data.vehicleMake);
+          if (data.vehicleModel) setModel(data.vehicleModel);
+          if (data.chassisNumber) setChassisNumber(data.chassisNumber);
+          if (data.engineNumber) setEngineNumber(data.engineNumber);
+          if (data.loanNumber) {
+            setLoanNumber(data.loanNumber);
+            setRepoAgency(prev => prev || data.loanNumber);
+          }
+
+          // Smart Bank Matching
+          const bankListToUse = availableBanks || banks;
+          let matchedBankLabel = '';
+          if (data.bankName) {
+            const smartMatch = findSmartBankMatch(data.bankName, bankListToUse);
+            if (smartMatch) {
+              setBankCategory(smartMatch.category);
+              setSelectedBankId(smartMatch.bankId);
+              setSelectedBankName(smartMatch.bankName);
+              if (smartMatch.thirdPartyId) setSelectedThirdPartyId(smartMatch.thirdPartyId);
+              if (smartMatch.groupName) setSelectedGroupName(smartMatch.groupName);
+              matchedBankLabel = `Matched Bank: ${smartMatch.bankName}`;
+            } else {
+              setBankCategory('direct');
+              setSelectedBankName(data.bankName);
+              matchedBankLabel = `Bank: ${data.bankName}`;
+            }
+          }
+
+          const modelStr = [data.vehicleMake, data.vehicleModel].filter(Boolean).join(' ');
+          setRapidRepoMatchBanner(
+            `✓ Rapid Repo: ${modelStr || 'Vehicle Found'}${matchedBankLabel ? ` • ${matchedBankLabel}` : ''}`
+          );
+        }
+      } catch (err) {
+        // Silent catch for live typing
+      } finally {
+        setSearchingRapidRepo(false);
+      }
+    },
+    [banks, findSmartBankMatch]
+  );
+
+  const handleVehicleNumberChange = (text: string) => {
+    const upper = text.toUpperCase();
+    setVehicleNumber(upper);
+    setRapidRepoMatchBanner(null);
+
+    if (lookupTimeoutRef.current) {
+      clearTimeout(lookupTimeoutRef.current);
+    }
+
+    const clean = upper.replace(/[^A-Z0-9]/g, '');
+    if (clean.length >= 6) {
+      lookupTimeoutRef.current = setTimeout(() => {
+        triggerRapidRepoAutoLookup(upper);
+      }, 550);
+    }
+  };
+
   // Read search prefill params if navigated from Rapid Repo Vehicle Search
   const searchParams = useLocalSearchParams<{
     prefillVehicleNumber?: string;
@@ -233,8 +492,17 @@ export default function VehicleAddScreen() {
       setCustomerName(searchParams.prefillCustomerName);
     }
     if (searchParams.prefillBankName) {
-      setSelectedBankName(searchParams.prefillBankName);
-      setBankCategory('direct');
+      const smartMatch = findSmartBankMatch(searchParams.prefillBankName, banks);
+      if (smartMatch) {
+        setBankCategory(smartMatch.category);
+        setSelectedBankId(smartMatch.bankId);
+        setSelectedBankName(smartMatch.bankName);
+        if (smartMatch.thirdPartyId) setSelectedThirdPartyId(smartMatch.thirdPartyId);
+        if (smartMatch.groupName) setSelectedGroupName(smartMatch.groupName);
+      } else {
+        setSelectedBankName(searchParams.prefillBankName);
+        setBankCategory('direct');
+      }
     }
     if (searchParams.prefillBrand) {
       setBrand(searchParams.prefillBrand);
@@ -248,6 +516,9 @@ export default function VehicleAddScreen() {
     if (searchParams.prefillEngineNumber) {
       setEngineNumber(searchParams.prefillEngineNumber);
     }
+    if (searchParams.prefillLoanNumber) {
+      setLoanNumber(searchParams.prefillLoanNumber);
+    }
   }, [
     searchParams.prefillVehicleNumber,
     searchParams.prefillCustomerName,
@@ -257,6 +528,8 @@ export default function VehicleAddScreen() {
     searchParams.prefillChassisNumber,
     searchParams.prefillEngineNumber,
     searchParams.prefillLoanNumber,
+    banks,
+    findSmartBankMatch,
   ]);
 
   // Fetch Tenant Details
@@ -366,6 +639,7 @@ export default function VehicleAddScreen() {
         engineNumber,
         customerName,
         customerPhone,
+        loanNumber,
         repoAgency,
         repoAgentName,
         placeOfPossession,
@@ -390,6 +664,7 @@ export default function VehicleAddScreen() {
     engineNumber,
     customerName,
     customerPhone,
+    loanNumber,
     repoAgency,
     repoAgentName,
     placeOfPossession,
@@ -435,6 +710,7 @@ export default function VehicleAddScreen() {
                     if (d.engineNumber) setEngineNumber(d.engineNumber);
                     if (d.customerName) setCustomerName(d.customerName);
                     if (d.customerPhone) setCustomerPhone(d.customerPhone);
+                    if (d.loanNumber) setLoanNumber(d.loanNumber);
                     if (d.repoAgency) setRepoAgency(d.repoAgency);
                     if (d.repoAgentName) setRepoAgentName(d.repoAgentName);
                     if (d.placeOfPossession) setPlaceOfPossession(d.placeOfPossession);
@@ -841,6 +1117,7 @@ export default function VehicleAddScreen() {
         engineNumber: engineNumber.trim() || undefined,
         bankName: selectedBankName.trim() || (bankCategory === 'cash' ? 'DIRECT CASH / OTHER' : 'DIRECT BANK'),
         bankId: selectedBankId || undefined,
+        loanNumber: loanNumber.trim() || undefined,
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         repoAgency: combinedRepoAgency,
@@ -1357,7 +1634,15 @@ export default function VehicleAddScreen() {
 
                 {/* Registration Number Plate Input */}
                 <View style={styles.fieldBlock}>
-                  <Text style={styles.fieldLabel}>Vehicle Registration No. *</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <Text style={[styles.fieldLabel, { marginBottom: 0 }]}>Vehicle Registration No. *</Text>
+                    {searchingRapidRepo && (
+                      <View style={styles.searchingPill}>
+                        <ActivityIndicator size="small" color="#2563EB" style={{ transform: [{ scale: 0.7 }] }} />
+                        <Text style={styles.searchingPillText}>Auto-Searching Rapid Repo...</Text>
+                      </View>
+                    )}
+                  </View>
                   <View style={styles.plateInputContainer}>
                     <View style={styles.plateIndBadge}>
                       <Text style={styles.plateIndText}>IND</Text>
@@ -1367,7 +1652,7 @@ export default function VehicleAddScreen() {
                       placeholder="HR-26-BQ-8811"
                       placeholderTextColor="#94A3B8"
                       value={vehicleNumber}
-                      onChangeText={t => setVehicleNumber(t.toUpperCase())}
+                      onChangeText={handleVehicleNumberChange}
                       autoCapitalize="characters"
                       autoCorrect={false}
                       maxLength={16}
@@ -1376,6 +1661,16 @@ export default function VehicleAddScreen() {
                       <ActivityIndicator size="small" color="#2563EB" style={{ marginRight: 10 }} />
                     )}
                   </View>
+
+                  {/* Auto-filled Success Badge */}
+                  {rapidRepoMatchBanner && !searchingRapidRepo && (
+                    <View style={styles.autoFillSuccessBadge}>
+                      <Sparkles size={13} color="#059669" strokeWidth={2.2} />
+                      <Text style={styles.autoFillSuccessText} numberOfLines={1}>
+                        {rapidRepoMatchBanner}
+                      </Text>
+                    </View>
+                  )}
                 </View>
 
                 {/* Vehicle Category Dropdown */}
@@ -1489,6 +1784,20 @@ export default function VehicleAddScreen() {
                     </TouchableOpacity>
                   </View>
                 )}
+
+                {/* Loan / Agreement Number */}
+                <View style={styles.fieldBlock}>
+                  <Text style={styles.fieldLabel}>Loan / Agreement Number</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="e.g. AGR12345678 or L-998822"
+                    placeholderTextColor="#94A3B8"
+                    value={loanNumber}
+                    onChangeText={t => setLoanNumber(t.toUpperCase())}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                  />
+                </View>
 
                 {/* Shift Warning Banner */}
                 {bankCategory === 'shift' && (
@@ -3153,5 +3462,37 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#EF4444',
+  },
+  searchingPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    gap: 4,
+  },
+  searchingPillText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+  autoFillSuccessBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginTop: 6,
+    gap: 6,
+  },
+  autoFillSuccessText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#059669',
+    flex: 1,
   },
 });

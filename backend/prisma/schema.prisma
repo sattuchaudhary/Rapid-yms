@@ -218,6 +218,7 @@ model Vehicle {
   // Repo Info
   bankName      String
   bankId        String?
+  loanNumber    String?
   repoAgency    String?
   repoDate      DateTime?
   entryDate     DateTime    @default(now())
