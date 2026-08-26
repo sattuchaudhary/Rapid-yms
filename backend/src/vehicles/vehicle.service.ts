@@ -144,6 +144,7 @@ export const getTenantVehiclesService = async (tenantId: string, filters: Vehicl
         id: true,
         tenantId: true,
         vehicleNumber: true,
+        loanNumber: true,
         chassisNumber: true,
         engineNumber: true,
         vehicleType: true,
