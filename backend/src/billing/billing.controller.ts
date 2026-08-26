@@ -1,6 +1,11 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../common/tenant.middleware';
-import { getOrCalculateBillingService, recordPaymentService, reconcilePaymentService } from './billing.service';
+import {
+  getOrCalculateBillingService,
+  recordPaymentService,
+  reconcilePaymentService,
+  getBillingFinancialMetricsService,
+} from './billing.service';
 import { z } from 'zod';
 
 const paymentSchema = z.object({
@@ -46,6 +51,21 @@ export const reconcilePayment = async (req: AuthRequest, res: Response, next: Ne
 
     const billing = await reconcilePaymentService(vehicleId, tenantId, userId, amount);
     res.json({ success: true, data: billing });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getFinancialMetrics = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const tenantId = req.user!.tenantId;
+    const { startDate, endDate } = req.query;
+    const metrics = await getBillingFinancialMetricsService(
+      tenantId,
+      startDate as string | undefined,
+      endDate as string | undefined
+    );
+    res.json({ success: true, data: metrics });
   } catch (err) {
     next(err);
   }

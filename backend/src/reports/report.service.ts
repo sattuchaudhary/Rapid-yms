@@ -66,7 +66,21 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
             }
           ]
         },
-        include: { billing: true, release: true }
+        select: {
+          id: true,
+          entryDate: true,
+          yardStatus: true,
+          billing: {
+            select: {
+              dailyRate: true,
+            },
+          },
+          release: {
+            select: {
+              releasedAt: true,
+            },
+          },
+        },
       }),
       // Pakka in period
       prisma.vehicle.findMany({
@@ -81,7 +95,23 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
             }
           ]
         },
-        include: { billing: true, release: true }
+        select: {
+          id: true,
+          entryDate: true,
+          yardStatus: true,
+          billingStart: true,
+          billing: {
+            select: {
+              dailyRate: true,
+              billingStartDate: true,
+            },
+          },
+          release: {
+            select: {
+              releasedAt: true,
+            },
+          },
+        },
       })
     ]);
 
@@ -140,7 +170,18 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
       where: { tenantId },
       orderBy: { entryDate: 'desc' },
       take: 5,
-      include: { yardLocation: true },
+      select: {
+        id: true,
+        vehicleNumber: true,
+        brand: true,
+        model: true,
+        entryDate: true,
+        yardStatus: true,
+        bankName: true,
+        yardLocation: {
+          select: { zone: true, slot: true },
+        },
+      },
     });
 
     // Recent releases
@@ -148,7 +189,21 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
       where: { tenantId, releaseStatus: 'RELEASED' },
       orderBy: { releasedAt: 'desc' },
       take: 5,
-      include: { vehicle: true },
+      select: {
+        id: true,
+        gatePassNumber: true,
+        releasedAt: true,
+        releaseType: true,
+        vehicle: {
+          select: {
+            id: true,
+            vehicleNumber: true,
+            brand: true,
+            model: true,
+            bankName: true,
+          },
+        },
+      },
     });
 
     return {
@@ -328,12 +383,25 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
     // Active KACHHA vehicles to compute accrued losses
     prisma.vehicle.findMany({
       where: { tenantId, yardStatus: 'KACHHA' },
-      include: { billing: true }
+      select: {
+        id: true,
+        entryDate: true,
+        bankId: true,
+        vehicleType: true,
+        billing: { select: { dailyRate: true } },
+      },
     }),
     // Active PAKKA vehicles to compute accrued billing
     prisma.vehicle.findMany({
       where: { tenantId, yardStatus: 'PAKKA' },
-      include: { billing: true }
+      select: {
+        id: true,
+        entryDate: true,
+        billingStart: true,
+        bankId: true,
+        vehicleType: true,
+        billing: { select: { dailyRate: true, billingStartDate: true } },
+      },
     }),
     // Vehicles entered today
     prisma.vehicle.count({
@@ -453,7 +521,18 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
     where: { tenantId },
     orderBy: { entryDate: 'desc' },
     take: 5,
-    include: { yardLocation: true },
+    select: {
+      id: true,
+      vehicleNumber: true,
+      brand: true,
+      model: true,
+      entryDate: true,
+      yardStatus: true,
+      bankName: true,
+      yardLocation: {
+        select: { zone: true, slot: true },
+      },
+    },
   });
 
   // Recent releases
@@ -461,7 +540,21 @@ export const getDashboardStatsService = async (tenantId: string, startDate?: Dat
     where: { tenantId, releaseStatus: 'RELEASED' },
     orderBy: { releasedAt: 'desc' },
     take: 5,
-    include: { vehicle: true },
+    select: {
+      id: true,
+      gatePassNumber: true,
+      releasedAt: true,
+      releaseType: true,
+      vehicle: {
+        select: {
+          id: true,
+          vehicleNumber: true,
+          brand: true,
+          model: true,
+          bankName: true,
+        },
+      },
+    },
   });
 
   // Combine Realized Collections + Active Pakka Accrued Dues for Total Earning Overview
@@ -716,6 +809,38 @@ export const getDashboardVehiclesService = async (
     dateLte = endDate;
   }
 
+  const dashboardVehicleSelect = {
+    id: true,
+    vehicleNumber: true,
+    brand: true,
+    model: true,
+    color: true,
+    vehicleType: true,
+    bankName: true,
+    repoAgency: true,
+    entryDate: true,
+    yardStatus: true,
+    createdAt: true,
+    yardLocation: {
+      select: { zone: true, slot: true },
+    },
+    billing: {
+      select: {
+        dailyRate: true,
+        totalAmount: true,
+        paidAmount: true,
+        paymentStatus: true,
+      },
+    },
+    release: {
+      select: {
+        releasedAt: true,
+        gatePassNumber: true,
+        releaseType: true,
+      },
+    },
+  };
+
   if (status === 'RELEASED') {
     const whereClause: any = {
       tenantId,
@@ -731,14 +856,11 @@ export const getDashboardVehiclesService = async (
     }
     return prisma.vehicle.findMany({
       where: whereClause,
-      include: {
-        yardLocation: true,
-        billing: true,
-        release: true,
-      },
+      select: dashboardVehicleSelect,
       orderBy: {
         release: { releasedAt: 'desc' },
       },
+      take: 100,
     });
   }
 
@@ -758,14 +880,11 @@ export const getDashboardVehiclesService = async (
     }
     return prisma.vehicle.findMany({
       where: whereClause,
-      include: {
-        yardLocation: true,
-        billing: true,
-        release: true,
-      },
+      select: dashboardVehicleSelect,
       orderBy: {
         release: { releasedAt: 'desc' },
       },
+      take: 100,
     });
   }
 
@@ -783,13 +902,11 @@ export const getDashboardVehiclesService = async (
     }
     return prisma.vehicle.findMany({
       where: whereClause,
-      include: {
-        yardLocation: true,
-        billing: true,
-      },
+      select: dashboardVehicleSelect,
       orderBy: {
         entryDate: 'asc', // oldest first
       },
+      take: 100,
     });
   }
 
@@ -808,13 +925,11 @@ export const getDashboardVehiclesService = async (
 
   return prisma.vehicle.findMany({
     where: whereClause,
-    include: {
-      yardLocation: true,
-      billing: true,
-    },
+    select: dashboardVehicleSelect,
     orderBy: {
       entryDate: 'desc',
     },
+    take: 100,
   });
 };
 

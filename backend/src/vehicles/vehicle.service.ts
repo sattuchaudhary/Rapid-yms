@@ -132,23 +132,122 @@ export const getTenantVehiclesService = async (tenantId: string, filters: Vehicl
     if (filters.endDate) whereClause.entryDate.lte = new Date(filters.endDate);
   }
 
-  const page = filters.page || 1;
-  const limit = filters.limit || 50;
+  const page = Math.max(1, filters.page || 1);
+  const limit = Math.min(Math.max(1, filters.limit || 50), 100);
   const skip = (page - 1) * limit;
 
-  const [total, vehicles, allVehicleIds] = await Promise.all([
+  const [total, vehicles, tenant] = await Promise.all([
     prisma.vehicle.count({ where: whereClause }),
     prisma.vehicle.findMany({
       where: whereClause,
-      include: {
-        photos: true,
-        inventory: true,
-        billing: true,
-        release: true,
-        yardLocation: true,
-        enteredBy: { select: { id: true, name: true } },
+      select: {
+        id: true,
+        tenantId: true,
+        vehicleNumber: true,
+        chassisNumber: true,
+        engineNumber: true,
+        vehicleType: true,
+        brand: true,
+        model: true,
+        color: true,
+        bankName: true,
+        bankId: true,
+        repoAgency: true,
+        repoDate: true,
+        entryDate: true,
+        customerName: true,
+        customerPhone: true,
+        yardStatus: true,
+        repoKitDate: true,
+        kachhaStartDate: true,
+        pakkaDate: true,
+        releaseOrderDate: true,
+        actualReleaseDate: true,
+        releasePersonType: true,
+        billingStart: true,
+        yardLocationId: true,
+        shiftStatus: true,
+        shiftBankId: true,
+        shiftCreatedAt: true,
+        isDeleted: true,
+        deletedAt: true,
+        createdAt: true,
+        updatedAt: true,
+        photos: {
+          select: {
+            id: true,
+            photoType: true,
+            s3Url: true,
+            thumbnailUrl: true,
+            fileSize: true,
+            takenAt: true,
+          },
+        },
+        inventory: {
+          select: {
+            id: true,
+            itemName: true,
+            isPresent: true,
+            remarks: true,
+          },
+        },
+        billing: {
+          select: {
+            id: true,
+            dailyRate: true,
+            totalDays: true,
+            totalAmount: true,
+            bankPayableDays: true,
+            bankPayable: true,
+            customerPayableDays: true,
+            customerPayable: true,
+            extraDays: true,
+            extraAmount: true,
+            paymentStatus: true,
+            paidAmount: true,
+            paymentMode: true,
+            billingStartDate: true,
+            approvedTillDate: true,
+          },
+        },
+        release: {
+          select: {
+            id: true,
+            releaseStatus: true,
+            releaseType: true,
+            gatePassNumber: true,
+            gatePassUrl: true,
+            releasedAt: true,
+            approvedAt: true,
+          },
+        },
+        yardLocation: {
+          select: {
+            id: true,
+            zone: true,
+            slot: true,
+            isOccupied: true,
+          },
+        },
+        enteredBy: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         bank: {
-          include: {
+          select: {
+            id: true,
+            name: true,
+            isThirdParty: true,
+            bankCategory: true,
+            isShiftBank: true,
+            parkingEnabled: true,
+            kachhaParkingRate: true,
+            pakkaParkingRate: true,
+            releaseOrderParkingRate: true,
+            parkingPayer: true,
+            parkingWaiverDays: true,
             parkingRates: true,
           },
         },
@@ -157,20 +256,20 @@ export const getTenantVehiclesService = async (tenantId: string, filters: Vehicl
       skip,
       take: limit,
     }),
-    prisma.vehicle.findMany({
-      where: { tenantId },
-      select: { id: true },
-      orderBy: { createdAt: 'asc' },
+    // Fetch tenant storage settings in parallel for R2 rewrite
+    prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        storageAccount: {
+          select: {
+            provider: true,
+            region: true,
+            endpoint: true,
+          },
+        },
+      },
     }),
   ]);
-
-  const serialMap = new Map(allVehicleIds.map((v, idx) => [v.id, idx + 1]));
-
-  // Fetch tenant storage settings to apply R2 rewrite
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: tenantId },
-    include: { storageAccount: true },
-  });
 
   const hasR2Rewrite = tenant?.storageAccount?.provider === 'CLOUDFLARE_R2' && tenant.storageAccount.region?.startsWith('http');
   const publicDomain = hasR2Rewrite ? tenant.storageAccount!.region!.replace(/\/$/, '') : '';
@@ -185,8 +284,9 @@ export const getTenantVehiclesService = async (tenantId: string, filters: Vehicl
   }
   const pathPrefix = endpointSuffix ? `${endpointSuffix}/` : '';
 
-  const mappedVehicles = vehicles.map((vehicle) => {
-    const serialNumber = serialMap.get(vehicle.id) || 1;
+  const mappedVehicles = vehicles.map((vehicle, idx) => {
+    // Deterministic serial number without needing full-table scan:
+    const serialNumber = Math.max(1, total - (skip + idx));
 
     let photoMapped: any = { ...vehicle, serialNumber };
 
@@ -204,8 +304,6 @@ export const getTenantVehiclesService = async (tenantId: string, filters: Vehicl
     }
     return photoMapped;
   });
-
-  return { data: mappedVehicles, total, page, limit, totalPages: Math.ceil(total / limit) };
 
   return { data: mappedVehicles, total, page, limit, totalPages: Math.ceil(total / limit) };
 };

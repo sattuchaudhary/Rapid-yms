@@ -1,8 +1,11 @@
 import { Router } from 'express';
-import { getBillingByVehicle, makePayment, reconcilePayment } from './billing.controller';
+import { getBillingByVehicle, makePayment, reconcilePayment, getFinancialMetrics } from './billing.controller';
 import { authenticate, authorize } from '../auth/auth.middleware';
 
 const router = Router();
+
+// Financial Summary / Metrics (for Dashboard & Billing Desk)
+router.get('/financial-metrics', authenticate, getFinancialMetrics);
 
 // Only authenticated staff can view billing
 router.get('/:vehicleId', authenticate, getBillingByVehicle);

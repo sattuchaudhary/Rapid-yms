@@ -409,6 +409,15 @@ export const getDashboardStats = async (params: { startDate?: string; endDate?: 
   return await apiRequest(`/api/reports/dashboard${queryString}`);
 };
 
+export const getBillingFinancialMetrics = async (params: { startDate?: string; endDate?: string } = {}): Promise<any> => {
+  const queryParts: string[] = [];
+  if (params.startDate) queryParts.push(`startDate=${encodeURIComponent(params.startDate)}`);
+  if (params.endDate) queryParts.push(`endDate=${encodeURIComponent(params.endDate)}`);
+
+  const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+  return await apiRequest(`/api/billing/financial-metrics${queryString}`);
+};
+
 export const getVehicleParkingCalculation = async (
   vehicleId: string,
   params: {

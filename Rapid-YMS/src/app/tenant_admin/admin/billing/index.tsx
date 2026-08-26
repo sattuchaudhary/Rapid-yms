@@ -22,7 +22,7 @@ import BillingOverviewSection, {
 import BillingFilterModal, {
   BillingTimeFilter,
 } from './components/BillingFilterModal';
-import { getVehicles, getVehicleSummary } from '@/services/api';
+import { getBillingFinancialMetrics } from '@/services/api';
 
 /**
  * Accurately calculates difference in calendar days between start and end date
@@ -98,167 +98,38 @@ export default function BillingManagementScreen() {
         setLoading(true);
         const params = getFilterDateParams(filter, custom);
 
-        // Fetch all vehicles and summary from database
-        const [vehiclesRes, summaryRes] = await Promise.all([
-          getVehicles({ ...params, limit: 1000 }),
-          getVehicleSummary(params),
-        ]);
+        // Fetch precomputed financial metrics directly from optimized backend endpoint
+        const metricsRes = await getBillingFinancialMetrics(params);
+        const m = metricsRes?.data || {};
 
-        const vehiclesList: any[] = vehiclesRes?.data || [];
-        const now = new Date();
-
-        let inYardTotal = 0;
-        let pakkaInYard = 0;
-        let kachhaInYard = 0;
-
-        let pakkaLiveAccruedValue = 0;
-        let kachhaLiveBlockedValue = 0;
-
-        let dailyPakkaInflow = 0;
-        let dailyKachhaLoss = 0;
-
-        let totalPakkaDays = 0;
-        let totalKachhaDays = 0;
-
-        let totalReleased = 0;
-        let pakkaReleased = 0;
-        let kachhaReleased = 0;
-        let releasedSettledAmount = 0;
-        let customerOverstayCharges = 0;
-
-        // Bank-wise accumulation map
-        const bankMap = new Map<string, { count: number; accrued: number; dailyRate: number; totalDays: number }>();
-
-        for (const v of vehiclesList) {
-          const status = v.yardStatus || (v.actualReleaseDate ? 'RELEASED' : v.pakkaDate ? 'PAKKA' : 'KACHHA');
-          
-          const rawEntry = v.kachhaStartDate || v.entryDate || v.createdAt;
-          const entryDate = rawEntry ? new Date(rawEntry) : now;
-
-          const rawPakka = v.pakkaDate || v.repoKitDate;
-          const pakkaDate = rawPakka ? new Date(rawPakka) : null;
-
-          const rawRO = v.releaseOrderDate;
-          const roDate = rawRO ? new Date(rawRO) : null;
-
-          const rawRelease = v.actualReleaseDate || v.release?.releasedAt;
-          const releaseDate = rawRelease ? new Date(rawRelease) : null;
-
-          const bankName = v.bankName || v.bank?.name || v.bank?.bankName || 'General / Other';
-
-          // Lookup vehicle bank rate
-          const vehicleType = v.vehicleType || 'FW';
-          const bankRateConfig = v.bank?.parkingRates?.find?.((r: any) => r.vehicleType === vehicleType);
-
-          const pakkaRate = Number(
-            bankRateConfig?.pakkaRate ||
-            v.bank?.pakkaParkingRate ||
-            bankRateConfig?.dailyRate ||
-            v.bank?.kachhaParkingRate ||
-            150
-          );
-
-          const kachhaRate = Number(
-            bankRateConfig?.kachhaRate ||
-            v.bank?.kachhaParkingRate ||
-            pakkaRate ||
-            150
-          );
-
-          const roRate = Number(
-            bankRateConfig?.releaseOrderRate ||
-            v.bank?.releaseOrderParkingRate ||
-            pakkaRate ||
-            150
-          );
-
-          const waiverDays = Number(v.bank?.parkingWaiverDays || 0);
-
-          if (status === 'PAKKA') {
-            // Actively standing Pakka vehicle in yard
-            inYardTotal++;
-            pakkaInYard++;
-            dailyPakkaInflow += pakkaRate;
-
-            const pakkaStart = pakkaDate || entryDate;
-            const daysStanding = Math.max(1, getDaysBetween(pakkaStart, now));
-            totalPakkaDays += daysStanding;
-
-            const vehicleAccrued = daysStanding * pakkaRate;
-            pakkaLiveAccruedValue += vehicleAccrued;
-
-            const bEntry = bankMap.get(bankName) || { count: 0, accrued: 0, dailyRate: 0, totalDays: 0 };
-            bEntry.count += 1;
-            bEntry.accrued += vehicleAccrued;
-            bEntry.dailyRate += pakkaRate;
-            bEntry.totalDays += daysStanding;
-            bankMap.set(bankName, bEntry);
-          } else if (status === 'KACHHA') {
-            // Actively standing Kachha vehicle in yard
-            inYardTotal++;
-            kachhaInYard++;
-            dailyKachhaLoss += kachhaRate;
-
-            const daysStanding = Math.max(1, getDaysBetween(entryDate, now));
-            totalKachhaDays += daysStanding;
-
-            const vehicleLoss = daysStanding * kachhaRate;
-            kachhaLiveBlockedValue += vehicleLoss;
-          } else if (status === 'RELEASED') {
-            // Released Vehicle
-            totalReleased++;
-            const finalRelease = releaseDate || now;
-
-            if (pakkaDate) {
-              pakkaReleased++;
-              const pakkaDays = getDaysBetween(pakkaDate, roDate || finalRelease);
-              releasedSettledAmount += (pakkaDays * pakkaRate);
-            } else {
-              kachhaReleased++;
-              const kachhaDays = getDaysBetween(entryDate, finalRelease);
-              const paid = Number(v.billing?.paidAmount || 0);
-              releasedSettledAmount += (paid > 0 ? paid : (kachhaDays * kachhaRate));
-            }
-
-            if (roDate) {
-              const grossRODays = getDaysBetween(roDate, finalRelease);
-              const chargeableDays = Math.max(0, grossRODays - waiverDays);
-              customerOverstayCharges += (chargeableDays * roRate);
-            }
-          }
-        }
-
-        // Summary sync if total vehicles in summary differed
-        if (summaryRes?.data && vehiclesList.length === 0) {
-          const s = summaryRes.data;
-          inYardTotal = s.inYard || 0;
-          pakkaInYard = s.pakka || 0;
-          kachhaInYard = s.kachha || 0;
-          totalReleased = s.released || 0;
-        }
+        const inYardTotal = m.inYardTotal || 0;
+        const pakkaInYard = m.pakkaInYard || 0;
+        const kachhaInYard = m.kachhaInYard || 0;
+        const pakkaLiveAccruedValue = m.pakkaLiveAccruedValue || 0;
+        const kachhaLiveBlockedValue = m.kachhaLiveBlockedValue || 0;
+        const dailyPakkaInflow = m.dailyPakkaInflow || 0;
+        const dailyKachhaLoss = m.dailyKachhaLoss || 0;
+        const totalPakkaDays = m.totalPakkaDays || 0;
+        const totalKachhaDays = m.totalKachhaDays || 0;
+        const totalReleased = m.totalReleased || 0;
+        const pakkaReleased = m.pakkaReleased || 0;
+        const kachhaReleased = m.kachhaReleased || 0;
+        const releasedSettledAmount = m.releasedSettledAmount || 0;
+        const customerOverstayCharges = m.customerOverstayCharges || 0;
 
         const totalLiveYardValuation = pakkaLiveAccruedValue + kachhaLiveBlockedValue;
         const netDailyRate = dailyPakkaInflow - dailyKachhaLoss;
         const averagePakkaDays = pakkaInYard > 0 ? Math.round(totalPakkaDays / pakkaInYard) : 0;
         const averageKachhaDays = kachhaInYard > 0 ? Math.round(totalKachhaDays / kachhaInYard) : 0;
 
-        const bankBreakdown: BankValuationBreakdown[] = Array.from(bankMap.entries()).map(([name, b]) => ({
-          bankName: name,
-          vehicleCount: b.count,
-          accruedValue: b.accrued,
-          dailyRate: b.dailyRate,
-          averageDays: b.count > 0 ? Math.round(b.totalDays / b.count) : 0,
+        const rawBankBreakdown: any[] = m.bankBreakdown || [];
+        const bankBreakdown: BankValuationBreakdown[] = rawBankBreakdown.map((b: any) => ({
+          bankName: b.bank || b.bankName || 'Other',
+          vehicleCount: b.count || 0,
+          accruedValue: b.accrued || 0,
+          dailyRate: b.dailyRate || 0,
+          averageDays: b.count > 0 ? Math.round((b.totalDays || 0) / b.count) : 0,
         })).sort((a, b) => b.accruedValue - a.accruedValue);
-
-        console.log('[Billing Real Accrual Summary]:', {
-          vehiclesCount: vehiclesList.length,
-          inYardTotal,
-          pakkaInYard,
-          kachhaInYard,
-          pakkaLiveAccruedValue,
-          kachhaLiveBlockedValue,
-          totalLiveYardValuation,
-        });
 
         setFinancialData({
           inYardTotal,
